@@ -1,0 +1,28 @@
+# Build output
+target/
+out/
+build/
+*.class
+*.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets - never commit API keys or tokens
+config/ai.properties
+*.env
+.env
+*token*
+*secret*
+
+# User attempt history (local only)
+attempts/

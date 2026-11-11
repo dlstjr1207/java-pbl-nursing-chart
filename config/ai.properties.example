@@ -1,0 +1,5 @@
+# Copy this file to config/ai.properties and fill in your own key.
+# config/ai.properties is git-ignored. NEVER commit a real key.
+ai.provider=
+ai.apiKey=
+ai.model=
