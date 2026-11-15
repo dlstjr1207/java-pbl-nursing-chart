@@ -18,6 +18,8 @@
 | [docs/기획안.md](docs/기획안.md) | 범위, 기능, 점검 기준, 일정 |
 | [docs/시나리오.md](docs/시나리오.md) | 가상 환자 시나리오 3개 |
 | [docs/근거표.md](docs/근거표.md) | 임상 내용의 출처 |
+| [docs/자료조사.md](docs/자료조사.md) | 찾아서 쓸 외부 자료와 만들 데이터 목록 |
+| [docs/templates/시나리오-양식.md](docs/templates/시나리오-양식.md) | 새 시나리오 양식 |
 | [docs/화면명세.md](docs/화면명세.md) | 화면별 명세 |
 | [docs/design/](docs/design/README.md) | Figma 화면 PNG |
 | [docs/tasks.md](docs/tasks.md) | 작업 목록 |
