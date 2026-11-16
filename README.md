@@ -16,10 +16,11 @@
 |---|---|
 | [docs/00-팀가이드.md](docs/00-팀가이드.md) | 시작 안내와 해야 할 일 |
 | [docs/기획안.md](docs/기획안.md) | 범위, 기능, 점검 기준, 일정 |
-| [docs/시나리오.md](docs/시나리오.md) | 가상 환자 시나리오 3개 |
+| [docs/시나리오.md](docs/시나리오.md) | 사용자 흐름(처음부터 끝까지 어떻게 쓰는지) |
+| [docs/환자케이스.md](docs/환자케이스.md) | 가상 환자 케이스 3개 |
 | [docs/근거표.md](docs/근거표.md) | 임상 내용의 출처 |
 | [docs/자료조사.md](docs/자료조사.md) | 찾아서 쓸 외부 자료와 만들 데이터 목록 |
-| [docs/templates/시나리오-양식.md](docs/templates/시나리오-양식.md) | 새 시나리오 양식 |
+| [docs/templates/환자케이스-양식.md](docs/templates/환자케이스-양식.md) | 새 환자 케이스 양식 |
 | [docs/화면명세.md](docs/화면명세.md) | 화면별 명세 |
 | [docs/design/](docs/design/README.md) | Figma 화면 PNG |
 | [docs/tasks.md](docs/tasks.md) | 작업 목록 |
@@ -29,11 +30,11 @@
 ## 개발 환경 (구현 단계에서 사용)
 
 - Java 17 이상, Maven, Swing(+FlatLaf), Gson, JUnit 5
-- 폴더: `src/main/java/app/`(코드), `src/main/resources/scenarios/`(시나리오 JSON), `config/ai.properties.example`(AI 설정 예시)
+- 폴더: `src/main/java/app/`(코드), `src/main/resources/cases/`(환자 케이스 JSON), `config/ai.properties.example`(AI 설정 예시)
 - `pom.xml`은 아직 검증하지 않았습니다.
 
 ## 규칙
 
 - **API 키·토큰·비밀번호는 절대 커밋하지 않습니다.** `config/ai.properties`는 `.gitignore`에 포함되어 있습니다.
-- 시나리오는 **전부 가상 환자**입니다. 실제 환자 기록을 넣지 않습니다.
+- 환자 케이스는 **전부 가상 환자**입니다. 실제 환자 기록을 넣지 않습니다.
 - 임상 주장은 [근거표](docs/근거표.md)의 출처를 달아 씁니다. 근거가 없으면 `[검증필요]`로 둡니다.
