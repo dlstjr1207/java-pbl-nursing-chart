@@ -19,7 +19,9 @@
 | [docs/시나리오.md](docs/시나리오.md) | 사용자 흐름(처음부터 끝까지 어떻게 쓰는지) |
 | [docs/환자케이스.md](docs/환자케이스.md) | 가상 환자 케이스 3개 |
 | [docs/근거표.md](docs/근거표.md) | 임상 내용의 출처 |
-| [docs/자료조사.md](docs/자료조사.md) | 찾아서 쓸 외부 자료와 만들 데이터 목록 |
+| [docs/팀분담.md](docs/팀분담.md) | **우리가 직접 해야 할 일** (역할 A~D, 마감, 방법) |
+| [docs/자료조사.md](docs/자료조사.md) | 찾아서 쓸 외부 자료와 만들 데이터 목록 (**00장: 화면 기준 체크리스트**) |
+| [docs/design/신규화면-설계.md](docs/design/신규화면-설계.md) | 새로 그릴 화면 와이어프레임(SVG) |
 | [docs/templates/환자케이스-양식.md](docs/templates/환자케이스-양식.md) | 새 환자 케이스 양식 |
 | [docs/화면명세.md](docs/화면명세.md) | 화면별 명세 |
 | [docs/design/](docs/design/README.md) | Figma 화면 PNG |

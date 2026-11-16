@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="850" viewBox="0 0 1120 850" font-family="Pretendard, 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<title>입력 영역 ③ SBAR 작성</title>
+<rect width="1120" height="850" fill="#F8F9FF"/>
+<rect x="30" y="30" width="1060" height="790" rx="14" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="60" y="80" font-size="22" font-weight="700" fill="#00236F" text-anchor="start">SBAR 인계 작성</text>
+<rect x="260" y="62" width="44" height="22" rx="11" fill="#FFE9A8" stroke="#FFE9A8" stroke-width="1"/>
+<text x="282" y="77" font-size="12" font-weight="700" fill="#6B4E00" text-anchor="middle">신규</text>
+<rect x="60" y="100" width="1000" height="40" rx="8" fill="#FFF1F0" stroke="#BA1A1A" stroke-width="1"/>
+<text x="76" y="126" font-size="14" font-weight="600" fill="#BA1A1A" text-anchor="start">비어 있는 필수 영역: B, A, R  (제출 시에만 표시)</text>
+<text x="60" y="170" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">S — Situation (현재 상황·위험) *</text>
+<rect x="60" y="178" width="490" height="170" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="200" font-size="12" font-weight="400" fill="#757682" text-anchor="start">지금 무슨 일이 있었는지, 위험 지표는 무엇인지.</text>
+<text x="72" y="218" font-size="12" font-weight="400" fill="#757682" text-anchor="start">시각과 환자 발언을 포함하세요.</text>
+<text x="570" y="170" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">B — Background (배경) *</text>
+<rect x="570" y="178" width="490" height="170" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="582" y="200" font-size="12" font-weight="400" fill="#757682" text-anchor="start">진단, 주요 약물, 알레르기·부작용 이력,</text>
+<text x="582" y="218" font-size="12" font-weight="400" fill="#757682" text-anchor="start">관련 검사 결과(예: 혈중 리튬 농도).</text>
+<text x="60" y="380" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">A — Assessment (사정) *</text>
+<rect x="60" y="388" width="490" height="170" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="410" font-size="12" font-weight="400" fill="#757682" text-anchor="start">현재 상태 평가: 사고내용, 지각·병식,</text>
+<text x="72" y="428" font-size="12" font-weight="400" fill="#757682" text-anchor="start">구강 은닉 검사 결과 등. 판단 표현은 피하세요.</text>
+<text x="570" y="380" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">R — Recommendation (권고) *</text>
+<rect x="570" y="388" width="490" height="170" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="586" y="414" font-size="12" font-weight="700" fill="#00236F" text-anchor="start">시각</text>
+<text x="676" y="414" font-size="12" font-weight="700" fill="#00236F" text-anchor="start">다음 듀티에서 할 일</text>
+<rect x="586" y="424" width="70" height="30" rx="6" fill="#F8F9FF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="596" y="444" font-size="13" font-weight="400" fill="#757682" text-anchor="start">16:30</text>
+<rect x="666" y="424" width="380" height="30" rx="6" fill="#F8F9FF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="676" y="444" font-size="12" font-weight="400" fill="#757682" text-anchor="start">예: 15분 간격 안전 라운딩 유지</text>
+<rect x="586" y="464" width="70" height="30" rx="6" fill="#F8F9FF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="596" y="484" font-size="13" font-weight="400" fill="#757682" text-anchor="start">19:00</text>
+<rect x="666" y="464" width="380" height="30" rx="6" fill="#F8F9FF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="676" y="484" font-size="12" font-weight="400" fill="#757682" text-anchor="start">예: 불안 재발 시 VAS 평가 후 PRN 재사정</text>
+<rect x="586" y="508" width="130" height="36" rx="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="651.0" y="531.0" font-size="15" font-weight="600" fill="#00236F" text-anchor="middle">+ 행 추가</text>
+<rect x="60" y="590" width="1000" height="120" rx="8" fill="#F8F9FF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="76" y="618" font-size="13" font-weight="700" fill="#00236F" text-anchor="start">입력 도움말</text>
+<text x="76" y="644" font-size="13" font-weight="400" fill="#757682" text-anchor="start">• S·B·A·R 네 영역을 모두 채워야 제출할 수 있습니다.</text>
+<text x="76" y="666" font-size="13" font-weight="400" fill="#757682" text-anchor="start">• R에는 시각과 구체적인 행동이 있어야 합니다.</text>
+<text x="76" y="688" font-size="13" font-weight="400" fill="#757682" text-anchor="start">• 환자 발언은 따옴표로 그대로 인용하세요.</text>
+<rect x="700" y="750" width="170" height="44" rx="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="785.0" y="777.0" font-size="15" font-weight="600" fill="#00236F" text-anchor="middle">임시저장</text>
+<rect x="890" y="750" width="170" height="44" rx="8" fill="#00236F" stroke="#00236F" stroke-width="1"/>
+<text x="975.0" y="777.0" font-size="15" font-weight="600" fill="#FFFFFF" text-anchor="middle">제출</text>
+</svg>

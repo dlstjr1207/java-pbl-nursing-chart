@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="880" viewBox="0 0 780 880" font-family="Pretendard, 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<title>입력 영역 ① 관찰 기록 추가</title>
+<rect width="780" height="880" fill="#F8F9FF"/>
+<rect x="30" y="30" width="720" height="820" rx="14" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="60" y="80" font-size="22" font-weight="700" fill="#00236F" text-anchor="start">관찰 기록 추가</text>
+<rect x="250" y="62" width="44" height="22" rx="11" fill="#FFE9A8" stroke="#FFE9A8" stroke-width="1"/>
+<text x="272" y="77" font-size="12" font-weight="700" fill="#6B4E00" text-anchor="middle">신규</text>
+<text x="60" y="120" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">시각 *</text>
+<rect x="60" y="128" width="200" height="40" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="153.0" font-size="13" font-weight="400" fill="#757682" text-anchor="start">09:25</text>
+<text x="300" y="120" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">근무 *</text>
+<circle cx="310" cy="152" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<circle cx="310" cy="152" r="4" fill="#00236F"/>
+<text x="326" y="157" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">Day</text>
+<circle cx="390" cy="152" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="406" y="157" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">Evening</text>
+<circle cx="500" cy="152" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="516" y="157" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">Night</text>
+<text x="60" y="220" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">분류 태그 * (여러 개 선택)</text>
+<rect x="60" y="232" width="89" height="30" rx="15" fill="#E6ECFF" stroke="#E6ECFF" stroke-width="1"/>
+<text x="104.5" y="252" font-size="13" font-weight="600" fill="#00236F" text-anchor="middle">안정 회복</text>
+<rect x="159" y="232" width="89" height="30" rx="15" fill="#00236F" stroke="#00236F" stroke-width="1"/>
+<text x="203.5" y="252" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">불안 급증</text>
+<rect x="258" y="232" width="102" height="30" rx="15" fill="#00236F" stroke="#00236F" stroke-width="1"/>
+<text x="309.0" y="252" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">PRN 투여</text>
+<rect x="370" y="232" width="89" height="30" rx="15" fill="#E6ECFF" stroke="#E6ECFF" stroke-width="1"/>
+<text x="414.5" y="252" font-size="13" font-weight="600" fill="#00236F" text-anchor="middle">식사·수면</text>
+<rect x="469" y="232" width="89" height="30" rx="15" fill="#E6ECFF" stroke="#E6ECFF" stroke-width="1"/>
+<text x="513.5" y="252" font-size="13" font-weight="600" fill="#00236F" text-anchor="middle">자해 관련</text>
+<rect x="568" y="232" width="50" height="30" rx="15" fill="#E6ECFF" stroke="#E6ECFF" stroke-width="1"/>
+<text x="593.0" y="252" font-size="13" font-weight="600" fill="#00236F" text-anchor="middle">기타</text>
+<text x="60" y="290" font-size="11" font-weight="400" fill="#757682" text-anchor="start">※ 태그 목록은 팀이 정한다 (기획안 열린 질문 7)</text>
+<text x="60" y="320" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">서술 *</text>
+<rect x="60" y="328" width="660" height="180" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="350" font-size="12" font-weight="400" fill="#757682" text-anchor="start">환자 발언은 따옴표(" ")로 그대로 인용하세요.</text>
+<text x="72" y="368" font-size="12" font-weight="400" fill="#757682" text-anchor="start">관찰한 행동은 장소·행동·정도를 사실로만 쓰세요.</text>
+<text x="72" y="386" font-size="12" font-weight="400" fill="#757682" text-anchor="start">진단이나 해석 표현(예: 망상이 심함, 불안해 보임)은 피하세요.</text>
+<text x="60" y="530" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">처치</text>
+<rect x="60" y="538" width="660" height="90" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="560" font-size="12" font-weight="400" fill="#757682" text-anchor="start">시행한 간호, 투약, 재평가 계획 등</text>
+<text x="60" y="650" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">활력징후 (선택)</text>
+<rect x="60" y="664" width="150" height="40" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="689" font-size="13" font-weight="400" fill="#757682" text-anchor="start">혈압  118/76</text>
+<rect x="225" y="664" width="150" height="40" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="237" y="689" font-size="13" font-weight="400" fill="#757682" text-anchor="start">맥박  82</text>
+<rect x="390" y="664" width="150" height="40" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="402" y="689" font-size="13" font-weight="400" fill="#757682" text-anchor="start">호흡  18</text>
+<rect x="555" y="664" width="150" height="40" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="567" y="689" font-size="13" font-weight="400" fill="#757682" text-anchor="start">체온  36.6</text>
+<text x="60" y="748" font-size="13" font-weight="400" fill="#BA1A1A" text-anchor="start">서술을 입력해 주세요</text>
+<text x="720" y="748" font-size="12" font-weight="400" fill="#757682" text-anchor="end">(비어 있을 때만 표시)</text>
+<rect x="450" y="770" width="130" height="44" rx="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="515.0" y="797.0" font-size="15" font-weight="600" fill="#00236F" text-anchor="middle">취소</text>
+<rect x="590" y="770" width="130" height="44" rx="8" fill="#00236F" stroke="#00236F" stroke-width="1"/>
+<text x="655.0" y="797.0" font-size="15" font-weight="600" fill="#FFFFFF" text-anchor="middle">저장</text>
+</svg>

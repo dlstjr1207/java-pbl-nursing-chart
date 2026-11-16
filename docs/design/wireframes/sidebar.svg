@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="640" viewBox="0 0 560 640" font-family="Pretendard, 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<title>왼쪽 메뉴(공통)</title>
+<rect width="560" height="640" fill="#F8F9FF"/>
+<rect x="20" y="20" width="260" height="600" rx="12" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="44" y="60" font-size="20" font-weight="700" fill="#00236F" text-anchor="start">EMR</text>
+<rect x="32" y="90" width="236" height="40" rx="8" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1"/>
+<text x="48" y="116" font-size="14" font-weight="600" fill="#1B1F2A" text-anchor="start">개인 메인</text>
+<rect x="32" y="142" width="236" height="40" rx="8" fill="#00236F" stroke="#00236F" stroke-width="1"/>
+<text x="48" y="168" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="start">환자 정보 종합</text>
+<rect x="32" y="194" width="236" height="40" rx="8" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1"/>
+<text x="48" y="220" font-size="14" font-weight="600" fill="#1B1F2A" text-anchor="start">활력징후 &amp; 이상행동 관찰</text>
+<rect x="32" y="246" width="236" height="40" rx="8" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1"/>
+<text x="48" y="272" font-size="14" font-weight="600" fill="#1B1F2A" text-anchor="start">정규 루틴 투약 점검</text>
+<rect x="32" y="298" width="236" height="40" rx="8" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1"/>
+<text x="48" y="324" font-size="14" font-weight="600" fill="#1B1F2A" text-anchor="start">SBAR 듀티 인계 리포트</text>
+<line x1="32" y1="360" x2="268" y2="360" stroke="#D5D8E4" stroke-width="1"/>
+<text x="48" y="396" font-size="14" font-weight="600" fill="#757682" text-anchor="start">로그아웃</text>
+<rect x="300" y="20" width="240" height="600" rx="12" fill="#FFF7E0" stroke="#E0B040" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="316" y="56" font-size="14" font-weight="700" fill="#B35C00" text-anchor="start">메뉴에서 지울 항목</text>
+<text x="316" y="90" font-size="13" font-weight="400" fill="#1B1F2A" text-anchor="start">• PRN 필요시 투약 관리</text>
+<text x="316" y="118" font-size="13" font-weight="400" fill="#1B1F2A" text-anchor="start">• 간호 기록 및 바이탈·상담</text>
+<text x="316" y="146" font-size="13" font-weight="400" fill="#1B1F2A" text-anchor="start">• 정신상태검사 MSE 사정</text>
+<text x="316" y="174" font-size="13" font-weight="400" fill="#1B1F2A" text-anchor="start">• 리튬 TDM 검사·일정</text>
+<text x="316" y="202" font-size="13" font-weight="400" fill="#1B1F2A" text-anchor="start">• Full-Battery / MMPI 결과</text>
+<text x="316" y="230" font-size="13" font-weight="400" fill="#1B1F2A" text-anchor="start">• To-Do 예정 처치·지시사항</text>
+<text x="316" y="290" font-size="12" font-weight="400" fill="#757682" text-anchor="start">※ 모든 화면(4개)의 왼쪽 메뉴를</text>
+<text x="316" y="310" font-size="12" font-weight="400" fill="#757682" text-anchor="start">왼쪽 5개 + 로그아웃만 남깁니다.</text>
+<text x="316" y="350" font-size="12" font-weight="400" fill="#757682" text-anchor="start">※ 제목의 영문 병기는</text>
+<text x="316" y="370" font-size="12" font-weight="400" fill="#757682" text-anchor="start">한글만 쓸지 정합니다.</text>
+</svg>

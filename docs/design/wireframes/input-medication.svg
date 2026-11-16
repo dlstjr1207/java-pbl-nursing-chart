@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="960" viewBox="0 0 780 960" font-family="Pretendard, 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<title>입력 영역 ② 투약 기록 추가</title>
+<rect width="780" height="960" fill="#F8F9FF"/>
+<rect x="30" y="30" width="720" height="900" rx="14" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="60" y="80" font-size="22" font-weight="700" fill="#00236F" text-anchor="start">투약 기록 추가</text>
+<rect x="250" y="62" width="44" height="22" rx="11" fill="#FFE9A8" stroke="#FFE9A8" stroke-width="1"/>
+<text x="272" y="77" font-size="12" font-weight="700" fill="#6B4E00" text-anchor="middle">신규</text>
+<text x="60" y="120" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">약 (처방 목록에서만 선택) *</text>
+<rect x="60" y="128" width="660" height="40" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="153.0" font-size="13" font-weight="400" fill="#757682" text-anchor="start">로라제팜 (Lorazepam)</text>
+<text x="698" y="153.0" font-size="12" font-weight="400" fill="#757682" text-anchor="start">▼</text>
+<text x="60" y="200" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">용량 *</text>
+<rect x="60" y="208" width="200" height="40" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="233.0" font-size="13" font-weight="400" fill="#757682" text-anchor="start">1 mg</text>
+<text x="300" y="200" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">경로 *</text>
+<circle cx="310" cy="232" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<circle cx="310" cy="232" r="4" fill="#00236F"/>
+<text x="326" y="237" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">PO (경구)</text>
+<circle cx="430" cy="232" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="446" y="237" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">IM</text>
+<circle cx="500" cy="232" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="516" y="237" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">기타</text>
+<text x="60" y="290" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">시각 *</text>
+<rect x="60" y="298" width="200" height="40" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="323.0" font-size="13" font-weight="400" fill="#757682" text-anchor="start">09:25</text>
+<text x="300" y="290" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">결과 *</text>
+<circle cx="310" cy="322" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<circle cx="310" cy="322" r="4" fill="#00236F"/>
+<text x="326" y="327" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">투여</text>
+<circle cx="400" cy="322" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="416" y="327" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">거부</text>
+<circle cx="480" cy="322" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="496" y="327" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">보류</text>
+<text x="60" y="370" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">사유 (PRN·거부·보류일 때 필수)</text>
+<rect x="60" y="378" width="660" height="80" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="400" font-size="12" font-weight="400" fill="#757682" text-anchor="start">불안 급증 (VAS 8점)</text>
+<text x="60" y="490" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">처방 근거 *</text>
+<circle cx="70" cy="522" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="86" y="527" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">정규 처방</text>
+<circle cx="200" cy="522" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<circle cx="200" cy="522" r="4" fill="#00236F"/>
+<text x="216" y="527" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">주치의 구두 처방</text>
+<text x="60" y="570" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">구강 은닉 검사</text>
+<circle cx="70" cy="602" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<circle cx="70" cy="602" r="4" fill="#00236F"/>
+<text x="86" y="607" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">확인함</text>
+<circle cx="180" cy="602" r="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="196" y="607" font-size="14" font-weight="400" fill="#1B1F2A" text-anchor="start">확인하지 못함</text>
+<rect x="330" y="586" width="390" height="36" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="342" y="609" font-size="13" font-weight="400" fill="#757682" text-anchor="start">메모 (선택)</text>
+<text x="60" y="650" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">재평가 계획</text>
+<rect x="60" y="658" width="660" height="90" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="72" y="680" font-size="12" font-weight="400" fill="#757682" text-anchor="start">예: 투약 후 약효 평가, 시각</text>
+<text x="60" y="790" font-size="13" font-weight="400" fill="#BA1A1A" text-anchor="start">거부·보류를 선택하고 사유를 비우면 저장되지 않습니다</text>
+<text x="720" y="790" font-size="12" font-weight="400" fill="#757682" text-anchor="end">(해당 시에만 표시)</text>
+<rect x="450" y="830" width="130" height="44" rx="8" fill="#FFFFFF" stroke="#00236F" stroke-width="1.5"/>
+<text x="515.0" y="857.0" font-size="15" font-weight="600" fill="#00236F" text-anchor="middle">취소</text>
+<rect x="590" y="830" width="130" height="44" rx="8" fill="#00236F" stroke="#00236F" stroke-width="1"/>
+<text x="655.0" y="857.0" font-size="15" font-weight="600" fill="#FFFFFF" text-anchor="middle">저장</text>
+</svg>

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" font-family="Pretendard, 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<title>로그인</title>
+<rect width="1280" height="800" fill="#F8F9FF"/>
+<rect x="0" y="0" width="560" height="800" rx="0" fill="#00236F" stroke="#00236F" stroke-width="1"/>
+<text x="60" y="330" font-size="38" font-weight="700" fill="#FFFFFF" text-anchor="start">정신과 간호 차팅 실습</text>
+<text x="60" y="380" font-size="18" font-weight="400" fill="#C9D4FF" text-anchor="start">가상 환자의 기록을 읽고</text>
+<text x="60" y="408" font-size="18" font-weight="400" fill="#C9D4FF" text-anchor="start">관찰 기록·투약 기록·SBAR 인계를 직접 작성해 보세요.</text>
+<text x="60" y="740" font-size="13" font-weight="400" fill="#C9D4FF" text-anchor="start">교육용 예시 · 임상 검수 전</text>
+<rect x="700" y="190" width="480" height="420" rx="14" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="740" y="250" font-size="26" font-weight="700" fill="#00236F" text-anchor="start">로그인</text>
+<text x="740" y="295" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">아이디 *</text>
+<rect x="740" y="303" width="400" height="40" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="752" y="328.0" font-size="13" font-weight="400" fill="#757682" text-anchor="start">아이디를 입력하세요</text>
+<text x="740" y="375" font-size="13" font-weight="600" fill="#1B1F2A" text-anchor="start">비밀번호 *</text>
+<rect x="740" y="383" width="400" height="40" rx="6" fill="#FFFFFF" stroke="#D5D8E4" stroke-width="1"/>
+<text x="752" y="408.0" font-size="13" font-weight="400" fill="#757682" text-anchor="start">••••••••</text>
+<text x="740" y="460" font-size="13" font-weight="400" fill="#BA1A1A" text-anchor="start">아이디 또는 비밀번호가 맞지 않습니다</text>
+<text x="1140" y="460" font-size="12" font-weight="400" fill="#757682" text-anchor="end">(실패 시에만 표시)</text>
+<rect x="740" y="480" width="400" height="48" rx="8" fill="#00236F" stroke="#00236F" stroke-width="1"/>
+<text x="940.0" y="509.0" font-size="15" font-weight="600" fill="#FFFFFF" text-anchor="middle">로그인</text>
+<text x="740" y="570" font-size="14" font-weight="400" fill="#757682" text-anchor="start">계정이 없나요?</text>
+<text x="850" y="570" font-size="14" font-weight="700" fill="#00236F" text-anchor="start">회원가입</text>
+<rect x="1130" y="150" width="44" height="22" rx="11" fill="#FFE9A8" stroke="#FFE9A8" stroke-width="1"/>
+<text x="1152" y="165" font-size="12" font-weight="700" fill="#6B4E00" text-anchor="middle">신규</text>
+</svg>
