@@ -30,7 +30,12 @@ AI 연결이 없어도 기본 실습과 결과 조회가 가능하도록 설계�
 
 ## 개발 환경
 
-Java 17 이상, Maven, Swing, FlatLaf, Gson, JUnit 5를 사용합니다.
+Java 21, Maven(Wrapper 포함), Swing, FlatLaf, Gson, JUnit 5를 사용합니다.
+
+```bash
+./mvnw test                 # 테스트
+./mvnw compile exec:java    # 실행
+```
 
 ```text
 src/main/java/app/            애플리케이션 코드
@@ -39,6 +44,6 @@ config/ai.properties.example  AI 설정 예시
 docs/                        기획·설계·검증 문서
 ```
 
-Maven Wrapper와 실행용 JAR 구성은 아직 없습니다. 환경 구성과 실행 방법은 빌드 검증 후 추가합니다.
+실행용 JAR 구성은 아직 없습니다. 개발 규칙과 명령은 [CLAUDE.md](CLAUDE.md)에 있습니다.
 
 환자 데이터는 모두 가상이며 임상 검수 전의 교육용 예시입니다. 실제 환자 기록이나 API 키·비밀번호는 저장소에 올리지 않습니다. AI 설정 파일 `config/ai.properties`는 Git 추적 대상에서 제외되어 있습니다.
