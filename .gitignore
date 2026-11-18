@@ -18,7 +18,8 @@ build/
 Thumbs.db
 
 # Secrets - never commit API keys or tokens
-config/ai.properties
+config/*
+!config/*.example
 *.env
 .env
 *token*

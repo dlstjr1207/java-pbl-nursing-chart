@@ -1,5 +1,12 @@
 # Copy this file to config/ai.properties and fill in your own key.
 # config/ai.properties is git-ignored. NEVER commit a real key.
+# 키가 없어도 프로그램은 PC-01과 규칙 점검으로 동작한다.
+
+# AI 해설·케이스 생성 (OpenAI 호환 서비스면 ai.baseUrl에 접속 주소를 넣는다)
 ai.provider=
 ai.apiKey=
 ai.model=
+ai.baseUrl=
+
+# 약물 공공데이터 API (공공데이터포털 일반 인증키 Decoding). 사용 방식은 미정
+drug.apiKey=
