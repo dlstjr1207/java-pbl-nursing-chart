@@ -31,8 +31,9 @@ config/*
 *.orig
 *.env
 .env
-*token*
-*secret*
+*.token
+*.secret
+secrets/
 
 # User attempt history (local only)
 attempts/
