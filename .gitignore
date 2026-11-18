@@ -18,8 +18,17 @@ build/
 Thumbs.db
 
 # Secrets - never commit API keys or tokens
+# config/ 안은 *.example만 추적한다 (ai.properties, nano의 .save 등 백업 포함 전부 제외)
 config/*
 !config/*.example
+# 편집기 백업·임시 파일 (키가 복사될 수 있음)
+*.save
+*.save.*
+*~
+*.swp
+*.swo
+*.bak
+*.orig
 *.env
 .env
 *token*
