@@ -30,7 +30,7 @@ AI 연결이 없어도 기본 실습과 결과 조회가 가능하도록 설계�
 
 ## 개발 환경
 
-Java 21, Maven(Wrapper 포함), Swing, FlatLaf, Gson, JUnit 5를 사용합니다.
+Java 21, Maven(Wrapper 포함), Swing, FlatLaf, Gson, JUnit 5, **MySQL 8(JDBC)** 을 사용합니다. 계정과 실습 기록은 MySQL에 저장합니다.
 
 ```bash
 ./mvnw test                 # 테스트
@@ -41,6 +41,8 @@ Java 21, Maven(Wrapper 포함), Swing, FlatLaf, Gson, JUnit 5를 사용합니다
 src/main/java/app/            애플리케이션 코드
 src/main/resources/cases/    환자 케이스 JSON 예정 위치
 config/ai.properties.example  AI 설정 예시
+config/db.properties.example  DB 접속 설정 예시 (추가 예정)
+src/main/resources/db/       MySQL 스키마 (추가 예정)
 docs/                        기획·설계·검증 문서
 ```
 
