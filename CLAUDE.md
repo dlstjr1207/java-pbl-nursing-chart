@@ -20,6 +20,13 @@
 - 11/30은 고정 케이스 PC-01로 실습 한 바퀴를 완성한다. AI 가상 환자·사건 생성(D20, F-14)은 12월에 추가한다.
 - 약물 공공데이터 API의 사용 방식은 아직 문서로 정해지지 않았다. 구현 전에 사용자에게 확인한다.
 
+## 구현 규칙 (수업 요구사항, D22)
+
+- GUI는 Swing이다. 메인 창은 `JFrame` 하나로 두고 화면은 `JPanel`을 바꿔 전환한다. 강의에서 배운 배치관리자(`BorderLayout`, `GridLayout`, `FlowLayout`)와 컴포넌트(`JTextField`, `JTextArea`, `JButton`, `JCheckBox`, `JRadioButton`, `JComboBox`, `JList`, `JScrollPane`, `JMenuBar`), 이벤트 리스너(`ActionListener`, `ItemListener`, `KeyListener`, `MouseListener`)를 우선 쓴다. 대응표는 `docs/기획안.md` '수업 요구사항 대응'.
+- DB 접근은 JDBC(`DriverManager`, `Connection`, `PreparedStatement`, `ResultSet`)로 직접 SQL을 쓴다. ORM을 쓰지 않고, 쿼리 문자열을 이어 붙이지 않는다. 문자셋은 `utf8mb4`.
+- 파일 입출력은 `java.io`/`java.nio`로 케이스·설정을 읽고, 실습 결과 내보내기(T-26)를 구현한다.
+- 팀원이 발표에서 설명할 수 있도록 클래스와 주요 메소드에 한국어 주석으로 역할을 짧게 적는다.
+
 ## 기준 문서
 
 | 문서 | 역할 |
