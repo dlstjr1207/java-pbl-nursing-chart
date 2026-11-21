@@ -16,7 +16,7 @@
 
 - 채점은 케이스의 **사실 데이터**와 학생 기록을 규칙(R1·R2·R4~R9)으로 비교한다. AI는 해설(과 12월의 케이스 생성)만 하고 점수에 반영하지 않는다.
 - AI 키가 없어도 PC-01과 규칙 점검으로 전부 동작해야 한다. 테스트는 실제 AI를 호출하지 않고 가짜 응답을 쓴다.
-- 저장은 MySQL 8(JDBC)이다(D21). 계정·실습 기록·점검 결과는 DB, 환자 케이스 원본은 `src/main/resources/cases/`의 JSON. 저장소는 인터페이스(`UserRepository`, `AttemptRepository`) 뒤에 두고, 단위 테스트는 메모리 구현, 저장 통합 테스트는 실제 MySQL을 쓴다. DB 접속 정보는 `config/db.properties`.
+- 저장은 MySQL 8 이상(JDBC)이다(D21). 계정·실습 기록·점검 결과는 DB, 환자 케이스 원본은 `src/main/resources/cases/`의 JSON. 저장소는 인터페이스(`UserRepository`, `AttemptRepository`) 뒤에 두고, 단위 테스트는 메모리 구현, 저장 통합 테스트는 실제 MySQL을 쓴다. DB 접속 정보는 `config/db.properties`.
 - 11/30은 고정 케이스 PC-01로 실습 한 바퀴를 완성한다. AI 가상 환자·사건 생성(D20, F-14)은 12월에 추가한다.
 - 약물 공공데이터 API의 사용 방식은 아직 문서로 정해지지 않았다. 구현 전에 사용자에게 확인한다.
 

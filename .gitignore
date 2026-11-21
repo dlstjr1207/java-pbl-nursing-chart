@@ -37,3 +37,6 @@ secrets/
 
 # User attempt history (local only)
 attempts/
+
+# Loop run logs (local only)
+loop/logs/
