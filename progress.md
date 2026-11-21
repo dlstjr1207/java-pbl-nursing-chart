@@ -26,6 +26,7 @@
 
 | 날짜 | 변경 | 확인 범위 |
 |---|---|---|
+| 2026-11-22 | T-22 환자 정보 화면: Swing 없는 `PatientInfoView`(기본 정보·진단·처방·알레르기/부작용 구분·위험 지표·처방 변경/리튬 검사를 구역별 읽기 전용 줄로 구성, 값 없으면 "-", `[확인필요]`는 그대로, 정답 키·모범 기록 미포함) + `PatientInfoPanel`(보일 때마다 현재 케이스로 갱신, 관찰·투약·SBAR 이동 버튼) + `Main`에 연결 | `./mvnw test` 통과(PatientInfoViewTest 4개, DEMO 케이스). 화면은 띄워 보지 못함. 직접 확인할 것: 로그인 후 실습 시작 시 환자 정보 구역(기본·진단·처방·알레르기·위험 지표)이 DEMO 값과 맞게 보이는지, 텍스트가 수정되지 않는지, 긴 내용이 스크롤되는지, 이동 버튼 3개가 각 화면으로 가는지 |
 | 2026-11-22 | T-12 실습 저장소(`app.storage`): `AttemptRepository`(save·findById·findByUser, 모든 조회에 userId) + `MySqlAttemptRepository`(PreparedStatement, 한 실습을 한 트랜잭션으로 저장: attempts·관찰·투약·SBAR·R 행·점검 결과) + `InMemoryAttemptRepository`. 정한 것: attemptId가 있으면 같은 사용자의 기록을 덮어쓰고 다른 사용자 것이면 IllegalArgumentException, NOT NULL 칸의 null은 빈 문자열로 저장, AI 해설은 JSON(status는 별도 칸), 목록은 시작 시각 최신순, DATETIME은 초 단위 | 공통 계약 테스트를 메모리·MySQL이 상속(저장·재조회 일치, 미제출 null 보존, 타 사용자 조회 불가, 덮어쓰기, 최신순). `./mvnw test` 72개 통과(MySQL 테스트 실제 실행) |
 | 2026-11-22 | T-21a 개인 메인 화면: `HomePanel`(실습 시작 버튼, AI 생성 버튼 비활성+이유 문구, 기록 영역 자리), 로직은 Swing 없는 `HomeController`(기본 케이스 PC-01, 없으면 DEMO, 읽기 실패 시 오류 문구·화면 유지), `Main`에 연결. 정한 것: AI 생성 가능 여부는 T-31 전까지 항상 false. 새 실습 ID 생성은 T-12(AttemptRepository)에서 함 | `./mvnw test` 통과(HomeControllerTest 5개). 화면은 띄워 보지 못함 |
 | | 직접 확인할 것: 로그인 후 개인 메인에 실습 시작 버튼, 비활성 AI 생성 버튼과 이유 문구가 보이는지, 실습 시작을 누르면 환자 정보 화면으로 가고 상단에 `DEMO · 실제 케이스 아님`이 표시되는지, 로그아웃이 되는지 | |

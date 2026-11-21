@@ -11,6 +11,7 @@ import app.ui.HomeController;
 import app.ui.HomePanel;
 import app.ui.LoginPanel;
 import app.ui.MainFrame;
+import app.ui.PatientInfoPanel;
 import app.ui.Screen;
 import app.ui.SignupPanel;
 import app.ui.StartupCheck;
@@ -41,6 +42,7 @@ public class Main {
                 frame.setLogoutAction(auth::logout);
             }
             frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader()), frame::refresh));
+            frame.register(Screen.PATIENT, new PatientInfoPanel(state, frame::show));
             frame.refresh();
             frame.setVisible(true);
         });
