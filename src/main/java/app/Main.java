@@ -11,6 +11,7 @@ import app.ui.HomeController;
 import app.ui.HomePanel;
 import app.ui.LoginPanel;
 import app.ui.MainFrame;
+import app.ui.MedicationPanel;
 import app.ui.ObservationPanel;
 import app.ui.PatientInfoPanel;
 import app.ui.Screen;
@@ -45,6 +46,7 @@ public class Main {
             frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader()), frame::refresh));
             frame.register(Screen.PATIENT, new PatientInfoPanel(state, frame::show));
             frame.register(Screen.OBSERVATION, new ObservationPanel(state, frame::show));
+            frame.register(Screen.MEDICATION, new MedicationPanel(state, frame::show));
             frame.refresh();
             frame.setVisible(true);
         });

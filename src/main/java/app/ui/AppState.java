@@ -1,6 +1,7 @@
 package app.ui;
 
 import app.domain.CaseSource;
+import app.domain.MedicationRecord;
 import app.domain.ObservationEntry;
 import app.domain.PatientCase;
 import java.util.ArrayList;
@@ -22,6 +23,9 @@ public class AppState {
     /** 이번 실습에서 학생이 작성한 관찰 기록 (제출 전 임시 보관). */
     private final List<ObservationEntry> studentObservations = new ArrayList<>();
 
+    /** 이번 실습에서 학생이 작성한 투약 기록 (제출 전 임시 보관). */
+    private final List<MedicationRecord> studentMedications = new ArrayList<>();
+
     public Screen current() { return current; }
 
     public String userName() { return userName; }
@@ -33,6 +37,7 @@ public class AppState {
         this.userName = name;
         this.currentCase = null;
         this.studentObservations.clear();
+        this.studentMedications.clear();
         this.current = Screen.HOME;
     }
 
@@ -41,6 +46,7 @@ public class AppState {
         this.userName = null;
         this.currentCase = null;
         this.studentObservations.clear();
+        this.studentMedications.clear();
         this.current = Screen.LOGIN;
     }
 
@@ -49,6 +55,7 @@ public class AppState {
         if (userName == null) throw new IllegalStateException("로그인이 필요합니다.");
         this.currentCase = patientCase;
         this.studentObservations.clear(); // 새 실습은 빈 기록으로 시작
+        this.studentMedications.clear();
         this.current = Screen.PATIENT;
     }
 
@@ -60,6 +67,16 @@ public class AppState {
     /** 학생 관찰 기록을 추가한다. */
     public void addObservation(ObservationEntry entry) {
         studentObservations.add(entry);
+    }
+
+    /** 학생이 작성한 투약 기록(읽기 전용 목록). */
+    public List<MedicationRecord> studentMedications() {
+        return java.util.Collections.unmodifiableList(studentMedications);
+    }
+
+    /** 학생 투약 기록을 추가한다. */
+    public void addMedication(MedicationRecord record) {
+        studentMedications.add(record);
     }
 
     /** 이동 가능 여부. 로그인·케이스 조건을 확인한다. */
@@ -74,6 +91,7 @@ public class AppState {
         if (target == Screen.HOME) {
             currentCase = null; // 개인 메인으로 돌아가면 실습 종료
             studentObservations.clear();
+            studentMedications.clear();
         }
         current = target;
         return true;
