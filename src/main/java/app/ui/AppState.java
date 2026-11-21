@@ -1,6 +1,7 @@
 package app.ui;
 
 import app.domain.CaseSource;
+import app.domain.ObservationEntry;
 import app.domain.PatientCase;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +19,8 @@ public class AppState {
     private String userName;
     private PatientCase currentCase;
     private Screen current = Screen.LOGIN;
+    /** 이번 실습에서 학생이 작성한 관찰 기록 (제출 전 임시 보관). */
+    private final List<ObservationEntry> studentObservations = new ArrayList<>();
 
     public Screen current() { return current; }
 
@@ -29,6 +32,7 @@ public class AppState {
     public void login(String name) {
         this.userName = name;
         this.currentCase = null;
+        this.studentObservations.clear();
         this.current = Screen.HOME;
     }
 
@@ -36,6 +40,7 @@ public class AppState {
     public void logout() {
         this.userName = null;
         this.currentCase = null;
+        this.studentObservations.clear();
         this.current = Screen.LOGIN;
     }
 
@@ -43,7 +48,18 @@ public class AppState {
     public void startPractice(PatientCase patientCase) {
         if (userName == null) throw new IllegalStateException("로그인이 필요합니다.");
         this.currentCase = patientCase;
+        this.studentObservations.clear(); // 새 실습은 빈 기록으로 시작
         this.current = Screen.PATIENT;
+    }
+
+    /** 학생이 작성한 관찰 기록(읽기 전용 목록). */
+    public List<ObservationEntry> studentObservations() {
+        return java.util.Collections.unmodifiableList(studentObservations);
+    }
+
+    /** 학생 관찰 기록을 추가한다. */
+    public void addObservation(ObservationEntry entry) {
+        studentObservations.add(entry);
     }
 
     /** 이동 가능 여부. 로그인·케이스 조건을 확인한다. */
@@ -55,7 +71,10 @@ public class AppState {
     /** 이동한다. 불가능하면 현재 화면을 유지하고 false를 돌려준다. */
     public boolean go(Screen target) {
         if (!canGo(target)) return false;
-        if (target == Screen.HOME) currentCase = null; // 개인 메인으로 돌아가면 실습 종료
+        if (target == Screen.HOME) {
+            currentCase = null; // 개인 메인으로 돌아가면 실습 종료
+            studentObservations.clear();
+        }
         current = target;
         return true;
     }
