@@ -32,7 +32,7 @@ AI 연결이 없어도 기본 실습과 결과 조회가 가능하도록 설계�
 
 이클립스에서 열 때는 **File → Import → Maven → Existing Maven Projects**로 저장소 폴더를 선택합니다. JDBC 드라이버는 Maven이 자동으로 받으므로 따로 추가하지 않습니다.
 
-Java 21, Maven(Wrapper 포함), Swing, FlatLaf, Gson, JUnit 5, **MySQL 8(JDBC)** 을 사용합니다. 계정과 실습 기록은 MySQL에 저장합니다.
+Java 21, Maven(Wrapper 포함), Swing, FlatLaf, Gson, JUnit 5, **MySQL 8 이상(JDBC)** 을 사용합니다. 계정과 실습 기록은 MySQL에 저장합니다.
 
 ```bash
 ./mvnw test                 # 테스트
