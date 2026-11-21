@@ -2,7 +2,9 @@ package app;
 
 import app.auth.AuthService;
 import app.cases.CaseLoader;
+import app.storage.AttemptRepository;
 import app.storage.DbConfig;
+import app.storage.MySqlAttemptRepository;
 import app.storage.MySqlUserRepository;
 import app.storage.UserRepository;
 import app.ui.AppState;
@@ -14,6 +16,8 @@ import app.ui.MainFrame;
 import app.ui.MedicationPanel;
 import app.ui.ObservationPanel;
 import app.ui.PatientInfoPanel;
+import app.ui.SbarController;
+import app.ui.SbarPanel;
 import app.ui.Screen;
 import app.ui.SignupPanel;
 import app.ui.StartupCheck;
@@ -42,6 +46,10 @@ public class Main {
                 frame.register(Screen.LOGIN, login);
                 frame.register(Screen.SIGNUP, new SignupPanel(form, frame::refresh, login::showInfo));
                 frame.setLogoutAction(auth::logout);
+                // SBAR 제출 시 로그인한 사용자의 실습 기록으로 MySQL에 저장한다.
+                AttemptRepository attempts = new MySqlAttemptRepository(startup.database());
+                frame.register(Screen.SBAR, new SbarPanel(new SbarController(state, attempts,
+                        () -> auth.currentUser().orElseThrow().id()), frame::show));
             }
             frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader()), frame::refresh));
             frame.register(Screen.PATIENT, new PatientInfoPanel(state, frame::show));

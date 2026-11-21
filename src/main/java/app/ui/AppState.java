@@ -26,7 +26,13 @@ public class AppState {
     /** 이번 실습에서 학생이 작성한 투약 기록 (제출 전 임시 보관). */
     private final List<MedicationRecord> studentMedications = new ArrayList<>();
 
+    /** 이번 실습의 시작 시각 (제출 시 Attempt에 저장). */
+    private java.time.LocalDateTime practiceStartedAt;
+
     public Screen current() { return current; }
+
+    /** 이번 실습의 시작 시각. 실습 중이 아니면 null. */
+    public java.time.LocalDateTime practiceStartedAt() { return practiceStartedAt; }
 
     public String userName() { return userName; }
 
@@ -44,6 +50,7 @@ public class AppState {
     /** 로그아웃 처리. 이전 사용자의 상태(케이스 포함)를 모두 지우고 로그인 화면으로 돌아간다. */
     public void logout() {
         this.userName = null;
+        this.practiceStartedAt = null;
         this.currentCase = null;
         this.studentObservations.clear();
         this.studentMedications.clear();
@@ -54,6 +61,7 @@ public class AppState {
     public void startPractice(PatientCase patientCase) {
         if (userName == null) throw new IllegalStateException("로그인이 필요합니다.");
         this.currentCase = patientCase;
+        this.practiceStartedAt = java.time.LocalDateTime.now();
         this.studentObservations.clear(); // 새 실습은 빈 기록으로 시작
         this.studentMedications.clear();
         this.current = Screen.PATIENT;
@@ -89,7 +97,8 @@ public class AppState {
     public boolean go(Screen target) {
         if (!canGo(target)) return false;
         if (target == Screen.HOME) {
-            currentCase = null; // 개인 메인으로 돌아가면 실습 종료
+            currentCase = null;
+            practiceStartedAt = null; // 개인 메인으로 돌아가면 실습 종료
             studentObservations.clear();
             studentMedications.clear();
         }
