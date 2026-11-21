@@ -22,6 +22,11 @@ public class CaseValidator {
         this.allowed = allowed;
     }
 
+    /** 검사에 쓰는 허용 약물 목록 (생성 요청에 함께 보낸다). */
+    public AllowedDrugs allowedDrugs() {
+        return allowed;
+    }
+
     /** 허용 약물 목록이 채워져 있어 AI 생성을 쓸 수 있는지 (D26). */
     public boolean generationAvailable() {
         return !allowed.isEmpty();

@@ -82,7 +82,8 @@ public class SbarController {
         checks.addAll(MedicationCompletenessChecker.check(state.studentMedications(), state.currentCase().orders()));
         checks.addAll(SbarStructureChecker.check(report, null)); // 케이스에 SBAR 필수 요소 목록이 없어 미산출
         Attempt attempt = new Attempt(null, userId.getAsLong(), state.currentCase().id(), state.currentCase().source(),
-                null, started, now, state.studentObservations(), state.studentMedications(),
+                state.currentCase().source() == app.domain.CaseSource.AI_GENERATED
+                        ? app.domain.DomainJson.toJson(state.currentCase()) : null, started, now, state.studentObservations(), state.studentMedications(),
                 report, checks, null, null);
         Attempt saved;
         try {

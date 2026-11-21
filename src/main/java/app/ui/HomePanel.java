@@ -61,6 +61,11 @@ public class HomePanel extends JPanel {
         area.add(start);
         JButton ai = new JButton("AI로 새 케이스 생성");
         ai.setEnabled(controller.aiGenerationAvailable());
+        ai.addActionListener(e -> {
+            String notice = controller.startGeneratedPractice();
+            messageLabel.setText(notice == null ? " " : notice);
+            onChanged.run();
+        });
         area.add(ai);
         if (!controller.aiGenerationAvailable()) area.add(new JLabel(controller.aiGenerationReason()));
         return area;

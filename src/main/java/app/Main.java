@@ -58,7 +58,7 @@ public class Main {
                 frame.register(Screen.SBAR, new SbarPanel(new SbarController(state, attempts,
                         () -> auth.currentUser().orElseThrow().id()), frame::show));
             }
-            frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader()), frame::refresh,
+            frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader(), caseGenerator()), frame::refresh,
                     () -> resultViewHolder.get() == null ? null : resultViewHolder.get().get()));
             frame.register(Screen.PATIENT, new PatientInfoPanel(state, frame::show));
             frame.register(Screen.OBSERVATION, new ObservationPanel(state, frame::show));
@@ -66,6 +66,14 @@ public class Main {
             frame.refresh();
             frame.setVisible(true);
         });
+    }
+
+    /** AI 케이스 생성기. 키(config/ai.properties)나 허용 약물 목록이 없으면 생성만 꺼진다. */
+    private static app.cases.CaseGenerator caseGenerator() {
+        app.ai.AiClient ai = new app.ai.AiClient(app.ai.AiConfig.load(app.ai.AiConfig.DEFAULT_PATH),
+                new app.ai.JdkHttpTransport());
+        return new app.cases.CaseGenerator(ai, new app.cases.CaseValidator(app.cases.AllowedDrugs.load()),
+                new CaseLoader(), app.cases.CaseGenerator.DEFAULT_MAX_ATTEMPTS);
     }
 
     /** DB 설정·연결 실패 안내 패널. */

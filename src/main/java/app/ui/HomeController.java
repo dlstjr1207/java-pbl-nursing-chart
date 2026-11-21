@@ -1,5 +1,6 @@
 package app.ui;
 
+import app.cases.CaseGenerator;
 import app.cases.CaseLoadException;
 import app.cases.CaseLoader;
 import app.domain.PatientCase;
@@ -17,17 +18,42 @@ public class HomeController {
 
     private final AppState state;
     private final CaseLoader loader;
+    /** AI 케이스 생성기 (없으면 생성 기능 없음). */
+    private final CaseGenerator generator;
 
     public HomeController(AppState state, CaseLoader loader) {
-        this.state = state;
-        this.loader = loader;
+        this(state, loader, null);
     }
 
-    /** AI 생성 버튼을 켤 수 있는지. 현재는 항상 false. */
-    public boolean aiGenerationAvailable() { return false; }
+    public HomeController(AppState state, CaseLoader loader, CaseGenerator generator) {
+        this.state = state;
+        this.loader = loader;
+        this.generator = generator;
+    }
+
+    /** AI 생성 버튼을 켤 수 있는지 (키와 허용 약물 목록이 모두 있을 때). */
+    public boolean aiGenerationAvailable() { return generator != null && generator.available(); }
 
     /** AI 생성을 쓸 수 없는 이유 (사용 가능하면 빈 문자열). */
-    public String aiGenerationReason() { return aiGenerationAvailable() ? "" : AI_DISABLED_REASON; }
+    public String aiGenerationReason() {
+        if (aiGenerationAvailable()) return "";
+        return generator == null ? AI_DISABLED_REASON : generator.unavailableReason();
+    }
+
+    /**
+     * AI로 새 케이스를 만들어 실습을 시작한다. 생성에 실패하면 기본 케이스(PC-01, 없으면 DEMO)로 시작한다.
+     * 돌려주는 문구는 화면 안내로 보인다(성공이면 null). 케이스를 못 읽으면 오류 문구를 돌려주고 화면은 그대로다.
+     */
+    public String startGeneratedPractice() {
+        if (generator == null) return AI_DISABLED_REASON;
+        try {
+            CaseGenerator.Result r = generator.generate();
+            state.startPractice(r.patientCase());
+            return r.generated() ? null : r.message();
+        } catch (CaseLoadException e) {
+            return "케이스를 불러오지 못했습니다: " + e.getMessage();
+        }
+    }
 
     /** 기본 실습 케이스 ID. PC-01이 있으면 PC-01, 없으면 DEMO. */
     public String defaultCaseId() { return loader.exists(FIXED_ID) ? FIXED_ID : DEMO_ID; }
