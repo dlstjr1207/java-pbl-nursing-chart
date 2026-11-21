@@ -4,6 +4,9 @@ import app.domain.Attempt;
 import app.domain.CheckResult;
 import app.domain.SbarRecommendation;
 import app.domain.SbarReport;
+import app.scoring.MedicationCompletenessChecker;
+import app.scoring.RequiredInputChecker;
+import app.scoring.SbarStructureChecker;
 import app.storage.AttemptRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -72,9 +75,15 @@ public class SbarController {
         for (SbarRecommendation r : rows) kept.add(new SbarRecommendation(r.time().trim(), r.intervention()));
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime started = state.practiceStartedAt() == null ? now : state.practiceStartedAt();
+        SbarReport report = new SbarReport(s, b, a, kept);
+        // 제출 당시 규칙 점검(R8·R6·R9)을 함께 저장한다. 점수는 가중치 미정이라 null(미산출).
+        List<CheckResult> checks = new ArrayList<>(RequiredInputChecker.check(
+                state.studentObservations(), state.studentMedications(), report));
+        checks.addAll(MedicationCompletenessChecker.check(state.studentMedications(), state.currentCase().orders()));
+        checks.addAll(SbarStructureChecker.check(report, null)); // 케이스에 SBAR 필수 요소 목록이 없어 미산출
         Attempt attempt = new Attempt(null, userId.getAsLong(), state.currentCase().id(), state.currentCase().source(),
                 null, started, now, state.studentObservations(), state.studentMedications(),
-                new SbarReport(s, b, a, kept), List.<CheckResult>of(), null, null);
+                report, checks, null, null);
         Attempt saved;
         try {
             saved = attempts.save(attempt);

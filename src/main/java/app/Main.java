@@ -18,6 +18,7 @@ import app.ui.ObservationPanel;
 import app.ui.PatientInfoPanel;
 import app.ui.SbarController;
 import app.ui.SbarPanel;
+import app.ui.ResultView;
 import app.ui.Screen;
 import app.ui.SignupPanel;
 import app.ui.StartupCheck;
@@ -33,6 +34,9 @@ public class Main {
         SwingUtilities.invokeLater(() -> {
             MainFrame.installTheme();
             AppState state = new AppState();
+            // DB가 준비되면 로그인한 사용자의 기록 조회기를 만드는 함수가 들어간다.
+            java.util.concurrent.atomic.AtomicReference<java.util.function.Supplier<ResultView>> resultViewHolder =
+                    new java.util.concurrent.atomic.AtomicReference<>();
             MainFrame frame = new MainFrame(state);
             StartupCheck.Result startup = StartupCheck.check(DbConfig.DEFAULT_PATH);
             if (!startup.ok()) {
@@ -48,10 +52,14 @@ public class Main {
                 frame.setLogoutAction(auth::logout);
                 // SBAR 제출 시 로그인한 사용자의 실습 기록으로 MySQL에 저장한다.
                 AttemptRepository attempts = new MySqlAttemptRepository(startup.database());
+                // 개인 메인의 평가지표·과거 기록은 로그인한 사용자의 기록만 조회한다.
+                resultViewHolder.set(() -> auth.currentUser()
+                        .map(u -> new ResultView(attempts, u.id())).orElse(null));
                 frame.register(Screen.SBAR, new SbarPanel(new SbarController(state, attempts,
                         () -> auth.currentUser().orElseThrow().id()), frame::show));
             }
-            frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader()), frame::refresh));
+            frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader()), frame::refresh,
+                    () -> resultViewHolder.get() == null ? null : resultViewHolder.get().get()));
             frame.register(Screen.PATIENT, new PatientInfoPanel(state, frame::show));
             frame.register(Screen.OBSERVATION, new ObservationPanel(state, frame::show));
             frame.register(Screen.MEDICATION, new MedicationPanel(state, frame::show));
