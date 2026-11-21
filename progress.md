@@ -26,6 +26,7 @@
 
 | 날짜 | 변경 | 확인 범위 |
 |---|---|---|
+| 2026-11-22 | T-18 R9 SBAR 구성(`app.scoring.SbarStructureChecker`): 케이스 `SbarElements`의 영역별 필수 요소가 글에 포함되는지(대소문자 무시 문자열 포함, 의미 판정 없음), R 행의 HH:mm 시각·중재 확인. 요소 목록이 없거나 비면 해당 영역 NOT_SCORED(미산출), 점수 null. 입력 위치 `situation.element[n]`·`rec<n>.time` 등 | `./mvnw test` 통과 (SbarStructureCheckerTest, V7) |
 | 2026-11-22 | T-09 R6 투약 기록 완결성(`app.scoring.MedicationCompletenessChecker`): 기록별 약명·용량·경로·시각·처방 근거·결과 확인, PRN 처방 또는 거부·보류면 사유 필수. 항목별 통과·누락 `CheckResult`(위치 `medication[n].필드`), 점수 null. 설계 결정: 단위는 필수에서 제외, 기록 0건은 R8이 알림 | `./mvnw test` 통과 (MedicationCompletenessCheckerTest, S4·V6) |
 | 2026-11-22 | T-04 R8 필수 입력 점검(`app.scoring.RequiredInputChecker`): 관찰 분류·서술, 투약 기록 1건 이상, SBAR S·B·A·R(행별 시각·중재)을 항목별 통과·누락 `CheckResult`로 반환. 점수는 null. 설계 결정: 투약 세부 필수값은 R6(T-09)로 분리, SBAR 화면 연결은 T-21b/T-29에서 | `./mvnw test` 통과 (RequiredInputCheckerTest, V5 포함) |
 | 2026-11-22 | T-25 SBAR 인계 화면: Swing 없는 `SbarController`(S·B·A 필수, R은 1행 이상·행마다 시각 HH:mm·중재 필수, 칸별·행별 오류, 실패 시 저장 안 함, 성공 시 학생 관찰·투약·SBAR을 `AttemptRepository`에 사용자별 저장 후 개인 메인 이동) + `SbarPanel`(JTextArea·JList 행 목록) + `AppState.practiceStartedAt` + `Main` 연결(MySqlAttemptRepository). 정한 것: 점검 결과·점수는 비워 저장(후속 R 점검 작업), 입력칸에 쓰다 만 R 행은 제출 때 함께 검증 | `./mvnw test` 통과(SbarControllerTest 4개, 메모리 저장소). 화면은 띄워 보지 못함. 직접 확인할 것: S만 쓰고 제출하면 B·A·R 칸 아래 빨간 안내가 뜨고 S 내용이 남는지, R 행에서 시각·중재 하나만 비우면 행 번호 안내가 뜨는지, 모두 채워 제출하면 개인 메인으로 가고 DB attempts에 기록이 생기는지 |
