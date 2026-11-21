@@ -37,6 +37,8 @@ public class MainFrame extends JFrame {
     private final JLabel patientLabel = new JLabel();
     private final JLabel userLabel = new JLabel();
     private final JLabel noticeLabel = new JLabel();
+    /** 로그아웃 버튼 동작. 기본은 상태만 지우며, 앱 시작 시 AuthService.logout으로 바꾼다. */
+    private Runnable logoutAction;
 
     public MainFrame(AppState state) {
         super("간호 차팅 연습 프로그램");
@@ -56,6 +58,9 @@ public class MainFrame extends JFrame {
     public static void installTheme() {
         FlatLightLaf.setup();
     }
+
+    /** 로그아웃 버튼의 동작을 정한다. */
+    public void setLogoutAction(Runnable action) { this.logoutAction = action; }
 
     /** 화면 패널을 등록한다. 같은 화면을 다시 등록하면 교체한다. */
     public void register(Screen screen, JPanel panel) {
@@ -108,7 +113,8 @@ public class MainFrame extends JFrame {
         }
         JButton logout = new JButton("로그아웃");
         logout.addActionListener(e -> {
-            state.logout();
+            if (logoutAction != null) logoutAction.run();
+            else state.logout();
             refresh();
         });
         menu.add(logout);

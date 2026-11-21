@@ -26,6 +26,8 @@
 
 | 날짜 | 변경 | 확인 범위 |
 |---|---|---|
+| 2026-11-22 | T-16 로그인·회원가입 화면: `LoginPanel`·`SignupPanel`(Swing, 오류는 칸 옆 표시), 검증·이동은 Swing 없는 `AuthFormController`, 시작 시 DB 설정·연결 확인 `StartupCheck`(실패 시 원인 안내 패널, 비밀번호 미출력), `Main`에 연결, 로그아웃 버튼은 `AuthService.logout` 호출. 정한 것: 비밀번호 확인 불일치는 가입 전에 검사해 계정을 만들지 않음, 로그인 후 비밀번호 칸은 항상 비움 | `./mvnw test` 통과(AuthFormControllerTest 7개, 메모리 저장소). 화면 자체는 띄워 보지 못함 |
+직접 확인할 것: `./mvnw compile exec:java`로 로그인 화면 표시, 빈 칸·틀린 비밀번호 문구, 회원가입 칸별 오류, 가입 후 로그인 화면 안내와 개인 메인 이동, `config/db.properties` 없을 때 안내 화면, 로그아웃 후 로그인 화면 복귀
 | 2026-11-22 | T-15 `AuthService`(`app.auth`): 가입(검증→솔트·해시→저장, 중복은 loginId 칸 오류)·로그인(실패 문구 하나로 통일)·로그아웃(사용자와 `AppState` 케이스·화면 상태 제거), `currentUser()`로 기록 조회의 사용자 id 제공. 정한 것: 가입은 자동 로그인하지 않음, 실패한 로그인은 기존 로그인 상태를 유지, 기록 분리 자체(사용자별 조회)는 T-12에서 이 id로 구현 | `./mvnw test` 통과(AuthServiceTest 8개, 메모리 저장소) |
 | 2026-11-22 | T-14 계정 저장(`app.auth`·`app.storage`): `UserRepository` 인터페이스 + `MySqlUserRepository`(PreparedStatement) + `InMemoryUserRepository`, `PasswordHasher`(PBKDF2-HMAC-SHA256 120000회·사용자별 16바이트 솔트, 시간 일정 비교), `SignupValidator`(D23, 칸별 오류), `DuplicateLoginIdException`. 정한 것: 해시 반복 횟수는 코드 상수, `User.toString`은 해시·솔트를 출력하지 않음, 두 구현이 같은 계약 테스트를 공유 | `./mvnw test` 통과(메모리 3개·MySQL 통합 3개(이 PC의 테스트 DB에서 실행됨)·해시/가입 검증 3개) |
 | 2026-11-22 | T-20 공통 틀(`app.ui`): `MainFrame`(JFrame 하나·JMenuBar·왼쪽 메뉴·CardLayout·JScrollPane·FlatLaf 라이트), `AppState`(로그인·케이스·화면 이동 규칙, 상태줄 문구, `교육용 예시 · 임상 검수 전`·DEMO·AI 문구), `Screen`. `app.Main`이 이 창을 띄움. 정한 것: 각 화면은 자리 표시 패널이며 이후 작업이 `register()`로 교체, 개인 메인으로 돌아가면 실습 종료, 로그인 상태에서 로그인 화면 이동 불가. 직접 확인할 것: `./mvnw compile exec:java`로 창이 뜨는지, 상단 상태줄·왼쪽 메뉴(로그인 전에는 비활성)·교육용 문구가 보이는지, 창 크기를 줄이면 스크롤이 생기는지 | `./mvnw test` 통과(AppStateTest 5개). 창 표시는 확인하지 못함(화면 없는 환경) |
