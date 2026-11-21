@@ -22,7 +22,7 @@
   - 완료 기준: JSON 왕복 시 필수 데이터 보존
   - 참고: 기획안 '데이터와 저장'·환자케이스 '데이터 변환'의 항목. 관찰·투약·SBAR(R 행 목록)·점검 결과 모델 포함. 케이스 출처(FIXED/AI_GENERATED/DEMO) 구분
 
-- [ ] T-02 CaseLoader (`app.cases`)
+- [x] T-02 CaseLoader (`app.cases`) (2026-11-22)
   - 완료 기준: 누락·잘못된 형식을 원인과 함께 거부
   - 참고: 클래스패스 `cases/*.json` 읽기. 테스트용 합성 케이스는 `src/test/resources/`에 둔다. PC-01.json이 없으면 없다고 알려 준다
 
