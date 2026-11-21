@@ -62,6 +62,19 @@ class CaseLoaderTest {
     }
 
     @Test
+    void DEMO_케이스를_읽는다() {
+        // T-03: DEMO 케이스가 로더를 통과하고 DEMO로 표시된다. 채점 정답 키는 없다.
+        PatientCase c = loader.load("demo");
+        assertEquals(CaseSource.DEMO, c.source());
+        assertEquals("DEMO", c.reviewStatus());
+        assertEquals("김하늘", c.patient().name());
+        assertEquals(5, c.orders().size());
+        assertTrue(c.title().contains("DEMO"));
+        assertEquals(null, c.answerKey());
+        assertEquals(null, c.modelAnswer());
+    }
+
+    @Test
     void 잘못된_형식의_값은_거부한다() {
         String json = "{\"id\":\"X\",\"orders\":\"문자열\"}";
         assertThrows(CaseLoadException.class, () -> loader.parse(json, "t"));

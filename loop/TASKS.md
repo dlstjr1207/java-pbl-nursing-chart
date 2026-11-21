@@ -26,7 +26,7 @@
   - 완료 기준: 누락·잘못된 형식을 원인과 함께 거부
   - 참고: 클래스패스 `cases/*.json` 읽기. 테스트용 합성 케이스는 `src/test/resources/`에 둔다. PC-01.json이 없으면 없다고 알려 준다
 
-- [ ] T-03 DEMO 케이스 `src/main/resources/cases/demo.json` (D25)
+- [x] T-03 DEMO 케이스 `src/main/resources/cases/demo.json` (D25) (2026-11-22)
   - 완료 기준: CaseLoader 통과, 값은 환자케이스 '화면에서 확인한 자료'의 Figma 예시 값에서만 고름, 채점 정답·만점 테스트에 쓰지 않음
   - 참고: 문서에 없는 값(예: 확정되지 않은 용량의 정답)은 비워 두거나 `[확인필요]`로 둔다. `reviewStatus`는 DEMO
 
