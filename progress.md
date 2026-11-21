@@ -26,6 +26,7 @@
 
 | 날짜 | 변경 | 확인 범위 |
 |---|---|---|
+| 2026-11-22 | T-01 도메인 모델(`app.domain`): PatientCase(환자케이스 '데이터 변환' 항목)·Patient·Adr·Medication(OrderType 정규/PRN/과거)·VitalSign·ObservationEntry·SafetyRound·AnswerKey·SbarElements·ModelAnswer, 실습 Attempt·MedicationRecord(MedicationResult 투여/거부/보류)·SbarReport·SbarRecommendation·CheckResult·AiFeedback, CaseSource(FIXED/AI_GENERATED/DEMO), JSON 변환 DomainJson(Gson). 정한 것: 모델은 record·목록은 null→빈 목록 변경 불가 복사, 케이스 안 시각은 `HH:mm` 문자열(schema의 *_time과 같음), 실습 시작·제출 시각은 LocalDateTime ISO-8601 문자열, 용량은 `[확인필요]`를 둘 수 있게 문자열, 기존 관찰 로그와 학생 관찰은 같은 ObservationEntry를 쓰고 담긴 목록으로 출처 구분 | `./mvnw test` 18개 통과(DomainJsonTest 6개: 케이스·실습 JSON 왕복, 한글 보존, 빈 목록 처리). 합성 값만 사용. MySQL 테스트는 이 PC 설정 기준으로 실행됨 |
 | 2026-11-18 | 저장 방식을 MySQL로 변경(D21): 계정·실습 기록·점검 결과는 MySQL, 케이스 원본은 JSON. 기획안·결정기록·tasks(T-19)·CLAUDE.md 반영 | 문서만. 다른 팀 PC의 MySQL 설치 방식은 확인 필요 |
 | 2026-11-16 | AI 케이스 생성 설계 추가(D20, F-14, S9, T-30·31): AI가 사건 유형 안에서 환자·사건을 만들고, 채점은 생성된 사실 데이터 기준. 11/30은 PC-01로 완성 | 문서 설계만. 사건 유형·허용 약물 범위는 팀 결정 전 |
 | 2026-11-16 | 수업 일정 반영(D19): 11/30 1차 초안, 12/14 최종, 시연 영상·설명 PPT, 다른 팀 사용 | 팀원이 전달한 수업 안내 기준. 11/30 제출 형식은 확인 필요 |

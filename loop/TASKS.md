@@ -18,7 +18,7 @@
 
 ## 데이터·케이스
 
-- [ ] T-01 PatientCase·Patient·Medication·Attempt 모델 (`app.domain`)
+- [x] T-01 PatientCase·Patient·Medication·Attempt 모델 (`app.domain`) (2026-11-22)
   - 완료 기준: JSON 왕복 시 필수 데이터 보존
   - 참고: 기획안 '데이터와 저장'·환자케이스 '데이터 변환'의 항목. 관찰·투약·SBAR(R 행 목록)·점검 결과 모델 포함. 케이스 출처(FIXED/AI_GENERATED/DEMO) 구분
 
