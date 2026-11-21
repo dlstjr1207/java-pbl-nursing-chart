@@ -93,7 +93,7 @@
 
 ## AI
 
-- [ ] T-13 AiClient (가짜 응답)
+- [x] T-13 AiClient (가짜 응답) (2026-11-22)
   - 완료 기준: 가짜 응답으로 성공·실패·잘못된 JSON 검증, 점수 유지 (S7)
   - 참고: `config/ai.properties`의 `ai.provider`, `ai.apiKey`, `ai.model`, `ai.baseUrl`을 코드가 읽는다(루프는 파일을 열지 않음). OpenAI 호환 chat completions 형식, JDK `HttpClient`. HTTP 부분은 인터페이스로 분리해 테스트는 가짜 구현만 쓴다. 해설 JSON은 `strengths`, `improvements`, `example_rewrite`. 키가 없으면 해설 비활성
 
