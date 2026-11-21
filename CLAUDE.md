@@ -16,8 +16,16 @@
 
 - 채점은 케이스의 **사실 데이터**와 학생 기록을 규칙(R1·R2·R4~R9)으로 비교한다. AI는 해설(과 12월의 케이스 생성)만 하고 점수에 반영하지 않는다.
 - AI 키가 없어도 PC-01과 규칙 점검으로 전부 동작해야 한다. 테스트는 실제 AI를 호출하지 않고 가짜 응답을 쓴다.
+- 저장은 MySQL 8(JDBC)이다(D21). 계정·실습 기록·점검 결과는 DB, 환자 케이스 원본은 `src/main/resources/cases/`의 JSON. 저장소는 인터페이스(`UserRepository`, `AttemptRepository`) 뒤에 두고, 단위 테스트는 메모리 구현, 저장 통합 테스트는 실제 MySQL을 쓴다. DB 접속 정보는 `config/db.properties`.
 - 11/30은 고정 케이스 PC-01로 실습 한 바퀴를 완성한다. AI 가상 환자·사건 생성(D20, F-14)은 12월에 추가한다.
 - 약물 공공데이터 API의 사용 방식은 아직 문서로 정해지지 않았다. 구현 전에 사용자에게 확인한다.
+
+## 구현 규칙 (수업 요구사항, D22)
+
+- GUI는 Swing이다. 메인 창은 `JFrame` 하나로 두고 화면은 `JPanel`을 바꿔 전환한다. 강의에서 배운 배치관리자(`BorderLayout`, `GridLayout`, `FlowLayout`)와 컴포넌트(`JTextField`, `JTextArea`, `JButton`, `JCheckBox`, `JRadioButton`, `JComboBox`, `JList`, `JScrollPane`, `JMenuBar`), 이벤트 리스너(`ActionListener`, `ItemListener`, `KeyListener`, `MouseListener`)를 우선 쓴다. 대응표는 `docs/기획안.md` '수업 요구사항 대응'.
+- DB 접근은 JDBC(`DriverManager`, `Connection`, `PreparedStatement`, `ResultSet`)로 직접 SQL을 쓴다. ORM을 쓰지 않고, 쿼리 문자열을 이어 붙이지 않는다. 문자셋은 `utf8mb4`.
+- 파일 입출력은 `java.io`/`java.nio`로 케이스·설정을 읽고, 실습 결과 내보내기(T-26)를 구현한다.
+- 팀원이 발표에서 설명할 수 있도록 클래스와 주요 메소드에 한국어 주석으로 역할을 짧게 적는다.
 
 ## 기준 문서
 
@@ -50,3 +58,4 @@ macOS에서 JDK가 여러 개면 `export JAVA_HOME=$(/usr/libexec/java_home -v 2
 - `config/` 안에서는 `*.example`만 Git에 올라간다(`.gitignore`). 편집기 백업 파일도 함께 제외된다.
 - 코드와 로그에서 키 값을 출력하지 않는다. 키 파일을 읽어 내용을 보여 주지 않는다. 항목 이름은 example 기준으로만 안내한다.
 - 키가 없거나 비어 있으면 AI 기능을 끄고 규칙 점검만으로 동작한다.
+- `config/db.properties`(DB 접속 정보)도 같은 규칙을 따른다. DB 비밀번호를 출력하거나 커밋하지 않는다. DB 계정 생성처럼 root 비밀번호가 필요한 작업은 사용자가 터미널에서 직접 실행하게 안내한다.
