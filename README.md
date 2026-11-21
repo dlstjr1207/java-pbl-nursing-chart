@@ -43,8 +43,8 @@ Java 21, Maven(Wrapper 포함), Swing, FlatLaf, Gson, JUnit 5, **MySQL 8(JDBC)**
 src/main/java/app/            애플리케이션 코드
 src/main/resources/cases/    환자 케이스 JSON 예정 위치
 config/ai.properties.example  AI 설정 예시
-config/db.properties.example  DB 접속 설정 예시 (추가 예정)
-src/main/resources/db/       MySQL 스키마 (추가 예정)
+config/db.properties.example  DB 접속 설정 예시
+src/main/resources/db/       MySQL 스키마 (schema.sql)
 docs/                        기획·설계·검증 문서
 ```
 
