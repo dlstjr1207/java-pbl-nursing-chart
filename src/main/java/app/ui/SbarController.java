@@ -27,12 +27,35 @@ public class SbarController {
     private final AppState state;
     private final AttemptRepository attempts;
     private final LongSupplier userId;
+    /** AI 해설 클라이언트 (없으면 해설 없이 규칙 점검만). 해설은 점수에 반영하지 않는다. */
+    private final app.ai.AiClient ai;
 
     /** @param userId 로그인한 사용자 번호를 돌려주는 함수 (제출 시점에 호출) */
     public SbarController(AppState state, AttemptRepository attempts, LongSupplier userId) {
+        this(state, attempts, userId, null);
+    }
+
+    /** AI 해설을 함께 저장하는 생성자. ai가 null이거나 키가 없으면 해설은 "없음"이다. */
+    public SbarController(AppState state, AttemptRepository attempts, LongSupplier userId, app.ai.AiClient ai) {
         this.state = state;
         this.attempts = attempts;
         this.userId = userId;
+        this.ai = ai;
+    }
+
+    /** 제출 당시 입력과 점검 결과를 요약해 AI 해설을 받는다. 실패해도 점검 결과는 유지된다 (S7). */
+    private app.domain.AiFeedback explain(SbarReport report, List<CheckResult> checks) {
+        if (ai == null) return new app.domain.AiFeedback(app.ai.AiClient.STATUS_NONE, null, null, null);
+        StringBuilder p = new StringBuilder("학생의 SBAR 인계 기록과 규칙 점검 결과입니다. 점수 없이 해설만 해 주세요.\n");
+        p.append("S: ").append(report.situation()).append("\nB: ").append(report.background())
+                .append("\nA: ").append(report.assessment()).append('\n');
+        for (SbarRecommendation r : report.recommendations()) {
+            p.append("R: ").append(r.time()).append(' ').append(r.intervention()).append('\n');
+        }
+        for (CheckResult c : checks) {
+            p.append('[').append(c.ruleId()).append("] ").append(c.status()).append(' ').append(c.message()).append('\n');
+        }
+        return ai.explain(p.toString());
     }
 
     /** 제출 결과. 성공이면 errors가 비어 있고 attempt에 저장된 기록이 들어 있다. */
@@ -84,7 +107,7 @@ public class SbarController {
         Attempt attempt = new Attempt(null, userId.getAsLong(), state.currentCase().id(), state.currentCase().source(),
                 state.currentCase().source() == app.domain.CaseSource.AI_GENERATED
                         ? app.domain.DomainJson.toJson(state.currentCase()) : null, started, now, state.studentObservations(), state.studentMedications(),
-                report, checks, null, null);
+                report, checks, null, explain(report, checks));
         Attempt saved;
         try {
             saved = attempts.save(attempt);

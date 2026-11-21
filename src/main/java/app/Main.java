@@ -56,7 +56,7 @@ public class Main {
                 resultViewHolder.set(() -> auth.currentUser()
                         .map(u -> new ResultView(attempts, u.id())).orElse(null));
                 frame.register(Screen.SBAR, new SbarPanel(new SbarController(state, attempts,
-                        () -> auth.currentUser().orElseThrow().id()), frame::show));
+                        () -> auth.currentUser().orElseThrow().id(), aiClient()), frame::show));
             }
             frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader(), caseGenerator()), frame::refresh,
                     () -> resultViewHolder.get() == null ? null : resultViewHolder.get().get()));
@@ -66,6 +66,11 @@ public class Main {
             frame.refresh();
             frame.setVisible(true);
         });
+    }
+
+    /** AI 해설용 클라이언트. 키가 없으면 해설만 꺼진다. */
+    private static app.ai.AiClient aiClient() {
+        return new app.ai.AiClient(app.ai.AiConfig.load(app.ai.AiConfig.DEFAULT_PATH), new app.ai.JdkHttpTransport());
     }
 
     /** AI 케이스 생성기. 키(config/ai.properties)나 허용 약물 목록이 없으면 생성만 꺼진다. */
