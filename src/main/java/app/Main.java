@@ -1,11 +1,14 @@
 package app;
 
 import app.auth.AuthService;
+import app.cases.CaseLoader;
 import app.storage.DbConfig;
 import app.storage.MySqlUserRepository;
 import app.storage.UserRepository;
 import app.ui.AppState;
 import app.ui.AuthFormController;
+import app.ui.HomeController;
+import app.ui.HomePanel;
 import app.ui.LoginPanel;
 import app.ui.MainFrame;
 import app.ui.Screen;
@@ -37,6 +40,7 @@ public class Main {
                 frame.register(Screen.SIGNUP, new SignupPanel(form, frame::refresh, login::showInfo));
                 frame.setLogoutAction(auth::logout);
             }
+            frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader()), frame::refresh));
             frame.refresh();
             frame.setVisible(true);
         });
