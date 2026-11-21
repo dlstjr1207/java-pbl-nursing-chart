@@ -52,7 +52,7 @@
   - 완료 기준: 실습 시작(케이스 선택: AI 생성 가능 여부 표시, PC-01, 없으면 DEMO), 로그아웃, 결과·기록 영역 자리 (S2)
   - 참고: 화면명세 '개인 메인과 결과'. AI 생성 버튼은 T-31 전까지 비활성과 이유 표시
 
-- [ ] T-12 AttemptRepository (MySQL)
+- [x] T-12 AttemptRepository (MySQL) (2026-11-22)
   - 완료 기준: 사용자별 저장·조회, 제출 당시 결과 보존 (S8)
   - 참고: `schema.sql`의 attempts·observation_records·medication_records·sbar_*·check_results. 인터페이스 + MySQL 구현 + 메모리 구현. 다른 사용자의 기록은 조회되지 않음
 

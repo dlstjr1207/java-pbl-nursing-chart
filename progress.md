@@ -26,6 +26,7 @@
 
 | 날짜 | 변경 | 확인 범위 |
 |---|---|---|
+| 2026-11-22 | T-12 실습 저장소(`app.storage`): `AttemptRepository`(save·findById·findByUser, 모든 조회에 userId) + `MySqlAttemptRepository`(PreparedStatement, 한 실습을 한 트랜잭션으로 저장: attempts·관찰·투약·SBAR·R 행·점검 결과) + `InMemoryAttemptRepository`. 정한 것: attemptId가 있으면 같은 사용자의 기록을 덮어쓰고 다른 사용자 것이면 IllegalArgumentException, NOT NULL 칸의 null은 빈 문자열로 저장, AI 해설은 JSON(status는 별도 칸), 목록은 시작 시각 최신순, DATETIME은 초 단위 | 공통 계약 테스트를 메모리·MySQL이 상속(저장·재조회 일치, 미제출 null 보존, 타 사용자 조회 불가, 덮어쓰기, 최신순). `./mvnw test` 72개 통과(MySQL 테스트 실제 실행) |
 | 2026-11-22 | T-21a 개인 메인 화면: `HomePanel`(실습 시작 버튼, AI 생성 버튼 비활성+이유 문구, 기록 영역 자리), 로직은 Swing 없는 `HomeController`(기본 케이스 PC-01, 없으면 DEMO, 읽기 실패 시 오류 문구·화면 유지), `Main`에 연결. 정한 것: AI 생성 가능 여부는 T-31 전까지 항상 false. 새 실습 ID 생성은 T-12(AttemptRepository)에서 함 | `./mvnw test` 통과(HomeControllerTest 5개). 화면은 띄워 보지 못함 |
 | | 직접 확인할 것: 로그인 후 개인 메인에 실습 시작 버튼, 비활성 AI 생성 버튼과 이유 문구가 보이는지, 실습 시작을 누르면 환자 정보 화면으로 가고 상단에 `DEMO · 실제 케이스 아님`이 표시되는지, 로그아웃이 되는지 | |
 | 2026-11-22 | T-16 로그인·회원가입 화면: `LoginPanel`·`SignupPanel`(Swing, 오류는 칸 옆 표시), 검증·이동은 Swing 없는 `AuthFormController`, 시작 시 DB 설정·연결 확인 `StartupCheck`(실패 시 원인 안내 패널, 비밀번호 미출력), `Main`에 연결, 로그아웃 버튼은 `AuthService.logout` 호출. 정한 것: 비밀번호 확인 불일치는 가입 전에 검사해 계정을 만들지 않음, 로그인 후 비밀번호 칸은 항상 비움 | `./mvnw test` 통과(AuthFormControllerTest 7개, 메모리 저장소). 화면 자체는 띄워 보지 못함 |
