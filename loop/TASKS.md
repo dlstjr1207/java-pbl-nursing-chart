@@ -97,7 +97,7 @@
   - 완료 기준: 가짜 응답으로 성공·실패·잘못된 JSON 검증, 점수 유지 (S7)
   - 참고: `config/ai.properties`의 `ai.provider`, `ai.apiKey`, `ai.model`, `ai.baseUrl`을 코드가 읽는다(루프는 파일을 열지 않음). OpenAI 호환 chat completions 형식, JDK `HttpClient`. HTTP 부분은 인터페이스로 분리해 테스트는 가짜 구현만 쓴다. 해설 JSON은 `strengths`, `improvements`, `example_rewrite`. 키가 없으면 해설 비활성
 
-- [ ] T-30 CaseValidator
+- [x] T-30 CaseValidator (2026-11-22)
   - 완료 기준: 필수 항목·형식·허용 약물·용량 범위 위반을 원인과 함께 거부. 허용 약물 목록이 비어 있으면 AI 생성 비활성 (D26)
   - 참고: `src/main/resources/cases/allowed-drugs.json`을 읽는다. 값은 채우지 않는다. 테스트는 `src/test/resources/`의 합성 목록으로. 현재 파일 형식: `{"drugs": []}`. 항목 형식은 이 작업에서 정하고 progress.md에 적는다(예: 약명, 단위, 경로, 최소·최대 용량, 근거 ID)
 
