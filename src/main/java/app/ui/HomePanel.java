@@ -84,6 +84,10 @@ public class HomePanel extends JPanel {
         center.add(new JScrollPane(historyList));
         center.add(new JScrollPane(detailArea));
         area.add(center, BorderLayout.CENTER);
+        // 선택한 기록을 텍스트 파일로 내보낸다 (T-26).
+        JButton export = new JButton("선택한 기록 내보내기");
+        export.addActionListener(e -> exportSelected());
+        area.add(export, BorderLayout.SOUTH);
         // 목록에서 기록을 고르면 제출 당시 입력과 점검 결과를 보여 준다.
         historyList.addListSelectionListener(e -> {
             if (e.getValueIsAdjusting()) return;
@@ -118,5 +122,20 @@ public class HomePanel extends JPanel {
         metricsArea.setText(String.join("\n", view.metrics()));
         view.history().forEach(historyModel::addElement);
         if (historyModel.isEmpty()) detailArea.setText("아직 저장된 실습 기록이 없습니다.");
+    }
+
+    /** 선택한 기록을 저장 대화상자로 고른 위치에 내보낸다. 실패하면 안내 문구를 보여 준다. */
+    private void exportSelected() {
+        Attempt a = historyList.getSelectedValue();
+        if (a == null) {
+            messageLabel.setText("내보낼 실습 기록을 먼저 선택해 주세요.");
+            return;
+        }
+        javax.swing.JFileChooser chooser = new javax.swing.JFileChooser();
+        chooser.setSelectedFile(new java.io.File(app.export.ResultExporter.suggestedFileName(a)));
+        if (chooser.showSaveDialog(this) != javax.swing.JFileChooser.APPROVE_OPTION) return;
+        java.nio.file.Path target = chooser.getSelectedFile().toPath();
+        String error = new app.export.ResultExporter().export(a, target);
+        messageLabel.setText(error == null ? "저장했습니다: " + target : error);
     }
 }
