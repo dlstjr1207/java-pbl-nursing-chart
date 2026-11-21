@@ -36,7 +36,7 @@
   - 완료 기준: 현재 화면 표시, 포커스·스크롤 확인 (화면명세 '공통 구성')
   - 참고: FlatLaf 라이트 테마 기본. 현재 환자·실습·로그인 사용자 표시 영역, `교육용 예시 · 임상 검수 전`, DEMO면 `DEMO · 실제 케이스 아님` 표시. `app.Main`에서 이 창을 띄운다
 
-- [ ] T-14 UserRepository (MySQL)·비밀번호 해시 (`app.auth`, `app.storage`)
+- [x] T-14 UserRepository (MySQL)·비밀번호 해시 (`app.auth`, `app.storage`) (2026-11-22)
   - 완료 기준: 평문 미저장, 중복 가입 거부, 비밀번호 검증 (S1)
   - 참고: D23 — 아이디 영문·숫자 4~20자, 비밀번호 8자 이상, 이름 필수, PBKDF2+사용자별 솔트. 인터페이스 + MySQL 구현 + 메모리 구현. `PreparedStatement`
 
