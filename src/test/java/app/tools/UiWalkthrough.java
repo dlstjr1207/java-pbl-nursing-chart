@@ -5,7 +5,6 @@ import app.ui.MainFrame;
 import app.ui.Screen;
 import java.awt.Component;
 import java.awt.Container;
-import java.awt.Point;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -53,7 +52,9 @@ public final class UiWalkthrough {
             frame.setVisible(true);
         });
         try {
-            run();
+            // 네 번째 인자 ai3: 실제 AI로 케이스를 3번 만들어 모범 기록 100점·다양성·학생 입장 브리핑을 확인한다
+            if (args.length > 3 && args[3].equals("ai3")) runAiTrial(3);
+            else run();
         } finally {
             Files.write(out.resolve("walkthrough.txt"), log);
             List<String> md = new ArrayList<>(List.of("| 시나리오 | 기대 | 실제 | 결과 |", "|---|---|---|---|"));
@@ -543,28 +544,145 @@ public final class UiWalkthrough {
         shot("17-ai-result");
     }
 
+    /**
+     * 실제 AI로 케이스를 n번 만들고, 각 케이스의 구조화된 모범 기록을 학생처럼 화면에 입력해 제출한다.
+     * 이름·나이·장소·ID가 매번 다른지, 모범 기록이 100점인지, 브리핑이 학생(담당 간호사) 입장인지 본다.
+     */
+    private static void runAiTrial(int n) throws Exception {
+        String id = "chkai" + (System.currentTimeMillis() % 1_000_000);
+        signup("AI 점검", id, "check-pass-AI1");
+        login(id, "check-pass-AI1");
+        List<String> ids = new ArrayList<>(), names = new ArrayList<>(), places = new ArrayList<>(), rooms = new ArrayList<>();
+        List<String> summary = new ArrayList<>(List.of("| 회 | ID | 이름·나이·성별 | 병실 | 진단 | 사건 장소(정답 키) | 모범 기록 점수 | 브리핑 |",
+                "|---|---|---|---|---|---|---|---|"));
+        for (int k = 1; k <= n; k++) {
+            if (k > 1) Thread.sleep(61_000); // ID가 분 단위라 1분 넘게 띄워 생성 시각을 다르게 한다
+            edt(() -> clickText(panel(Screen.HOME), "AI로 새 케이스 생성"));
+            for (int i = 0; i < 300 && !title().contains("환자 정보"); i++) Thread.sleep(1000);
+            app.ui.AppState st = (app.ui.AppState) get(frame, "state");
+            app.domain.PatientCase c = call(st::currentCase);
+            boolean gen = c != null && c.source() == app.domain.CaseSource.AI_GENERATED;
+            row("AI " + k, "AI 생성 케이스로 시작", c == null ? "없음" : c.id() + " " + c.source()
+                    + " / " + call(() -> ((JLabel) get(frame, "noticeLabel")).getText()), gen);
+            shot("ai" + k + "-patient");
+            if (!gen) {
+                log.add("생성 실패 안내: " + label(panel(Screen.HOME), "messageLabel"));
+                edt(() -> frame.show(Screen.HOME));
+                continue;
+            }
+            var m = c.modelAnswer();
+            String place = c.answerKey().observationElements().stream().filter(e -> e.startsWith("장소="))
+                    .map(e -> e.substring(3)).findFirst().orElse("-");
+            ids.add(c.id());
+            names.add(c.patient().name() + "/" + c.patient().age());
+            places.add(place);
+            rooms.add(c.patient().room() + "/" + c.patient().diagnosis());
+            edt(() -> frame.show(Screen.OBSERVATION));
+            shot("ai" + k + "-observation");
+            var o = m.observationRecord();
+            edt(() -> {
+                Object p = panel(Screen.OBSERVATION);
+                set(p, "timeField", o.time());
+                ((Map<?, ? extends AbstractButton>) get(p, "shiftButtons")).get(o.shift()).doClick();
+                boolean any = false;
+                for (AbstractButton b : (List<? extends AbstractButton>) get(p, "tagBoxes")) {
+                    if (o.tags().contains(b.getText()) && !b.isSelected()) { b.doClick(); any = true; }
+                }
+                if (!any) ((List<? extends AbstractButton>) get(p, "tagBoxes")).get(1).doClick();
+                set(p, "narrativeArea", o.narrative());
+                set(p, "interventionField", o.intervention() == null ? "" : o.intervention());
+                clickText((Container) p, "관찰 기록 저장");
+            });
+            var md = m.medicationRecord();
+            edt(() -> frame.show(Screen.MEDICATION));
+            edt(() -> {
+                Object p = panel(Screen.MEDICATION);
+                JComboBox<?> box = (JComboBox<?>) get(p, "orderBox");
+                for (int i = 0; i < box.getItemCount(); i++) {
+                    if (box.getItemAt(i) instanceof app.domain.Medication med && med.orderId().equals(md.orderId())) box.setSelectedIndex(i);
+                }
+                set(p, "doseField", md.dose());
+                set(p, "unitField", md.unit());
+                set(p, "routeField", md.route());
+                set(p, "timeField", md.administeredTime());
+                ((Map<?, ? extends AbstractButton>) get(p, "resultButtons")).get(md.result()).doClick();
+                set(p, "reasonField", md.reason());
+                set(p, "basisField", md.orderBasis());
+                AbstractButton oral = (AbstractButton) get(p, "oralBox");
+                if (Boolean.TRUE.equals(md.oralCheck()) != oral.isSelected()) oral.doClick();
+                set(p, "planArea", md.reassessmentPlan());
+                clickText((Container) p, "투약 기록 저장");
+            });
+            var sb = m.sbarReport();
+            edt(() -> frame.show(Screen.SBAR));
+            edt(() -> {
+                Object p = panel(Screen.SBAR);
+                set(p, "sArea", sb.situation());
+                set(p, "bArea", sb.background());
+                set(p, "aArea", sb.assessment());
+                for (var r : sb.recommendations()) {
+                    set(p, "timeField", r.time());
+                    set(p, "interField", r.intervention());
+                    clickText((Container) p, "행 추가");
+                }
+                clickText((Container) p, "SBAR 제출");
+            });
+            waitSubmit();
+            if (title().contains("SBAR")) {
+                log.add("제출 실패 안내: " + label(panel(Screen.SBAR), "statusLabel")
+                        + " / R행: " + sb.recommendations());
+            }
+            app.domain.Attempt a = title().contains("SBAR") ? null : shownAttempt();
+            String top = call(() -> ((JLabel) get(frame, "patientLabel")).getText());
+            String score = a == null ? "없음" : ResultView.scoreText(a);
+            row("AI " + k, "모범 기록 입력 시 100점", score + " / " + (a == null ? "" : app.scoring.Scorer.score(a.checks()).ruleScores()),
+                    a != null && a.score() != null && a.score() >= 100.0 - 1e-9);
+            row("AI " + k, "결과 화면 상단에 환자 이름·케이스 ID", top, top.contains(c.patient().name()) && top.contains(c.id()));
+            String b = c.briefing();
+            boolean third = b.contains("간호사에게") || b.contains("간호사가") || b.contains("간호사는");
+            row("AI " + k, "브리핑이 학생 입장(간호사를 제3자로 쓰지 않음)", b.replace("\n", " "), !third);
+            shot("ai" + k + (a == null ? "-submit-failed" : "-result"));
+            summary.add("| " + k + " | " + c.id() + " | " + c.patient().name() + " · " + c.patient().age() + "세 · " + c.patient().sex()
+                    + " | " + c.patient().room() + " | " + c.patient().diagnosis() + " | " + place + " | " + score + " | "
+                    + b.replace("\n", " ").replace("|", "/") + " |");
+            if (a != null) goHome();
+            else edt(() -> { ((app.ui.AppState) get(frame, "state")).go(Screen.HOME); frame.refresh(); });
+        }
+        boolean distinct = new java.util.HashSet<>(ids).size() == ids.size() && new java.util.HashSet<>(names).size() == names.size()
+                && new java.util.HashSet<>(places).size() == places.size() && ids.size() == n;
+        row("AI 다양성", "ID·이름·나이·장소가 매번 다름", ids + " " + names + " " + places, distinct);
+        boolean roomsDistinct = new java.util.HashSet<>(rooms.stream().map(x -> x.split("/")[0]).toList()).size() == rooms.size();
+        row("AI 다양성", "병실이 매번 다르고 진단도 바뀜(참고)", rooms.toString(), roomsDistinct);
+        shot("ai-home-history");
+        String hist = call(() -> allText(panel(Screen.HOME)));
+        row("과거 기록", "생성 케이스가 ID로 구분", ids.stream().allMatch(hist::contains) ? "모두 표시" : "누락", ids.stream().allMatch(hist::contains));
+        Files.write(out.resolve("ai-trial.md"), summary);
+    }
+
     // ---- 도우미 ----
 
     private static void check(String what, boolean ok) {
         log.add((ok ? "통과  " : "실패  ") + what);
     }
 
-    /** 창 영역만 screencapture로 저장한다. */
+    /**
+     * 프로그램 창(메뉴 막대 포함)만 그림 파일로 저장한다. 화면을 찍지 않고 창을 직접 그리므로
+     * 다른 창·바탕화면·카메라 화면 같은 사용자의 화면 내용이 섞이지 않는다.
+     */
     private static void shot(String name) throws Exception {
         Thread.sleep(700);
-        AtomicReference<Point> p = new AtomicReference<>();
-        AtomicReference<java.awt.Dimension> d = new AtomicReference<>();
-        SwingUtilities.invokeAndWait(() -> {
-            frame.toFront();
-            p.set(frame.getLocationOnScreen());
-            d.set(frame.getSize());
-        });
-        Thread.sleep(300);
         File f = out.resolve(name + ".png").toFile();
-        Process pr = new ProcessBuilder("screencapture", "-x", "-R",
-                p.get().x + "," + p.get().y + "," + d.get().width + "," + d.get().height, f.getPath())
-                .inheritIO().start();
-        pr.waitFor();
+        AtomicReference<java.awt.image.BufferedImage> img = new AtomicReference<>();
+        SwingUtilities.invokeAndWait(() -> {
+            javax.swing.JRootPane root = frame.getRootPane();
+            java.awt.image.BufferedImage im = new java.awt.image.BufferedImage(Math.max(1, root.getWidth()),
+                    Math.max(1, root.getHeight()), java.awt.image.BufferedImage.TYPE_INT_RGB);
+            java.awt.Graphics2D g = im.createGraphics();
+            root.paint(g);
+            g.dispose();
+            img.set(im);
+        });
+        javax.imageio.ImageIO.write(img.get(), "png", f);
         log.add("캡처  " + f.getPath());
     }
 

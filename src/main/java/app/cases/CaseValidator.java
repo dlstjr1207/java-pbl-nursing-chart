@@ -61,6 +61,7 @@ public class CaseValidator {
         }
         checkAnswerKey(p, c);
         checkKeyLanguages(p, c);
+        checkModelTimes(p, c);
         checkBriefingMatchesKey(p, c);
         for (int i = 0; i < c.vitals().size(); i++) {
             VitalSign v = c.vitals().get(i);
@@ -115,6 +116,62 @@ public class CaseValidator {
                 p.add("answerKey '발언 인용'(" + e.example() + ") 동의어가 briefing의 따옴표 안 환자 발언에 없음");
             }
         }
+    }
+
+    /**
+     * 구조화된 모범 기록의 시각이 HH:mm인지. 학생 입력 화면은 HH:mm만 받으므로, 모범 기록도 같은 형식이어야
+     * 학생이 그대로 입력해 제출할 수 있다(예: SBAR R 행 시각에 "EVENING" 같은 값 금지).
+     */
+    private static void checkModelTimes(List<String> p, PatientCase c) {
+        var m = c.modelAnswer();
+        if (m == null) return;
+        checkModelPlainText(p, m);
+        if (m.observationRecord() != null && !nz(m.observationRecord().time()).matches(TIME)) {
+            p.add("modelAnswer.observationRecord.time 형식 오류 (HH:mm): " + m.observationRecord().time());
+        }
+        if (m.medicationRecord() != null && !nz(m.medicationRecord().administeredTime()).matches(TIME)) {
+            p.add("modelAnswer.medicationRecord.administeredTime 형식 오류 (HH:mm): " + m.medicationRecord().administeredTime());
+        }
+        if (m.sbarReport() != null) {
+            var recs = m.sbarReport().recommendations();
+            for (int i = 0; i < recs.size(); i++) {
+                String t = recs.get(i) == null ? null : recs.get(i).time();
+                if (!nz(t).matches(TIME)) {
+                    p.add("modelAnswer.sbarReport.recommendations[" + i + "].time 형식 오류 (HH:mm): " + t);
+                }
+            }
+        }
+    }
+
+    /**
+     * 모범 기록은 학생에게 보이는 자연스러운 문장이어야 한다. 정답 키 기호(| &)를 그대로 옮겨 적어
+     * 채점만 통과시키는 것을 막는다 (예: "로라제팜|Lorazepam&1mg|1 mg&PO|경구 투약").
+     */
+    private static void checkModelPlainText(List<String> p, app.domain.ModelAnswer m) {
+        java.util.Map<String, String> texts = new java.util.LinkedHashMap<>();
+        texts.put("modelAnswer.observation", m.observation());
+        texts.put("modelAnswer.medication", m.medication());
+        texts.put("modelAnswer.sbar", m.sbar());
+        if (m.observationRecord() != null) {
+            texts.put("modelAnswer.observationRecord.narrative", m.observationRecord().narrative());
+            texts.put("modelAnswer.observationRecord.intervention", m.observationRecord().intervention());
+        }
+        if (m.medicationRecord() != null) {
+            var r = m.medicationRecord();
+            texts.put("modelAnswer.medicationRecord", String.join(" ", nz(r.drugName()), nz(r.dose()), nz(r.unit()),
+                    nz(r.route()), nz(r.reason()), nz(r.orderBasis()), nz(r.reassessmentPlan())));
+        }
+        if (m.sbarReport() != null) {
+            var b = m.sbarReport();
+            StringBuilder all = new StringBuilder(nz(b.situation()) + " " + nz(b.background()) + " " + nz(b.assessment()));
+            b.recommendations().forEach(r -> all.append(' ').append(r == null ? "" : nz(r.intervention())));
+            texts.put("modelAnswer.sbarReport", all.toString());
+        }
+        texts.forEach((where, t) -> {
+            if (t != null && (t.contains("|") || t.contains("&"))) {
+                p.add(where + "에 정답 키 기호(| 또는 &)가 있음. 모범 기록은 자연스러운 문장으로 쓴다");
+            }
+        });
     }
 
     /** 글에서 따옴표(" " “ ” ' ' ‘ ’) 안의 말만 모은다. */

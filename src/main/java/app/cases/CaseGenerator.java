@@ -56,6 +56,22 @@ public class CaseGenerator {
 
     /** 사건 장소 후보 (병동 안의 장소, 임상 값 아님). */
     static final List<String> PLACES = List.of("데이룸", "복도", "병실", "간호사실 앞", "식당", "면회실 앞", "샤워실 앞", "프로그램실");
+    /** 이름 성씨 후보 (매번 다른 성을 제안해 같은 성이 반복되지 않게 한다, 임상 값 아님). */
+    static final List<String> SURNAMES = List.of("김", "이", "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오",
+            "서", "신", "권", "황", "안", "송", "류", "홍");
+    /** 이 실행에서 최근에 만든 환자의 이름·성·사건 장소 (다음 생성에서 피한다). */
+    private final java.util.ArrayDeque<String> recentNames = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<String> recentSurnames = new java.util.ArrayDeque<>();
+    /** 실제로 만든 케이스의 장소 (거부 기준) */
+    private final java.util.ArrayDeque<String> recentPlaces = new java.util.ArrayDeque<>();
+    /** 요청할 때 제안한 장소 (다음 제안에서 피한다) */
+    private final java.util.ArrayDeque<String> requestedPlaces = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<String> recentRooms = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<String> recentDiagnoses = new java.util.ArrayDeque<>();
+    /** 진단 후보 (허용 약물로 치료하는 범위, D29) */
+    static final List<String> DIAGNOSES = List.of("조현병", "조현정동장애", "양극성 장애");
+    private static final int RECENT_MAX = 3;
+
     /** 생성 환자 나이 범위 */
     static final int MIN_AGE = 20;
     static final int MAX_AGE = 60;
@@ -134,6 +150,7 @@ public class CaseGenerator {
             problems.addAll(diversityProblems(c));
             if (problems.isEmpty()) problems.addAll(modelScoreProblems(c)); // 형식이 맞을 때만 채점해 본다
             if (problems.isEmpty()) {
+                remember(c);
                 return new Result(withId(c, newCaseId()), true, "AI가 새 케이스를 만들었습니다.", List.of());
             }
         }
@@ -222,7 +239,14 @@ public class CaseGenerator {
                 + "id는 쓰지 않는다(프로그램이 붙인다). "
                 + "modelAnswer에는 문장(observation·medication·sbar)과 함께 구조화된 observationRecord·medicationRecord·sbarReport를 넣고, "
                 + "이 구조화된 모범 기록이 answerKey의 모든 요소를 포함해 자기 정답 키로 100점이어야 한다"
-                + "(관찰 서술에 큰따옴표로 환자 발언 인용, 판단 표현 대신 관찰한 행동, 재평가 시각 포함; 투약 기록의 모든 칸 채움).\n"
+                + "(관찰 서술에 큰따옴표로 환자 발언 인용, 판단 표현 대신 관찰한 행동, 재평가 시각 포함; 투약 기록의 모든 칸 채움; 모든 시각은 HH:mm). "
+                + "answerKey 요소의 동의어는 '…' 같은 자리 표시 없이 실제 낱말로 쓰고, 이 케이스의 사건에 맞게 바꾼다(견본 낱말을 그대로 베끼지 않는다). "
+                + "'발언 인용' 동의어는 따옴표 없이 환자 발언 속 핵심 낱말 1~3개다(문장 전체 금지, 예: 발언 인용=답답|무서워). "
+                + "answerKey.observationElements의 투약 요소는 정확히 '투약=한글약명|영문약명&{용량}mg|{용량} mg&PO|경구' 형식이다(경로 묶음은 PO|경구 하나). "
+                + "모범 기록(modelAnswer의 모든 문장과 구조화된 기록)은 학생에게 보여 줄 자연스러운 문장이며 정답 키 기호(| &)를 쓰지 않는다. "
+                + "observationRecord.narrative에는 observationElements 각 요소(장소·행동·발언 인용·간호·투약·재평가)의 동의어 중 하나를 글자 그대로 넣고, "
+                + "sbarReport의 S·B·A·R 각 칸에는 sbarElements 해당 영역 요소의 동의어를 글자 그대로 넣는다. "
+                + "sbarReport.recommendations의 time도 반드시 HH:mm 시각이다(예: 16:00). DAY·EVENING·NIGHT 같은 근무 이름이나 '다음 근무'를 time에 쓰지 않는다.\n"
                 + "견본:\n" + TEMPLATE;
     }
 
@@ -241,9 +265,9 @@ public class CaseGenerator {
              "observationLog":[{"time":"HH:mm","shift":"DAY","tags":["기타"],"narrative":"사건 전 관찰 문장"},
                                {"time":"HH:mm","shift":"DAY","tags":["안정 회복"],"narrative":"재평가 결과 문장"}],
              "briefing":"사건 시각·장소·행동·환자 발언(큰따옴표)·담당 간호사인 학생이 한 간호(행동 그대로)·PRN 투약 시각을 담은 문장. 끝에 과제 안내",
-             "answerKey":{"observationElements":["장소=장소|동의어","행동=…","발언 인용=발언 속 낱말","간호=1:1|지지|…","투약=한글약명|영문약명&1mg|1 mg&PO|경구","재평가=…"],
+             "answerKey":{"observationElements":["장소=데이룸|휴게실","행동=서성|왔다 갔다|손톱","발언 인용=답답|무서워","간호=1:1|일대일|지지|조용한 곳","투약=로라제팜|Lorazepam&1mg|1 mg&PO|경구","재평가=30분|재평가"],
                           "medicationElements":["약명=영문약명|한글약명","용량=숫자","단위=mg","경로=PO|경구","시각=HH:mm"],
-                          "sbarElements":{"situation":["불안 사건=불안|초조"],"background":["진단=진단명"],"assessment":["재평가 결과=…"],"recommendation":["다음 근무 관찰=관찰"]}},
+                          "sbarElements":{"situation":["불안 사건=불안|초조"],"background":["진단=진단명"],"assessment":["재평가 결과=안정|불안 감소"],"recommendation":["다음 근무 관찰=관찰"]}},
              "modelAnswer":{"observation":"모범 관찰 문장","medication":"모범 투약 문장","sbar":"S: …\\nB: …\\nA: …\\nR: …",
                             "observationRecord":{"time":"HH:mm","shift":"DAY","tags":["불안 급증","PRN 투여"],
                                                  "narrative":"장소·행동·\\"환자 발언\\"·간호·투약(약명 용량 경로 시각)·재평가 시각을 담은 관찰 문장",
@@ -252,7 +276,7 @@ public class CaseGenerator {
                                                 "administeredTime":"HH:mm","result":"GIVEN","reason":"투약 사유(관찰한 행동)",
                                                 "orderBasis":"PRN 처방(…)","oralCheck":true,"reassessmentPlan":"HH:mm 재평가"},
                             "sbarReport":{"situation":"…","background":"…","assessment":"…",
-                                          "recommendations":[{"time":"HH:mm","intervention":"…"},{"time":"HH:mm","intervention":"… 관찰"}]}}}
+                                          "recommendations":[{"time":"16:00","intervention":"…"},{"time":"18:00","intervention":"… 관찰"}]}}}
             """;
 
     /**
@@ -262,12 +286,29 @@ public class CaseGenerator {
     String conditions() {
         String sex = random.nextBoolean() ? "F" : "M";
         int age = MIN_AGE + random.nextInt(MAX_AGE - MIN_AGE + 1);
-        String place = PLACES.get(random.nextInt(PLACES.size()));
+        java.util.Set<String> avoid = new java.util.HashSet<>(recentPlaces);
+        avoid.addAll(requestedPlaces);
+        String place = pick(PLACES, avoid);
+        String surname = pick(SURNAMES, recentSurnames);
+        String diagnosis = pick(DIAGNOSES, recentDiagnoses.stream().limit(1).toList());
+        String room;
+        do {
+            room = (2 + random.nextInt(6)) + "0" + (1 + random.nextInt(8)) + "호";
+        } while (recentRooms.contains(room));
+        remember(recentDiagnoses, diagnosis);
+        remember(requestedPlaces, place);
+        remember(recentSurnames, surname);
+        // 사건 시각도 매번 다르게 (08:00~19:55, 5분 단위)
+        String time = String.format("%02d:%02d", 8 + random.nextInt(12), 5 * random.nextInt(12));
         StringBuilder sb = new StringBuilder("이번 환자 조건: 성별 ").append(sex).append(", 나이 ").append(age)
-                .append("세, 사건 장소 ").append(place).append(".\n")
-                .append("이름·병실 번호·입원 일수·진단·환자 발언은 매번 새로 정한다(흔한 예시 반복 금지). ")
+                .append("세, 성씨 ").append(surname).append(", 사건 장소 ").append(place)
+                .append(", 사건 시각 ").append(time).append(" 무렵, 병실 ").append(room).append(", 진단 ").append(diagnosis).append(".\n")
+                .append("이름(위 성씨로 시작)·입원 일수·환자 발언은 매번 새로 정한다(흔한 예시 반복 금지). 병실·진단은 위 조건을 그대로 쓴다. ")
                 .append("진단은 허용 약물로 치료하는 범위(조현병, 조현정동장애, 양극성 장애) 안에서 고른다. ")
                 .append("나이는 ").append(MIN_AGE).append("~").append(MAX_AGE).append("세.\n");
+        if (!recentNames.isEmpty()) {
+            sb.append("최근에 만든 이름은 쓰지 않는다: ").append(String.join(", ", recentNames)).append(".\n");
+        }
         PatientCase base = baseCase();
         if (base != null && base.patient() != null) {
             sb.append("금지: 이름 '").append(base.patient().name()).append("', 나이 ").append(base.patient().age())
@@ -284,6 +325,16 @@ public class CaseGenerator {
         if (age == null || age < MIN_AGE || age > MAX_AGE) {
             out.add("patient.age는 " + MIN_AGE + "~" + MAX_AGE + "세여야 함");
         }
+        if (c.patient().name() != null && recentNames.stream().anyMatch(n -> same(n, c.patient().name()))) {
+            out.add("patient.name이 최근에 만든 환자와 같음: " + c.patient().name());
+        }
+        if (c.patient().room() != null && recentRooms.stream().anyMatch(x -> same(x, c.patient().room()))) {
+            out.add("patient.room이 최근 케이스와 같음: " + c.patient().room() + ", 요청한 병실을 쓴다");
+        }
+        String place = placeOf(c);
+        if (place != null && recentPlaces.stream().anyMatch(x -> same(x, place))) {
+            out.add("answerKey 장소(" + place + ")가 최근 케이스와 같음, 요청한 사건 장소를 쓴다");
+        }
         PatientCase base = baseCase();
         if (base != null && base.patient() != null) {
             var b = base.patient();
@@ -292,6 +343,36 @@ public class CaseGenerator {
             if (same(b.room(), c.patient().room())) out.add("patient.room이 기본 케이스와 같음");
         }
         return out;
+    }
+
+    /** 정답 키 '장소'의 첫 동의어 (없으면 null). */
+    static String placeOf(PatientCase c) {
+        if (c.answerKey() == null) return null;
+        return app.scoring.ElementPattern.parseAll(c.answerKey().observationElements()).stream()
+                .filter(e -> e.label().equals("장소")).map(app.scoring.ElementPattern::expected).findFirst().orElse(null);
+    }
+
+    /** 최근 목록에 없는 후보를 무작위로 고른다 (모두 최근이면 아무거나). */
+    private String pick(List<String> all, java.util.Collection<String> recent) {
+        List<String> left = all.stream().filter(x -> !recent.contains(x)).toList();
+        List<String> from = left.isEmpty() ? all : left;
+        return from.get(random.nextInt(from.size()));
+    }
+
+    private static void remember(java.util.ArrayDeque<String> list, String v) {
+        if (v == null) return;
+        list.remove(v);
+        list.addFirst(v);
+        while (list.size() > RECENT_MAX) list.removeLast();
+    }
+
+    /** 생성에 성공한 케이스의 이름을 기억한다 (다음 생성에서 피한다). */
+    private void remember(PatientCase c) {
+        if (c.patient() != null) {
+            remember(recentNames, c.patient().name());
+            remember(recentRooms, c.patient().room());
+        }
+        remember(recentPlaces, placeOf(c));
     }
 
     private PatientCase baseCase() {

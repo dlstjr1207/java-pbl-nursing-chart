@@ -266,10 +266,10 @@ class CaseGeneratorTest {
     void 케이스_ID는_AI가_아니라_프로그램이_생성_시각으로_붙인다() {
         Fake f = new Fake();
         f.contents.add(caseJson("테스트약A", "3")); // 응답의 id는 "GEN-1"
-        CaseGenerator g = generator(ON, f, ALLOWED, 3);
-        PatientCase a = g.withClock(at("2026-11-23T15:30:10")).generate().patientCase();
-        PatientCase b = g.withClock(at("2026-11-23T15:30:50")).generate().patientCase(); // 같은 분
-        PatientCase c = g.withClock(at("2026-11-23T16:05:00")).generate().patientCase();
+        // 같은 가짜 응답을 쓰므로 '최근 이름 피하기'에 걸리지 않게 생성기를 매번 새로 만든다
+        PatientCase a = generator(ON, f, ALLOWED, 3).withClock(at("2026-11-23T15:30:10")).generate().patientCase();
+        PatientCase b = generator(ON, f, ALLOWED, 3).withClock(at("2026-11-23T15:30:50")).generate().patientCase(); // 같은 분
+        PatientCase c = generator(ON, f, ALLOWED, 3).withClock(at("2026-11-23T16:05:00")).generate().patientCase();
         assertEquals("GEN-20261123-1530", a.id());
         assertEquals("GEN-20261123-1530-2", b.id());
         assertEquals("GEN-20261123-1605", c.id());
@@ -346,4 +346,59 @@ class CaseGeneratorTest {
     private static final AllowedDrugs ALLOWED_EN = AllowedDrugs.parse("""
             {"drugs":[{"name":"TestDrugA","aliases":["테스트약A"],"unit":"mg","route":"PO","minDailyDose":1,"maxDailyDose":5}]}
             """, "test");
+
+    @Test
+    void 모범_기록의_시각이_HH_mm이_아니면_다시_생성한다() {
+        Fake f = new Fake();
+        f.contents.add(caseJson("테스트약A", "3").replace("{\"time\":\"16:00\",\"intervention\"", "{\"time\":\"EVENING\",\"intervention\""));
+        f.contents.add(caseJson("테스트약A", "3"));
+        CaseGenerator.Result r = generator(ON, f, ALLOWED, 3).generate();
+        assertTrue(r.generated());
+        assertEquals(2, f.calls);
+        assertTrue(f.prompts.get(1).contains("recommendations[0].time 형식 오류"), f.prompts.get(1));
+    }
+
+    @Test
+    void 연달아_만들면_장소와_성씨를_바꾸고_최근_이름과_장소는_다시_요청한다() {
+        CaseGenerator g = new CaseGenerator(new AiClient(ON, new Fake()), new CaseValidator(ALLOWED),
+                new CaseLoader(CaseGeneratorTest.class.getClassLoader()), 3, new java.util.Random(7));
+        java.util.List<String> places = new java.util.ArrayList<>(), surnames = new java.util.ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            String c = g.conditions();
+            var m = java.util.regex.Pattern.compile("성씨 (\\S+), 사건 장소 ([^,]+), 사건 시각 (\\d\\d:\\d\\d)").matcher(c);
+            assertTrue(m.find(), c);
+            surnames.add(m.group(1));
+            places.add(m.group(2));
+        }
+        assertEquals(3, new java.util.HashSet<>(places).size(), places.toString());
+        assertEquals(3, new java.util.HashSet<>(surnames).size(), surnames.toString());
+        String c4 = g.conditions();
+        assertTrue(c4.matches("(?s).*병실 [2-7]0[1-8]호, 진단 (조현병|조현정동장애|양극성 장애)\\..*"), c4);
+
+        // 같은 생성기로 같은 이름·장소가 다시 오면 거부하고 다시 요청한다
+        Fake f = new Fake();
+        f.contents.add(caseJson("테스트약A", "3"));
+        CaseGenerator g2 = generator(ON, f, ALLOWED, 3);
+        assertTrue(g2.generate().generated());
+        f.contents.add(caseJson("테스트약A", "3")); // 같은 이름(가상환자)·장소(데이룸)
+        f.contents.add(caseJson("테스트약A", "3").replace("가상환자", "다른환자").replace("합성-1호", "합성-2호").replace("장소=데이룸", "장소=복도|데이룸")
+                .replace("08:00 데이룸에서", "08:00 복도에서").replace("\"narrative\":\"데이룸에서", "\"narrative\":\"복도에서"));
+        CaseGenerator.Result r = g2.generate();
+        assertTrue(r.generated(), r.problems().toString());
+        String retry = f.prompts.get(f.prompts.size() - 1);
+        assertTrue(retry.contains("최근에 만든 환자와 같음") && retry.contains("최근 케이스와 같음"), retry);
+        assertTrue(retry.contains("최근에 만든 이름은 쓰지 않는다: 가상환자"), retry);
+        assertTrue(retry.contains("patient.room이 최근 케이스와 같음"), retry);
+    }
+
+    @Test
+    void 모범_기록에_정답_키_기호가_있으면_다시_생성한다() {
+        Fake f = new Fake();
+        f.contents.add(caseJson("테스트약A", "3").replace("08:00 테스트약A 3mg 경구 투여함", "08:00 테스트약A|TestDrugA&3mg 경구 투여함"));
+        f.contents.add(caseJson("테스트약A", "3"));
+        CaseGenerator.Result r = generator(ON, f, ALLOWED, 3).generate();
+        assertTrue(r.generated());
+        assertEquals(2, f.calls);
+        assertTrue(f.prompts.get(1).contains("narrative에 정답 키 기호"), f.prompts.get(1));
+    }
 }
