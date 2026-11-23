@@ -54,6 +54,7 @@ public final class UiWalkthrough {
         try {
             // 네 번째 인자 ai3: 실제 AI로 케이스를 3번 만들어 모범 기록 100점·다양성·학생 입장 브리핑을 확인한다
             if (args.length > 3 && args[3].equals("ai3")) runAiTrial(3);
+            else if (args.length > 4 && args[3].equals("demo5")) runDemo(Files.readString(Path.of(args[4])).strip());
             else run();
         } finally {
             Files.write(out.resolve("walkthrough.txt"), log);
@@ -657,6 +658,240 @@ public final class UiWalkthrough {
         String hist = call(() -> allText(panel(Screen.HOME)));
         row("과거 기록", "생성 케이스가 ID로 구분", ids.stream().allMatch(hist::contains) ? "모두 표시" : "누락", ids.stream().allMatch(hist::contains));
         Files.write(out.resolve("ai-trial.md"), summary);
+    }
+
+    // ---- demo01 시연 5회 (네 번째 인자 demo5) ----
+
+    /** 시연 한 회의 학생 입력. null 칸은 비워 둔다. */
+    private record DemoInput(String obsTime, List<String> tags, String narrative, String intervention,
+                             String dose, String reason, String basis, boolean oral, String plan,
+                             String s, String b, String a, List<String[]> recs) {
+    }
+
+    private static final List<String> demoTable = new ArrayList<>();
+
+    /**
+     * demo01 계정으로 실습 5회를 실제 창에서 입력·제출한다. 다섯째 인자는 계정 비밀번호 파일 경로
+     * (시연 전용 값, docs/시연계정.md와 같은 값). 결과 화면 캡처와 내보내기 파일을 출력 폴더에 남긴다.
+     */
+    private static void runDemo(String pw) throws Exception {
+        String loginText = call(() -> allText(panel(Screen.LOGIN)));
+        log.add("저장 방식: " + (loginText.contains("파일 저장 모드") ? "파일 저장 모드" : "MySQL"));
+        login("demo01", pw);
+        if (!title().contains("개인 메인")) {
+            log.add("demo01 로그인 실패 → 가입");
+            signup("시연 학생", "demo01", pw);
+            login("demo01", pw);
+        }
+        row("demo01", "로그인 → 개인 메인", title(), title().contains("개인 메인"));
+        demoTable.add("| 회 | 케이스 | 의도한 실수 | 실제 점수 | 항목별 점수 (R7·R2·R8·R6·R1·R4) | 주요 피드백 |");
+        demoTable.add("|---|---|---|---|---|---|");
+
+        demoRound(1, "PC-01 모범에 가까운 기록", null, new DemoInput("09:25", List.of("불안 급증", "PRN 투여"),
+                "데이룸 창가 쪽을 왔다 갔다 하며 손톱을 계속 물어뜯고 있었음. \"누가 나를 감시하는 것 같아요\"라고 말함. "
+                        + "환자와 함께 조용한 곳으로 옮겨 1:1로 대화하며 지지함. 09:30 PRN 처방대로 로라제팜 1mg 경구 투여함. "
+                        + "투여 30분 뒤인 10:00에 불안 정도를 재평가하기로 함.",
+                "조용한 공간으로 이동, 1:1 지지적 대화, 로라제팜 1mg PO(09:30)",
+                "1", "불안·초조 - 데이룸에서 서성이고 손톱을 물어뜯으며 \"누가 나를 감시하는 것 같아요\"라고 함",
+                "PRN 처방: 불안·초조 시 Lorazepam 1mg PO (1일 최대 4mg)", true, "10:00 불안 VAS와 RASS 다시 확인",
+                "09:25쯤 데이룸에서 불안·초조(서성임, 손톱 물어뜯기, 감시당하는 느낌 호소)가 있어 1:1로 지지한 뒤 09:30 PRN 로라제팜 1mg 경구 투여했습니다.",
+                "28세 여자 환자, 조현정동장애(양극형)로 동의입원 14일째입니다. 아리피프라졸 10mg 1일 1회, 탄산리튬 300mg 1일 3회 복용 중이고 PRN 로라제팜 1mg 처방이 있습니다. 페니실린 알레르기가 있습니다.",
+                "10:00 재평가 때 불안 VAS 8→2로 줄었고 RASS 0, 자리에 앉아 쉬고 있었습니다.",
+                List.of(new String[] {"16:00", "불안·초조가 다시 나타나는지 관찰 부탁드립니다"},
+                        new String[] {"18:30", "탄산리튬 300mg PO 투약 예정"})));
+
+        demoRound(2, "PC-01", "투약 용량을 0.5mg으로 입력 (R7 불일치)", new DemoInput("09:25", List.of("불안 급증", "PRN 투여"),
+                "오전 9시 25분 데이룸에서 서성이는 모습이 보였고 손톱을 물어뜯고 있었음. 환자는 \"누가 나를 감시하는 것 같아요\"라고 함. "
+                        + "사람이 적은 조용한 곳으로 데려가 일대일로 이야기를 들어 줌. 09:30 로라제팜 1mg PO 투여(PRN). 30분 후 재평가 예정.",
+                "조용한 곳으로 안내, 일대일 지지, PRN 로라제팜 투여",
+                "0.5", "불안·초조(서성임, 손톱 물어뜯기, 감시받는 것 같다는 호소)", "PRN 불안·초조 시 처방", true,
+                "10:00 불안 정도 재평가",
+                "데이룸에서 불안·초조가 심해져 PRN 로라제팜 투여했습니다.",
+                "조현정동장애로 입원 14일째인 28세 여성입니다. 아리피프라졸, 리튬 복용 중입니다.",
+                "10:00에 다시 보니 불안 VAS 8→2, RASS 0으로 안정되었습니다.",
+                List.of(new String[] {"18:30", "리튬 300mg 경구 투약"},
+                        new String[] {"16:00", "불안 재발 관찰"})));
+
+        demoRound(3, "PC-01", "발언을 따옴표 없이 바꿔 쓰고 '협조적' 사용 (R1 감점 + 판단 표현 피드백)",
+                new DemoInput("09:25", List.of("불안 급증"),
+                        "데이룸에서 계속 서성이고 손톱을 물어뜯음. 누가 자기를 감시하는 것 같다고 말함. "
+                                + "조용한 곳으로 함께 이동해 1:1로 이야기하자 협조적인 모습을 보임. 09:30 PRN으로 로라제팜 1mg PO 투여함. 10:00에 재평가하기로 함.",
+                        "조용한 곳 이동, 1:1 대화",
+                        "1", "불안·초조 증상(서성임, 손톱 물어뜯기)", "PRN 처방(불안·초조 시)", true, "투여 30분 뒤 불안 재평가",
+                        "09:25 불안·초조 증상이 있어서 09:30에 PRN 로라제팜 1mg을 드렸습니다.",
+                        "조현정동장애(양극형), 입원 14일차 28세 여자 환자이고 아리피프라졸과 탄산리튬을 복용하고 있습니다.",
+                        "10:00 재평가 결과 VAS 8→2, RASS 0입니다.",
+                        List.of(new String[] {"16:00", "다시 불안해하는지 관찰"},
+                                new String[] {"18:30", "탄산리튬 300mg 복용 확인"})));
+
+        demoRound(4, "PC-01", "재평가 계획 없음, SBAR R 한 줄만 (R4 누락 + R9 피드백)",
+                new DemoInput("09:25", List.of("불안 급증", "PRN 투여"),
+                        "데이룸을 왔다 갔다 하며 손톱을 물어뜯는 모습 관찰. \"누가 나를 감시하는 것 같아요\"라고 말함. "
+                                + "조용한 곳으로 옮겨 1:1로 곁에 있으면서 지지함. 09:30 로라제팜 1mg 경구 투여.",
+                        "조용한 곳으로 이동, 1:1 지지",
+                        "1", "불안·초조, 감시당한다는 느낌 호소", "PRN 처방(불안·초조 시 Lorazepam 1mg PO)", true, "",
+                        "오전에 데이룸에서 불안·초조가 있어 1:1 지지 후 PRN 로라제팜 1mg 투여했습니다.",
+                        "28세 여성, 조현정동장애 진단으로 입원 14일째이고 아리피프라졸·리튬 복용 중입니다.",
+                        "지금은 자리에 앉아 쉬고 있고 불안 VAS 8→2, RASS 0입니다.",
+                        List.<String[]>of(new String[] {"16:00", "불안 증상 다시 생기는지 관찰"})));
+
+        demoAiRound();
+        Files.write(out.resolve("demo-table.md"), demoTable);
+        shot("demo-home");
+    }
+
+    /** 실습 한 회: 시작 → 관찰 → 투약 → SBAR 제출 → 결과 캡처·내보내기. ai면 이미 시작된 케이스를 쓴다. */
+    private static void demoRound(int k, String caseLabel, String mistake, DemoInput in) throws Exception {
+        if (!caseLabel.startsWith("AI")) {
+            edt(() -> clickText(panel(Screen.HOME), "실습 시작"));
+        }
+        app.domain.PatientCase c = call(() -> ((app.ui.AppState) get(frame, "state")).currentCase());
+        edt(() -> frame.show(Screen.OBSERVATION));
+        edt(() -> {
+            Object p = panel(Screen.OBSERVATION);
+            set(p, "timeField", in.obsTime());
+            ((Map<?, ? extends AbstractButton>) get(p, "shiftButtons")).values().iterator().next().doClick();
+            for (AbstractButton b : (List<? extends AbstractButton>) get(p, "tagBoxes")) {
+                if (in.tags().contains(b.getText()) != b.isSelected()) b.doClick();
+            }
+            set(p, "narrativeArea", in.narrative());
+            set(p, "interventionField", in.intervention());
+            clickText((Container) p, "관찰 기록 저장");
+        });
+        edt(() -> frame.show(Screen.MEDICATION));
+        app.domain.Medication prn = c.orders().stream().filter(m -> m.type() == app.domain.OrderType.PRN).findFirst().orElseThrow();
+        String medTime = c.answerKey().medicationElements().stream().filter(e -> e.startsWith("시각="))
+                .map(e -> e.substring(3).split("\\|")[0]).findFirst().orElse("09:30");
+        edt(() -> {
+            Object p = panel(Screen.MEDICATION);
+            JComboBox<?> box = (JComboBox<?>) get(p, "orderBox");
+            for (int i = 0; i < box.getItemCount(); i++) {
+                if (box.getItemAt(i) instanceof app.domain.Medication med && med.orderId().equals(prn.orderId())) box.setSelectedIndex(i);
+            }
+            set(p, "doseField", in.dose());
+            set(p, "unitField", prn.unit());
+            set(p, "routeField", prn.route());
+            set(p, "timeField", medTime);
+            ((Map<?, ? extends AbstractButton>) get(p, "resultButtons")).get(app.domain.MedicationResult.GIVEN).doClick();
+            set(p, "reasonField", in.reason());
+            set(p, "basisField", in.basis());
+            AbstractButton oral = (AbstractButton) get(p, "oralBox");
+            if (in.oral() != oral.isSelected()) oral.doClick();
+            set(p, "planArea", in.plan());
+            clickText((Container) p, "투약 기록 저장");
+        });
+        String medErr = call(() -> ((JLabel) get(panel(Screen.MEDICATION), "errorLabel")).getText()).replaceAll("<[^>]+>", " ").trim();
+        if (!medErr.isEmpty() && !medErr.contains("저장했습니다")) log.add(k + "회 투약 안내: " + medErr);
+        edt(() -> frame.show(Screen.SBAR));
+        edt(() -> {
+            Object p = panel(Screen.SBAR);
+            set(p, "sArea", in.s());
+            set(p, "bArea", in.b());
+            set(p, "aArea", in.a());
+            for (String[] r : in.recs()) {
+                set(p, "timeField", r[0]);
+                set(p, "interField", r[1]);
+                clickText((Container) p, "행 추가");
+            }
+            clickText((Container) p, "SBAR 제출");
+        });
+        waitSubmit();
+        if (title().contains("SBAR")) {
+            log.add(k + "회 제출 실패: " + label(panel(Screen.SBAR), "statusLabel"));
+            row("시연 " + k, "제출", "실패", false);
+            return;
+        }
+        app.domain.Attempt a = shownAttempt();
+        var rs = app.scoring.Scorer.score(a.checks()).ruleScores();
+        StringBuilder rules = new StringBuilder();
+        for (String r : List.of("R7", "R2", "R8", "R6", "R1", "R4")) {
+            Double v = rs.get(r);
+            if (rules.length() > 0) rules.append(" · ");
+            rules.append(r).append(' ').append(v == null ? "-" : fmt(v)).append('/').append(app.scoring.Scorer.WEIGHTS.get(r));
+        }
+        ResultView.Groups g = ResultView.groups(a.checks());
+        List<String> fb = new ArrayList<>();
+        for (var x : g.missing()) fb.add("누락: " + app.ui.CheckLabels.line(x));
+        for (var x : g.mismatch()) fb.add("불일치: " + app.ui.CheckLabels.line(x));
+        for (var x : g.feedback()) fb.add("피드백: " + app.ui.CheckLabels.line(x));
+        String top = call(() -> ((JLabel) get(frame, "patientLabel")).getText());
+        log.add(k + "회 " + a.caseId() + " " + ResultView.scoreText(a) + " " + rs + " / 상단: " + top);
+        fb.forEach(x -> log.add("    " + x));
+        if (a.aiFeedback() != null) log.add("    AI 해설 상태: " + a.aiFeedback().status());
+        String name = String.format("%d회", k);
+        shot(name + "-결과-상단");
+        shotFull(Screen.RESULT, name + "-결과-전체");
+        String exportErr = new app.export.ResultExporter().export(a, out.resolve(name + "-내보내기.txt"));
+        if (exportErr != null) log.add(k + "회 내보내기 실패: " + exportErr);
+        String patient = c.patient().name() + " (" + a.caseId() + ")";
+        demoTable.add("| " + k + " | " + patient + " | " + (mistake == null ? "없음 (모범에 가까운 기록)" : mistake) + " | "
+                + ResultView.scoreText(a) + " | " + rules + " | "
+                + (fb.isEmpty() ? "누락·불일치 없음" : String.join("<br>", fb).replace("|", "/")) + " |");
+        goHome();
+    }
+
+    private static String fmt(double v) {
+        return v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v);
+    }
+
+    /** 5회: AI로 만든 환자. 브리핑의 사실을 학생 말로 옮기되, 재평가·구강 확인·SBAR 세부를 일부 빠뜨린 중간 수준 기록. */
+    private static void demoAiRound() throws Exception {
+        edt(() -> clickText(panel(Screen.HOME), "AI로 새 케이스 생성"));
+        for (int i = 0; i < 300 && !title().contains("환자 정보"); i++) Thread.sleep(1000);
+        app.domain.PatientCase c = call(() -> ((app.ui.AppState) get(frame, "state")).currentCase());
+        if (c == null || c.source() != app.domain.CaseSource.AI_GENERATED) {
+            log.add("5회 AI 생성 실패: " + label(panel(Screen.HOME), "messageLabel"));
+            row("시연 5", "AI 생성 케이스", "실패", false);
+            return;
+        }
+        shot("5회-환자정보");
+        log.add("5회 브리핑: " + c.briefing().replace("\n", " "));
+        String place = first(c, "장소=");
+        String act = first(c, "행동=");
+        var q = java.util.regex.Pattern.compile("[\"“]([^\"”]+)[\"”]").matcher(c.briefing());
+        String quote = q.find() ? q.group(1) : "불안해요";
+        app.domain.Medication prn = c.orders().stream().filter(m -> m.type() == app.domain.OrderType.PRN).findFirst().orElseThrow();
+        String drug = prn.drugName().replaceAll("\\s*\\(.*\\)", "");
+        String medTime = first(c, "시각=");
+        String obsTime = c.modelAnswer() != null && c.modelAnswer().observationRecord() != null
+                ? c.modelAnswer().observationRecord().time() : medTime;
+        var p = c.patient();
+        demoRound(5, "AI 생성 환자", "중간 수준 기록 (재평가 계획 없음, 구강 확인 안 함, SBAR 간단히)", new DemoInput(obsTime,
+                List.of("불안 급증"),
+                place + " 쪽에서 " + act + " 모습이 보임. 환자가 \"" + quote + "\"라고 함. 옆에 앉아 1:1로 이야기를 들어 줌. "
+                        + medTime + " PRN " + drug + " " + prn.dose() + prn.unit() + " " + prn.route() + " 투여함.",
+                "1:1 대화",
+                prn.dose(), "불안해 보여서", "PRN", false, "",
+                "불안 증상이 있어 PRN 약을 줬습니다.",
+                p.age() + "세 " + ("F".equals(p.sex()) ? "여자" : "남자") + " 환자, " + p.diagnosis() + "로 입원 중입니다.",
+                "투약 후 조금 진정된 것 같습니다.",
+                List.<String[]>of(new String[] {"16:00", "상태 관찰"})));
+    }
+
+    private static String first(app.domain.PatientCase c, String prefix) {
+        var all = new ArrayList<String>(c.answerKey().observationElements());
+        all.addAll(c.answerKey().medicationElements());
+        return all.stream().filter(e -> e.startsWith(prefix)).map(e -> e.substring(prefix.length()).split("[|&]")[0])
+                .findFirst().orElse("");
+    }
+
+    /** 스크롤 안의 화면 전체(보이지 않는 아래쪽 포함)를 그림으로 저장한다. 창만 그리므로 다른 화면이 섞이지 않는다. */
+    private static void shotFull(Screen s, String name) throws Exception {
+        Thread.sleep(500);
+        AtomicReference<java.awt.image.BufferedImage> img = new AtomicReference<>();
+        SwingUtilities.invokeAndWait(() -> {
+            Container p = panel(s);
+            java.awt.image.BufferedImage im = new java.awt.image.BufferedImage(Math.max(1, p.getWidth()),
+                    Math.max(1, p.getHeight()), java.awt.image.BufferedImage.TYPE_INT_RGB);
+            java.awt.Graphics2D g = im.createGraphics();
+            g.setColor(p.getBackground());
+            g.fillRect(0, 0, im.getWidth(), im.getHeight());
+            p.paint(g);
+            g.dispose();
+            img.set(im);
+        });
+        javax.imageio.ImageIO.write(img.get(), "png", out.resolve(name + ".png").toFile());
+        log.add("캡처  " + name + ".png");
     }
 
     // ---- 도우미 ----
