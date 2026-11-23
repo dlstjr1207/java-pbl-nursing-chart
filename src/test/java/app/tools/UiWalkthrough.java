@@ -32,15 +32,19 @@ public final class UiWalkthrough {
     private static MainFrame frame;
     private static Path out;
     private static final List<String> log = new ArrayList<>();
+    private static boolean aiOn;
 
     public static void main(String[] args) throws Exception {
         out = Path.of(args.length > 0 ? args[0] : "target/walkthrough");
         Files.createDirectories(out);
         Path db = args.length > 1 ? Path.of(args[1]) : Path.of("does-not-exist.properties");
+        // 세 번째 인자로 AI 설정 파일을 주면 AI 해설·AI 케이스 생성까지 확인한다 (키는 출력하지 않음)
+        Path ai = args.length > 2 ? Path.of(args[2]) : Path.of("does-not-exist-ai.properties");
+        aiOn = app.ai.AiConfig.load(ai).isEnabled();
         Path data = Files.createTempDirectory("walkthrough-data");
         SwingUtilities.invokeAndWait(() -> {
             MainFrame.installTheme();
-            frame = Main.createFrame(db, data, Path.of("does-not-exist-ai.properties"));
+            frame = Main.createFrame(db, data, ai);
             frame.setBounds(20, 40, 1280, 820);
             frame.setAlwaysOnTop(true);
             frame.setVisible(true);
@@ -133,7 +137,9 @@ public final class UiWalkthrough {
         });
         shot("05-sbar");
         edt(() -> clickText(panel(Screen.SBAR), "SBAR 제출"));
-        for (int i = 0; i < 50 && call(() -> frame.getTitle()).contains("SBAR"); i++) Thread.sleep(200);
+        // AI 해설을 기다리는 동안 제출 문구가 보이는지 캡처하고, 저장이 끝날 때까지 기다린다 (최대 3분)
+        if (aiOn) shot("05b-sbar-submitting");
+        for (int i = 0; i < 900 && call(() -> frame.getTitle()).contains("SBAR"); i++) Thread.sleep(200);
         String home = call(() -> allText(panel(Screen.HOME)));
         check("제출 후 개인 메인으로 돌아와 기록이 보인다", call(() -> frame.getTitle()).contains("개인 메인")
                 && !home.contains("아직 저장된 실습 기록이 없습니다"));
@@ -145,6 +151,70 @@ public final class UiWalkthrough {
                 detail.contains("점") && detail.contains("[모범 기록]"));
         check("모범 기록대로 입력하면 만점이다", detail.lines().findFirst().orElse("").contains("100점"));
         shot("07-result-detail");
+        if (aiOn) runAi(detail);
+    }
+
+    /** AI 해설이 결과에 나오는지, AI 생성 케이스로 실습·채점이 되는지 확인한다. */
+    private static void runAi(String pc01Detail) throws Exception {
+        check("SBAR 제출 후 AI 해설이 결과에 나온다", pc01Detail.contains("AI 해설 (점수에 반영되지 않음)"));
+        edt(() -> clickText(panel(Screen.HOME), "AI로 새 케이스 생성"));
+        shot("08-ai-generating");
+        for (int i = 0; i < 300 && !call(() -> frame.getTitle()).contains("환자 정보"); i++) Thread.sleep(1000);
+        app.ui.AppState st = (app.ui.AppState) get(frame, "state");
+        app.domain.PatientCase c = call(st::currentCase);
+        check("AI로 만든 케이스로 실습이 시작된다 (" + (c == null ? "없음" : c.id() + ", " + c.source()) + ")",
+                c != null && c.source() == app.domain.CaseSource.AI_GENERATED);
+        check("상단에 'AI 생성 · 임상 검수 전'이 보인다", call(() -> ((JLabel) get(frame, "noticeLabel")).getText()).contains("AI 생성"));
+        shot("09-ai-patient");
+        if (c == null || c.source() != app.domain.CaseSource.AI_GENERATED) return;
+        // 브리핑의 사건을 관찰 기록으로 (발언 인용 포함), 정답 키의 시각으로 PRN 투약 기록
+        String medTime = c.answerKey().medicationElements().stream().filter(e -> e.startsWith("시각="))
+                .map(e -> e.substring(3).split("\\|")[0]).findFirst().orElse("09:30");
+        edt(() -> frame.show(Screen.OBSERVATION));
+        edt(() -> {
+            Object p = panel(Screen.OBSERVATION);
+            set(p, "timeField", medTime);
+            ((Map<?, ? extends AbstractButton>) get(p, "shiftButtons")).values().iterator().next().doClick();
+            ((List<? extends AbstractButton>) get(p, "tagBoxes")).get(1).doClick();
+            set(p, "narrativeArea", c.briefing() + " 30분 후 재평가 예정.");
+            set(p, "interventionField", "1:1 지지");
+            clickText((Container) p, "관찰 기록 저장");
+        });
+        edt(() -> frame.show(Screen.MEDICATION));
+        app.domain.Medication prn = c.orders().stream().filter(m -> m.type() == app.domain.OrderType.PRN).findFirst().orElseThrow();
+        edt(() -> {
+            Object p = panel(Screen.MEDICATION);
+            JComboBox<?> box = (JComboBox<?>) get(p, "orderBox");
+            for (int i = 0; i < box.getItemCount(); i++) {
+                if (String.valueOf(box.getItemAt(i)).contains("PRN")) box.setSelectedIndex(i);
+            }
+            set(p, "doseField", prn.dose());
+            set(p, "unitField", prn.unit());
+            set(p, "routeField", prn.route());
+            set(p, "timeField", medTime);
+            ((Map<?, ? extends AbstractButton>) get(p, "resultButtons")).values().iterator().next().doClick();
+            set(p, "reasonField", "불안·초조");
+            set(p, "basisField", "PRN 처방");
+            set(p, "planArea", "30분 후 재평가");
+            clickText((Container) p, "투약 기록 저장");
+        });
+        edt(() -> frame.show(Screen.SBAR));
+        edt(() -> {
+            Object p = panel(Screen.SBAR);
+            set(p, "sArea", "불안·초조로 PRN 투여함.");
+            set(p, "bArea", c.patient().diagnosis() + " 입원 중.");
+            set(p, "aArea", "재평가 예정.");
+            set(p, "timeField", "16:00");
+            set(p, "interField", "불안 재발 여부 관찰");
+            clickText((Container) p, "SBAR 제출");
+        });
+        for (int i = 0; i < 120 && call(() -> frame.getTitle()).contains("SBAR"); i++) Thread.sleep(500);
+        edt(() -> ((javax.swing.JList<?>) get(panel(Screen.HOME), "historyList")).setSelectedIndex(0));
+        String d = call(() -> ((JTextComponent) get(panel(Screen.HOME), "detailArea")).getText());
+        String first = d.lines().findFirst().orElse("");
+        check("AI 생성 케이스 기록이 저장되고 점수가 나온다 (" + first + ")", first.contains(c.id()) && first.contains("점"));
+        check("AI 생성 케이스도 R7·R2로 채점된다", d.contains("R7 ") && d.contains("R2 "));
+        shot("10-ai-result");
     }
 
     // ---- 도우미 ----

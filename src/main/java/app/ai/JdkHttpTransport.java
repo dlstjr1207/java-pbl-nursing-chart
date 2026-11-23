@@ -17,7 +17,7 @@ public final class JdkHttpTransport implements AiTransport {
     public String post(String url, String apiKey, String jsonBody) throws IOException {
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                    .timeout(Duration.ofSeconds(60))
+                    .timeout(Duration.ofSeconds(90))
                     .header("Content-Type", "application/json; charset=utf-8")
                     .header("Authorization", "Bearer " + apiKey)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))

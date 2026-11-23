@@ -76,18 +76,30 @@ public class PatientInfoPanel extends JPanel implements Reloadable {
         JPanel badges = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
         badges.setOpaque(false);
         badges.add(Theme.badge("진단: " + PatientInfoView.text(p.diagnosis()), Theme.BLUE, Theme.BLUE_BG));
-        if (c.adr() != null && !c.adr().allergies().isEmpty()) {
-            badges.add(Theme.badge("알레르기: " + String.join(", ", c.adr().allergies()), Theme.RED, Theme.RED_BG));
+        java.util.List<String> allergies = c.adr() == null ? java.util.List.of() : real(c.adr().allergies());
+        if (!allergies.isEmpty()) {
+            badges.add(Theme.badge("알레르기: " + String.join(", ", allergies), Theme.RED, Theme.RED_BG));
         }
-        if (c.adr() != null && !c.adr().adverseReactions().isEmpty()) {
+        if (c.adr() != null && !real(c.adr().adverseReactions()).isEmpty()) {
             badges.add(Theme.badge("부작용 이력", Theme.ORANGE, Theme.ORANGE_BG));
         }
-        if (c.reviewStatus() != null) badges.add(Theme.badge(c.reviewStatus(), Theme.MUTED, Theme.BG));
+        if (c.source() == app.domain.CaseSource.AI_GENERATED) {
+            badges.add(Theme.badge(AppState.AI_NOTICE, Theme.PURPLE, Theme.PURPLE_BG));
+        } else if (c.source() == app.domain.CaseSource.DEMO) {
+            badges.add(Theme.badge(AppState.DEMO_NOTICE, Theme.RED, Theme.RED_BG));
+        } else if (c.reviewStatus() != null) {
+            badges.add(Theme.badge(c.reviewStatus(), Theme.MUTED, Theme.BG));
+        }
         b.add(left, BorderLayout.WEST);
         b.add(badges, BorderLayout.CENTER);
         b.setAlignmentX(LEFT_ALIGNMENT);
         b.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, b.getPreferredSize().height));
         return b;
+    }
+
+    /** "없음"·빈 값을 뺀 실제 항목만. */
+    private static java.util.List<String> real(java.util.List<String> items) {
+        return items.stream().filter(x -> x != null && !x.isBlank() && !x.trim().equals("없음")).toList();
     }
 
     private JPanel sectionPanel(PatientInfoView.Section s) {

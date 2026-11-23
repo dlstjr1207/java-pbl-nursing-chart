@@ -81,7 +81,8 @@ public class CaseGenerator {
             try {
                 c = parse(content);
             } catch (RuntimeException e) {
-                problems = List.of("JSON 형식 오류: 응답을 케이스로 읽을 수 없음");
+                // 원인을 다음 요청에 알려 고치게 한다
+                problems = List.of("JSON 형식 오류: 응답을 케이스로 읽을 수 없음 (" + shortReason(e) + ")");
                 continue;
             }
             problems = validator.check(c);
@@ -94,13 +95,8 @@ public class CaseGenerator {
 
     /** 응답 문자열(코드 펜스 허용)을 케이스로 바꾼다. 출처는 항상 AI_GENERATED로 고정한다. */
     PatientCase parse(String content) {
-        String json = content == null ? "" : content.trim();
-        if (json.startsWith("```")) {
-            int nl = json.indexOf('\n');
-            int last = json.lastIndexOf("```");
-            if (nl > 0 && last > nl) json = json.substring(nl + 1, last).trim();
-        }
-        PatientCase c = DomainJson.fromJson(json, PatientCase.class);
+        // 앞뒤 설명문·코드 펜스를 걷어 내고, 문자열 칸에 온 객체 등 흔한 형태 차이를 맞춘 뒤 읽는다
+        PatientCase c = DomainJson.gson().fromJson(GeneratedCaseJson.normalize(content), PatientCase.class);
         if (c == null) throw new IllegalArgumentException("빈 응답");
         // 정답 키는 PC-01과 같은 규칙으로 채점하기 위해 쓴다(검사기가 처방과 맞는지 확인). 모범 기록은 제출 후 참고용.
         // 출처·검토 상태는 프로그램이 정한다.
@@ -108,6 +104,15 @@ public class CaseGenerator {
                 CaseSource.AI_GENERATED, c.patient(), c.adr(), c.riskTier(), c.orders(), c.regimenHistory(),
                 c.lithiumLevel(), c.vitals(), c.observationLog(), c.safetyRounds(), c.briefing(),
                 c.sbarReference(), c.answerKey(), c.modelAnswer());
+    }
+
+    private static String shortReason(RuntimeException e) {
+        Throwable t = e;
+        while (t.getCause() != null) t = t.getCause();
+        String m = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
+        int cut = m.indexOf("\nSee ");
+        if (cut > 0) m = m.substring(0, cut);
+        return m.length() > 160 ? m.substring(0, 160) : m;
     }
 
     private Result fallback(String message, List<String> problems) {
@@ -126,19 +131,36 @@ public class CaseGenerator {
         return DomainJson.fromJson(a.generatedCaseJson(), PatientCase.class);
     }
 
-    private String systemPrompt() {
+    String systemPrompt() {
         return "너는 간호학생 정신과 실습용 가상 환자 케이스를 만든다. 실제 환자 정보를 쓰지 않는다. "
-                + "반드시 JSON 객체 하나만 답한다. 키: id, title, patient(name 등), orders(orderId, type=REGULAR|PRN|PAST, "
-                + "drugName, dose, unit, route, frequency('1일 N회'), scheduleTimes[HH:mm], prnIndication), "
-                + "vitals(time HH:mm 등), observationLog, briefing(학생이 기록할 사건의 시각·장소·행동·환자 발언·간호·PRN 투약), "
-                + "answerKey, modelAnswer(observation, medication, sbar 문장). "
-                + "answerKey 형식: observationElements는 '이름=동의어1|동의어2' 문자열 배열(장소, 행동, 발언 인용, 간호, 투약, 재평가), "
-                + "medicationElements는 ['약명=…', '용량=숫자', '단위=mg', '경로=PO', '시각=HH:mm']이며 PRN 처방과 같은 약·용량이어야 한다. "
-                + "sbarElements는 situation·background·assessment·recommendation 배열. "
-                + "약물·용량은 아래 허용 목록 안에서만 고르고, 정규 처방은 1일 총량이 허용 범위 안이어야 한다.";
+                + "반드시 아래 견본과 같은 키와 값 형식의 JSON 객체 하나만 답한다(설명문 없이). "
+                + "briefing·title·modelAnswer의 observation·medication·sbar는 반드시 문자열이다. "
+                + "type은 REGULAR|PRN|PAST, shift는 DAY|EVENING|NIGHT, 시각은 HH:mm. "
+                + "약물·용량은 허용 목록 안에서만 고르고, 정규 처방은 (1회 용량 × scheduleTimes 수)가 1일 허용 범위 안이어야 한다. "
+                + "answerKey.medicationElements는 PRN 처방과 같은 약명·용량·경로여야 하고, 시각은 briefing의 투약 시각이다.\n"
+                + "견본:\n" + TEMPLATE;
     }
 
-    private String userPrompt(List<String> problems) {
+    /** 생성 응답의 형식 견본 (값은 예시 자리일 뿐 임상 값이 아님). */
+    static final String TEMPLATE = """
+            {"id":"GEN-1","title":"짧은 제목","difficulty":"기본","objectives":["학습 목표"],
+             "patient":{"name":"가상 이름","age":30,"sex":"F","patientNo":"SIM-G01","room":"000호",
+                        "diagnosis":"진단명","admissionType":"동의입원","admissionDate":"2026-10-01","hospitalDay":10},
+             "adr":{"allergies":["없음"],"adverseReactions":[]},
+             "orders":[{"orderId":"G-REG1","type":"REGULAR","drugName":"허용 약명","dose":"숫자","unit":"mg","route":"PO",
+                        "frequency":"1일 N회","scheduleTimes":["08:30"]},
+                       {"orderId":"G-PRN1","type":"PRN","drugName":"허용 약명","dose":"숫자","unit":"mg","route":"PO",
+                        "frequency":"필요 시","prnIndication":"불안·초조 시"}],
+             "vitals":[{"measurementId":"V1","time":"11:30","systolic":120,"diastolic":80,"pulse":80,"respiration":18,"temperature":36.5,"spo2":98}],
+             "observationLog":[{"time":"10:00","shift":"DAY","tags":["안정 회복"],"narrative":"재평가 결과 문장"}],
+             "briefing":"사건 시각·장소·행동·환자 발언(따옴표)·간호·PRN 투약을 담은 문장",
+             "answerKey":{"observationElements":["장소=동의어1|동의어2","행동=…","발언 인용=…","간호=…","투약=약명|영문약명&1mg|1 mg&po|경구","재평가=…"],
+                          "medicationElements":["약명=영문약명|한글약명","용량=숫자","단위=mg","경로=PO|경구","시각=HH:mm"],
+                          "sbarElements":{"situation":["불안 사건=불안|초조"],"background":["진단=진단명"],"assessment":["재평가 결과=…"],"recommendation":["다음 근무 관찰=관찰"]}},
+             "modelAnswer":{"observation":"모범 관찰 문장","medication":"모범 투약 문장","sbar":"S: …\\nB: …\\nA: …\\nR: …"}}
+            """;
+
+    String userPrompt(List<String> problems) {
         StringBuilder sb = new StringBuilder("사건 유형: ").append(EVENT_ANXIETY_PRN).append('\n');
         sb.append("허용 약물: ").append(DomainJson.toJson(validator.allowedDrugs().all())).append('\n');
         if (!problems.isEmpty()) {
