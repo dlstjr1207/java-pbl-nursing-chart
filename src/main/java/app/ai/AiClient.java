@@ -32,28 +32,34 @@ public final class AiClient {
         return config.isEnabled();
     }
 
-    /**
-     * 학생 기록·점검 결과 요약으로 해설을 요청한다.
-     * 키 없음 → NONE, 통신 실패·형식 오류 → FAILED, 정상 → SUCCESS.
-     */
     /** 해설 지시: 교육용이라 없는 사실을 보여 주면 안 된다 (시연 3회차에서 지어낸 발언이 나온 뒤 추가). */
-    public static final String NO_FABRICATION = "케이스와 학생 기록에 없는 환자 발언·수치·사건을 만들지 말 것. "
+    public static final String NO_FABRICATION = "케이스와 학생 기록에 없는 환자 발언·수치·사건, 간호 조치(예: 격리·강박·추가 투약)를 만들지 말 것. "
             + "예시 문장(example_rewrite)에는 케이스의 실제 발언만 인용할 것. 사실이 부족하면 [확인 필요]라고 쓸 것.";
 
+    /** 해설 요청의 시스템 지시. 문자열 안 따옴표는 이스케이프하게 한다(실제 발언 인용 때 JSON이 깨지지 않게). */
+    private static final String EXPLAIN_SYSTEM = "너는 간호학생의 기록을 돕는 교육용 조언자다. 점수는 매기지 않는다. 반드시 JSON 객체 하나만 답한다. "
+            + "키는 strengths(문자열 배열), improvements(문자열 배열), example_rewrite(문자열)이다. "
+            + "문자열 안에서 환자 발언을 인용할 때 큰따옴표는 \\\"처럼 이스케이프한다. " + NO_FABRICATION;
+
+    /** 해설 응답을 읽지 못했을 때 다시 보내는 최대 횟수 (첫 요청 포함 2번). */
+    static final int EXPLAIN_TRIES = 2;
+
+    /**
+     * 학생 기록·점검 결과 요약으로 해설을 요청한다.
+     * 키 없음 → NONE, 정상 → SUCCESS. 통신 실패·형식 오류면 한 번 더 요청하고, 두 번 다 실패하면 FAILED.
+     */
     public AiFeedback explain(String prompt) {
         if (!isEnabled()) {
             return new AiFeedback(STATUS_NONE, null, null, null);
         }
-        try {
-            String content = complete(
-                    "너는 간호학생의 기록을 돕는 교육용 조언자다. 점수는 매기지 않는다. 반드시 JSON 객체 하나만 답한다. "
-                            + "키는 strengths(문자열 배열), improvements(문자열 배열), example_rewrite(문자열)이다. "
-                            + NO_FABRICATION,
-                    prompt);
-            return parseFeedback(content);
-        } catch (IOException | RuntimeException e) {
-            return new AiFeedback(STATUS_FAILED, null, null, null);
+        for (int i = 0; i < EXPLAIN_TRIES; i++) {
+            try {
+                return parseFeedback(complete(EXPLAIN_SYSTEM, prompt));
+            } catch (IOException | RuntimeException e) {
+                // 다음 시도로 넘어간다. 실패 내용(응답 본문·키)은 출력하지 않는다.
+            }
         }
+        return new AiFeedback(STATUS_FAILED, null, null, null);
     }
 
     /**
@@ -89,7 +95,13 @@ public final class AiClient {
         int end = json.lastIndexOf('}');
         if (start < 0 || end <= start) throw new IllegalArgumentException("해설 응답에 JSON 객체가 없음");
         json = json.substring(start, end + 1);
-        JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
+        JsonObject obj;
+        try {
+            obj = JsonParser.parseString(json).getAsJsonObject();
+        } catch (RuntimeException e) {
+            // 문자열 안에 이스케이프하지 않은 따옴표("누가 나를 …")가 섞인 응답을 고쳐서 한 번 더 읽는다
+            obj = JsonParser.parseString(escapeInnerQuotes(json)).getAsJsonObject();
+        }
         List<String> strengths = stringList(obj, "strengths");
         List<String> improvements = stringList(obj, "improvements");
         JsonElement rewrite = obj.get("example_rewrite");
@@ -97,6 +109,39 @@ public final class AiClient {
             throw new IllegalArgumentException("example_rewrite 누락");
         }
         return new AiFeedback(STATUS_SUCCESS, strengths, improvements, rewrite.getAsString());
+    }
+
+    /**
+     * JSON 문자열 값 안의 이스케이프되지 않은 큰따옴표를 \\"로 바꾼다. 문자열 안에서 만난 따옴표 뒤에
+     * (공백을 건너뛰고) , : ] } 가 오거나 글이 끝나면 문자열의 끝으로 보고, 아니면 본문 속 따옴표로 본다.
+     */
+    static String escapeInnerQuotes(String json) {
+        StringBuilder out = new StringBuilder(json.length() + 16);
+        boolean inString = false;
+        for (int i = 0; i < json.length(); i++) {
+            char ch = json.charAt(i);
+            if (inString && ch == '\\') { // 이미 이스케이프된 문자는 그대로
+                out.append(ch);
+                if (i + 1 < json.length()) out.append(json.charAt(++i));
+                continue;
+            }
+            if (ch == '"') {
+                if (!inString) {
+                    inString = true;
+                } else {
+                    int j = i + 1;
+                    while (j < json.length() && Character.isWhitespace(json.charAt(j))) j++;
+                    char next = j < json.length() ? json.charAt(j) : '}';
+                    if (next == ',' || next == ':' || next == ']' || next == '}') {
+                        inString = false;
+                    } else {
+                        out.append('\\');
+                    }
+                }
+            }
+            out.append(ch);
+        }
+        return out.toString();
     }
 
     private static List<String> stringList(JsonObject obj, String key) {

@@ -56,12 +56,14 @@ public class SbarController {
         if (pc != null && pc.briefing() != null) {
             p.append("[케이스 사실(이 안의 발언·수치·사건만 사실로 쓸 것)]\n").append(pc.briefing()).append('\n');
         }
+        // 환자 기본 정보·알레르기·처방도 사실이다. 빠지면 학생이 B에 쓴 진단·약을 "케이스에 없다"고 잘못 지적한다.
+        if (pc != null) {
+            for (String line : caseFactLines(pc)) p.append(line).append('\n');
+        }
         // 학생이 환자 정보 화면에서 본 활력징후·관찰 로그도 사실이다. 빠지면 AI가 실제 수치를 "지어냈다"고 잘못 지적한다.
         if (pc != null) {
             for (app.domain.VitalSign v : pc.vitals()) {
-                p.append("[케이스 활력징후] ").append(v.time()).append(" BP ").append(v.systolic()).append('/').append(v.diastolic())
-                        .append(", HR ").append(v.pulse()).append(", RR ").append(v.respiration())
-                        .append(", BT ").append(v.temperature()).append(", SpO2 ").append(v.spo2()).append('\n');
+                p.append("[케이스 활력징후] ").append(v.time()).append(' ').append(vitalText(v)).append('\n');
             }
             for (app.domain.ObservationEntry o : pc.observationLog()) {
                 p.append("[케이스 관찰 로그] ").append(o.time()).append(' ').append(o.narrative()).append('\n');
@@ -72,7 +74,17 @@ public class SbarController {
                 p.append("[학생 관찰 기록] ").append(o.time()).append(' ').append(o.narrative()).append('\n');
             }
         }
-        p.append("[학생 SBAR]\n");
+        if (draft != null) {
+            for (app.domain.MedicationRecord m : draft.medicationRecords()) {
+                p.append("[학생 투약 기록] ").append(m.administeredTime()).append(' ').append(m.drugName()).append(' ')
+                        .append(m.dose()).append(m.unit() == null ? "" : m.unit()).append(' ').append(m.route())
+                        .append(m.reassessmentPlan() == null || m.reassessmentPlan().isBlank() ? ", 재평가 계획 없음"
+                                : ", 재평가 계획: " + m.reassessmentPlan()).append('\n');
+            }
+        }
+        p.append("[학생 SBAR] (R은 인계를 받은 다음 근무자가 앞으로 할 일과 그 예정 시각이다. 학생이 쓴 R의 시각이 인계 시각보다 "
+                + "뒤인 것은 올바르므로 지적하지 말 것. 예시 문장의 R에는 학생이 쓴 R의 시각이나 그보다 뒤의 처방 시각만 쓸 것. "
+                + "학생이 쓰지 않은 내용을 학생의 실수로 지적하지 말 것)\n");
         p.append("S: ").append(report.situation()).append("\nB: ").append(report.background())
                 .append("\nA: ").append(report.assessment()).append('\n');
         for (SbarRecommendation r : report.recommendations()) {
@@ -86,6 +98,56 @@ public class SbarController {
             p.append('[').append(c.ruleId()).append("] ").append(c.status()).append(' ').append(c.message()).append('\n');
         }
         return p.toString();
+    }
+
+    /** 해설 요청에 보내는 환자 기본 정보·알레르기·처방 줄 (학생이 환자 정보 화면에서 보는 내용, 값이 없는 칸은 뺌). */
+    static List<String> caseFactLines(app.domain.PatientCase pc) {
+        List<String> out = new ArrayList<>();
+        app.domain.Patient pt = pc.patient();
+        if (pt != null) {
+            List<String> parts = new ArrayList<>();
+            if (pt.age() != null) parts.add(pt.age() + "세");
+            if (pt.sex() != null) parts.add("F".equals(pt.sex()) ? "여성" : "M".equals(pt.sex()) ? "남성" : pt.sex());
+            if (shown(pt.diagnosis())) parts.add("진단 " + StudentText.value(pt.diagnosis()));
+            if (shown(pt.admissionType())) parts.add(StudentText.value(pt.admissionType()));
+            if (pt.hospitalDay() != null) parts.add("입원 " + pt.hospitalDay() + "일차");
+            if (!parts.isEmpty()) out.add("[케이스 환자] " + String.join(", ", parts));
+        }
+        app.domain.Adr adr = pc.adr();
+        out.add("[케이스 알레르기] " + shownList(adr == null ? List.of() : adr.allergies())
+                + " / 약물 부작용 이력: " + shownList(adr == null ? List.of() : adr.adverseReactions()));
+        for (app.domain.Medication m : pc.orders()) {
+            String kind = switch (m.type()) {
+                case PRN -> "PRN";
+                case PAST -> "과거";
+                default -> "정규";
+            };
+            out.add("[케이스 처방 " + kind + "] " + MedicationController.orderSummary(m));
+        }
+        return out;
+    }
+
+    /** 학생 화면에 보이는 값인지 (빈 값·개발용 표기만 있는 값은 보내지 않는다). */
+    private static boolean shown(String v) {
+        return v != null && !StudentText.value(v).equals(PatientInfoView.EMPTY);
+    }
+
+    /** 목록을 학생 화면에 보이는 글로 (개발용 표기 제거). 비면 "없음". */
+    private static String shownList(List<String> list) {
+        List<String> shown = list.stream().filter(SbarController::shown).map(StudentText::value).toList();
+        return shown.isEmpty() ? "없음" : String.join(", ", shown);
+    }
+
+    /** 활력징후 한 줄. 값이 없는 항목은 빼고, 모두 없으면 "기록 없음" (빈 값을 "null"로 보내 AI가 오해하지 않게). */
+    static String vitalText(app.domain.VitalSign v) {
+        List<String> parts = new ArrayList<>();
+        if (v.systolic() != null && v.diastolic() != null) parts.add("BP " + v.systolic() + "/" + v.diastolic());
+        else if (v.systolic() != null) parts.add("수축기 " + v.systolic());
+        if (v.pulse() != null) parts.add("HR " + v.pulse());
+        if (v.respiration() != null) parts.add("RR " + v.respiration());
+        if (v.temperature() != null) parts.add("BT " + v.temperature());
+        if (v.spo2() != null) parts.add("SpO2 " + v.spo2());
+        return parts.isEmpty() ? "기록 없음" : String.join(", ", parts);
     }
 
     /** 제출 결과. 성공이면 errors가 비어 있고 attempt에 저장된 기록이 들어 있다. */

@@ -75,10 +75,10 @@ class SbarBackgroundSubmitTest {
         String briefing = state.currentCase().briefing();
         var p = c.prepare("상황", "배경", "평가", ROWS);
         c.complete(p);
-        assertEquals(1, bodies.size());
+        assertEquals(2, bodies.size()); // 응답을 읽지 못하면 한 번 더 요청한다
         String body = com.google.gson.JsonParser.parseString(bodies.get(0)).toString();
         // 시스템 지시와 사용자 요청 모두에 지어내기 금지 문구
-        assertTrue(body.contains("케이스와 학생 기록에 없는 환자 발언·수치·사건을 만들지 말 것"), body);
+        assertTrue(body.contains("케이스와 학생 기록에 없는 환자 발언·수치·사건, 간호 조치(예: 격리·강박·추가 투약)를 만들지 말 것"), body);
         assertTrue(body.contains("예시 문장(example_rewrite)에는 케이스의 실제 발언만 인용할 것"), body);
         String prompt = SbarController.explainPrompt(state.currentCase(), p.draft(), p.draft().sbar(), p.draft().checks());
         assertTrue(prompt.contains(briefing), "케이스 브리핑을 사실 자료로 보냄");
@@ -89,6 +89,40 @@ class SbarBackgroundSubmitTest {
         var v = pc01.vitals().get(0);
         assertTrue(p01.contains("[케이스 활력징후] " + v.time() + " BP " + v.systolic() + "/" + v.diastolic()), p01);
         assertTrue(p01.contains(pc01.observationLog().get(0).narrative()), p01);
+    }
+
+    @Test
+    void 해설_요청에_빈_활력값은_null로_보내지_않고_R_시각_설명을_넣는다() {
+        var pc01 = new CaseLoader().load("PC-01");
+        SbarController c = new SbarController(state, repo, () -> 7L);
+        var p = c.prepare("상황", "배경", "평가", ROWS);
+        String prompt = SbarController.explainPrompt(pc01, p.draft(), p.draft().sbar(), p.draft().checks());
+        assertFalse(prompt.toLowerCase().contains("null"), prompt);
+        // 학생이 B에 쓰는 환자 정보·알레르기·처방도 사실 자료로 보낸다 (개발용 표기는 빼고)
+        assertTrue(prompt.contains("[케이스 환자] 28세, 여성, 진단 조현정동장애(양극형)"), prompt);
+        assertTrue(prompt.contains("[케이스 알레르기] Penicillin"), prompt);
+        assertTrue(prompt.contains("[케이스 처방 정규] Lithium carbonate (탄산리튬) 300mg PO 1일 3회"), prompt);
+        assertTrue(prompt.contains("[케이스 처방 PRN] Lorazepam 1mg PO PRN"), prompt);
+        assertFalse(prompt.contains("[확인필요]") || prompt.contains("[검증필요]") || prompt.contains("E-2"), prompt);
+        assertTrue(prompt.contains("R은 인계를 받은 다음 근무자가 앞으로 할 일과 그 예정 시각이다. 학생이 쓴 R의 시각이 인계 시각보다 "
+                + "뒤인 것은 올바르므로 지적하지 말 것"), prompt);
+        assertTrue(prompt.contains("학생이 쓰지 않은 내용을 학생의 실수로 지적하지 말 것"), prompt);
+        assertEquals("BP 118/74, HR 76", SbarController.vitalText(
+                new app.domain.VitalSign("V", "14:00", 118, 74, 76, null, null, null)));
+        assertEquals("기록 없음", SbarController.vitalText(
+                new app.domain.VitalSign("V", "14:00", null, null, null, null, null, null)));
+    }
+
+    @Test
+    void 해설_요청에_학생_투약_기록과_간호_조치_지어내기_금지를_넣는다() {
+        state.addMedication(new MedicationRecord("ORD", "합성약", "0.5", "mg", "PO", "09:30",
+                MedicationResult.GIVEN, "불안", "합성 근거", true, null));
+        SbarController c = new SbarController(state, repo, () -> 7L);
+        var p = c.prepare("상황", "배경", "평가", ROWS);
+        String prompt = SbarController.explainPrompt(state.currentCase(), p.draft(), p.draft().sbar(), p.draft().checks());
+        assertTrue(prompt.contains("[학생 투약 기록] 09:30 합성약 0.5mg PO, 재평가 계획 없음"), prompt);
+        assertTrue(prompt.contains("간호 조치(예: 격리·강박·추가 투약)를 만들지 말 것"), prompt);
+        assertFalse(prompt.contains("[확인필요]") || prompt.contains("[검증필요]"), prompt); // demo 케이스의 개발용 표기는 보내지 않음
     }
 
     @Test
