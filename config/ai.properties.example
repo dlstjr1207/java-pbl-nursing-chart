@@ -2,11 +2,17 @@
 # config/ai.properties is git-ignored. NEVER commit a real key.
 # 키가 없어도 프로그램은 PC-01과 규칙 점검으로 동작한다.
 
-# AI 해설·케이스 생성 (OpenAI 호환 서비스면 ai.baseUrl에 접속 주소를 넣는다)
+# AI 해설·케이스 생성. 요청 형식은 OpenAI 호환 chat completions (POST {ai.baseUrl}/chat/completions,
+# Authorization: Bearer 키). vLLM 등 OpenAI 호환 서버, OpenAI, OpenRouter 등이 이 형식이다.
+# ai.provider: 설명용 이름 (예: openai-compatible). 현재 요청 형식에는 영향을 주지 않는다.
+# ai.model: 서비스가 안내한 모델 이름 (예: gemma-4-26b)
+# ai.baseUrl: /v1까지의 접속 주소 (예: https://서비스주소/v1)
+# 키가 없거나 하나라도 비어 있으면 AI 해설·생성만 꺼지고 나머지는 정상 동작한다.
 ai.provider=
 ai.apiKey=
 ai.model=
 ai.baseUrl=
 
-# 약물 공공데이터 API (공공데이터포털 일반 인증키 Decoding). 사용 방식은 미정
+# 약물 공공데이터 API (공공데이터포털 일반 인증키 Decoding). '식품의약품안전처_의약품 제품 허가정보'(15095677) 활용신청 필요.
+# 약 정보 파일 갱신 때만 쓴다: ./mvnw -q compile exec:java -Dmain.class=app.drugs.DrugInfoUpdater (프로그램 실행 중에는 쓰지 않음)
 drug.apiKey=

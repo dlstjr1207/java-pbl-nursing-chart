@@ -1,6 +1,7 @@
 package app.ui;
 
 import app.domain.Medication;
+import app.drugs.DrugInfoCatalog;
 import app.domain.MedicationResult;
 import app.domain.PatientCase;
 import java.awt.BorderLayout;
@@ -47,6 +48,9 @@ public class MedicationPanel extends JPanel implements Reloadable {
     private final JCheckBox oralBox = new JCheckBox("구강 확인");
     private final JTextArea planArea = new JTextArea(2, 30);
     private final JLabel errorLabel = new JLabel(" ");
+    /** 선택한 처방의 식약처 허가정보 (저장된 파일만 읽음, 참고용). */
+    private final DrugInfoCatalog drugInfo = DrugInfoCatalog.load();
+    private final JTextArea drugInfoArea = new JTextArea(8, 30);
 
     public MedicationPanel(AppState state, Consumer<Screen> onNavigate) {
         super(new BorderLayout(8, 8));
@@ -56,7 +60,15 @@ public class MedicationPanel extends JPanel implements Reloadable {
 
         JScrollPane scroll = new JScrollPane(new JList<>(recordModel));
         scroll.setBorder(BorderFactory.createTitledBorder("내 투약 기록"));
-        add(scroll, BorderLayout.CENTER);
+        drugInfoArea.setEditable(false);
+        drugInfoArea.setLineWrap(true);
+        drugInfoArea.setWrapStyleWord(true);
+        JScrollPane info = new JScrollPane(drugInfoArea);
+        info.setBorder(BorderFactory.createTitledBorder("약 정보(식약처 허가정보)"));
+        JPanel center = new JPanel(new GridLayout(1, 2, 8, 8));
+        center.add(scroll);
+        center.add(info);
+        add(center, BorderLayout.CENTER);
         add(buildForm(onNavigate), BorderLayout.SOUTH);
 
         orderBox.setRenderer((l, value, i, sel, foc) ->
@@ -65,6 +77,7 @@ public class MedicationPanel extends JPanel implements Reloadable {
         orderBox.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) fillFromOrder();
             updateReasonHint();
+            showDrugInfo();
         });
         reload();
     }
@@ -146,6 +159,18 @@ public class MedicationPanel extends JPanel implements Reloadable {
         reasonLabel.setForeground(need ? new Color(0xC62828) : Color.DARK_GRAY);
     }
 
+    /** 선택한 처방 약의 허가정보를 보여 준다 (S4 참고 정보, 채점과 무관). */
+    private void showDrugInfo() {
+        Medication o = (Medication) orderBox.getSelectedItem();
+        drugInfoArea.setText(o == null ? "처방을 고르면 약 정보가 보입니다." : drugInfo.describe(o.drugName()));
+        drugInfoArea.setCaretPosition(0);
+    }
+
+    /** 화면 테스트용: 지금 보이는 약 정보. */
+    String drugInfoText() {
+        return drugInfoArea.getText();
+    }
+
     private void fillFromOrder() {
         Medication o = (Medication) orderBox.getSelectedItem();
         if (o == null) return;
@@ -188,6 +213,7 @@ public class MedicationPanel extends JPanel implements Reloadable {
         if (c != null) controller.selectableOrders().forEach(orderBox::addItem);
         errorLabel.setText(" ");
         updateReasonHint();
+        showDrugInfo();
         refreshList();
     }
 

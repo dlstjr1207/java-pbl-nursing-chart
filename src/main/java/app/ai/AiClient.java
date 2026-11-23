@@ -78,14 +78,12 @@ public final class AiClient {
 
     /** 해설 JSON(strengths, improvements, example_rewrite)을 검증해 변환한다. 코드 펜스는 벗긴다. */
     static AiFeedback parseFeedback(String content) {
-        String json = content == null ? "" : content.trim();
-        if (json.startsWith("```")) {
-            int firstNewline = json.indexOf('\n');
-            int lastFence = json.lastIndexOf("```");
-            if (firstNewline > 0 && lastFence > firstNewline) {
-                json = json.substring(firstNewline + 1, lastFence).trim();
-            }
-        }
+        // 앞뒤 설명문·코드 펜스가 붙어도 JSON 객체 부분만 꺼내 읽는다
+        String json = content == null ? "" : content;
+        int start = json.indexOf('{');
+        int end = json.lastIndexOf('}');
+        if (start < 0 || end <= start) throw new IllegalArgumentException("해설 응답에 JSON 객체가 없음");
+        json = json.substring(start, end + 1);
         JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
         List<String> strengths = stringList(obj, "strengths");
         List<String> improvements = stringList(obj, "improvements");
@@ -119,7 +117,7 @@ public final class AiClient {
     }
 
     /** baseUrl 뒤에 /chat/completions를 붙인다. */
-    private String endpoint() {
+    String endpoint() {
         String base = config.baseUrl();
         while (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);

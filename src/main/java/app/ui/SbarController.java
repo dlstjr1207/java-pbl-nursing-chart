@@ -49,7 +49,11 @@ public class SbarController {
         for (SbarRecommendation r : report.recommendations()) {
             p.append("R: ").append(r.time()).append(' ').append(r.intervention()).append('\n');
         }
+        // 요청을 짧게: 점수와 고칠 점(누락·불일치·피드백)만 보낸다. 통과 항목은 개수만.
+        long passed = checks.stream().filter(c -> c.status() == app.domain.CheckStatus.PASS).count();
+        p.append("점수: ").append(app.scoring.Scorer.score(checks).score()).append(", 통과 ").append(passed).append("건\n");
         for (CheckResult c : checks) {
+            if (c.status() == app.domain.CheckStatus.PASS || c.status() == app.domain.CheckStatus.NOT_SCORED) continue;
             p.append('[').append(c.ruleId()).append("] ").append(c.status()).append(' ').append(c.message()).append('\n');
         }
         return ai.explain(p.toString());
