@@ -55,6 +55,11 @@ public final class UiWalkthrough {
             // 네 번째 인자 ai3: 실제 AI로 케이스를 3번 만들어 모범 기록 100점·다양성·학생 입장 브리핑을 확인한다
             if (args.length > 3 && args[3].equals("ai3")) runAiTrial(3);
             else if (args.length > 4 && args[3].equals("demo5")) runDemo(Files.readString(Path.of(args[4])).strip());
+            else if (args.length > 6 && args[3].equals("demo5only")) {
+                caseDump = Path.of(args[5]);
+                inputFile = Path.of(args[6]);
+                runDemoRound5(Files.readString(Path.of(args[4])).strip());
+            }
             else run();
         } finally {
             Files.write(out.resolve("walkthrough.txt"), log);
@@ -834,7 +839,10 @@ public final class UiWalkthrough {
         return v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v);
     }
 
-    /** 5회: AI로 만든 환자. 브리핑의 사실을 학생 말로 옮기되, 재평가·구강 확인·SBAR 세부를 일부 빠뜨린 중간 수준 기록. */
+    /**
+     * 5회: AI로 만든 환자. 도구가 단어를 이어 붙여 문장을 만들지 않도록, 생성된 케이스의 사실(브리핑·처방)을
+     * 파일로 남긴 뒤 사람이 그 환자에 맞게 쓴 입력 파일(JSON)을 기다려 그대로 입력한다.
+     */
     private static void demoAiRound() throws Exception {
         edt(() -> clickText(panel(Screen.HOME), "AI로 새 케이스 생성"));
         for (int i = 0; i < 300 && !title().contains("환자 정보"); i++) Thread.sleep(1000);
@@ -845,27 +853,43 @@ public final class UiWalkthrough {
             return;
         }
         shot("5회-환자정보");
-        log.add("5회 브리핑: " + c.briefing().replace("\n", " "));
-        String place = first(c, "장소=");
-        String act = first(c, "행동=");
-        var q = java.util.regex.Pattern.compile("[\"“]([^\"”]+)[\"”]").matcher(c.briefing());
-        String quote = q.find() ? q.group(1) : "불안해요";
-        app.domain.Medication prn = c.orders().stream().filter(m -> m.type() == app.domain.OrderType.PRN).findFirst().orElseThrow();
-        String drug = prn.drugName().replaceAll("\\s*\\(.*\\)", "");
-        String medTime = first(c, "시각=");
-        String obsTime = c.modelAnswer() != null && c.modelAnswer().observationRecord() != null
-                ? c.modelAnswer().observationRecord().time() : medTime;
-        var p = c.patient();
-        demoRound(5, "AI 생성 환자", "중간 수준 기록 (재평가 계획 없음, 구강 확인 안 함, SBAR 간단히)", new DemoInput(obsTime,
-                List.of("불안 급증"),
-                place + " 쪽에서 " + act + " 모습이 보임. 환자가 \"" + quote + "\"라고 함. 옆에 앉아 1:1로 이야기를 들어 줌. "
-                        + medTime + " PRN " + drug + " " + prn.dose() + prn.unit() + " " + prn.route() + " 투여함.",
-                "1:1 대화",
-                prn.dose(), "불안해 보여서", "PRN", false, "",
-                "불안 증상이 있어 PRN 약을 줬습니다.",
-                p.age() + "세 " + ("F".equals(p.sex()) ? "여자" : "남자") + " 환자, " + p.diagnosis() + "로 입원 중입니다.",
-                "투약 후 조금 진정된 것 같습니다.",
-                List.<String[]>of(new String[] {"16:00", "상태 관찰"})));
+        String orderText = call(() -> allText(panel(Screen.PATIENT)));
+        List<String> facts = new ArrayList<>();
+        facts.add("ID: " + c.id());
+        facts.add("환자: " + c.patient().name() + ", " + c.patient().age() + "세, " + c.patient().sex() + ", "
+                + c.patient().room() + ", " + c.patient().diagnosis() + ", 입원 " + c.patient().hospitalDay() + "일차");
+        facts.add("브리핑: " + c.briefing());
+        c.orders().forEach(m -> facts.add("처방: " + m.type() + " " + app.ui.MedicationController.orderSummary(m)));
+        facts.add("관찰 로그: " + c.observationLog().stream().map(o -> o.time() + " " + o.narrative()).toList());
+        facts.add("활력: " + c.vitals());
+        facts.add("환자 정보 화면 글: " + orderText.replace("\n", " / "));
+        Files.write(caseDump, facts);
+        log.add("5회 케이스 사실을 남김, 입력 파일을 기다림: " + inputFile);
+        for (int i = 0; i < 1200 && !Files.exists(inputFile); i++) Thread.sleep(1000);
+        var j = com.google.gson.JsonParser.parseString(Files.readString(inputFile)).getAsJsonObject();
+        List<String[]> recs = new ArrayList<>();
+        for (var r : j.getAsJsonArray("recs")) recs.add(new String[] {r.getAsJsonArray().get(0).getAsString(), r.getAsJsonArray().get(1).getAsString()});
+        List<String> tags = new ArrayList<>();
+        j.getAsJsonArray("tags").forEach(t -> tags.add(t.getAsString()));
+        demoRound(5, "AI 생성 환자", j.get("mistake").getAsString(), new DemoInput(j.get("obsTime").getAsString(), tags,
+                j.get("narrative").getAsString(), j.get("intervention").getAsString(), j.get("dose").getAsString(),
+                j.get("reason").getAsString(), j.get("basis").getAsString(), j.get("oral").getAsBoolean(), j.get("plan").getAsString(),
+                j.get("s").getAsString(), j.get("b").getAsString(), j.get("a").getAsString(), recs));
+    }
+
+    /** 5회차 입력 파일과 케이스 사실 파일 (demo5only 모드). */
+    private static Path inputFile;
+    private static Path caseDump;
+
+    /** 5회차만 다시 실습한다 (기존 5회차 기록은 사람이 SQL로 지운다). */
+    private static void runDemoRound5(String pw) throws Exception {
+        login("demo01", pw);
+        row("demo01", "로그인 → 개인 메인", title(), title().contains("개인 메인"));
+        demoTable.add("| 회 | 케이스 | 의도한 실수 | 실제 점수 | 항목별 점수 (R7·R2·R8·R6·R1·R4) | 주요 피드백 |");
+        demoTable.add("|---|---|---|---|---|---|");
+        demoAiRound();
+        Files.write(out.resolve("demo-table-5.md"), demoTable);
+        shot("demo-home");
     }
 
     private static String first(app.domain.PatientCase c, String prefix) {

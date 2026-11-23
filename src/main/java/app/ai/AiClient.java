@@ -36,6 +36,10 @@ public final class AiClient {
      * 학생 기록·점검 결과 요약으로 해설을 요청한다.
      * 키 없음 → NONE, 통신 실패·형식 오류 → FAILED, 정상 → SUCCESS.
      */
+    /** 해설 지시: 교육용이라 없는 사실을 보여 주면 안 된다 (시연 3회차에서 지어낸 발언이 나온 뒤 추가). */
+    public static final String NO_FABRICATION = "케이스와 학생 기록에 없는 환자 발언·수치·사건을 만들지 말 것. "
+            + "예시 문장(example_rewrite)에는 케이스의 실제 발언만 인용할 것. 사실이 부족하면 [확인 필요]라고 쓸 것.";
+
     public AiFeedback explain(String prompt) {
         if (!isEnabled()) {
             return new AiFeedback(STATUS_NONE, null, null, null);
@@ -43,7 +47,8 @@ public final class AiClient {
         try {
             String content = complete(
                     "너는 간호학생의 기록을 돕는 교육용 조언자다. 점수는 매기지 않는다. 반드시 JSON 객체 하나만 답한다. "
-                            + "키는 strengths(문자열 배열), improvements(문자열 배열), example_rewrite(문자열)이다.",
+                            + "키는 strengths(문자열 배열), improvements(문자열 배열), example_rewrite(문자열)이다. "
+                            + NO_FABRICATION,
                     prompt);
             return parseFeedback(content);
         } catch (IOException | RuntimeException e) {
