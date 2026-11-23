@@ -130,7 +130,7 @@ public class MainFrame extends JFrame {
             JScrollPane sp = scrolls.get(now);
             if (sp != null) javax.swing.SwingUtilities.invokeLater(() -> sp.getVerticalScrollBar().setValue(0)); // 새 화면은 맨 위부터
         }
-        sideMenu.setVisible(state.userName() != null);
+        sideMenu.setVisible(state.showSideMenu());
         screenLabel.setText(state.screenLabel());
         patientLabel.setText(state.patientLabel());
         userLabel.setText(state.userLabel());

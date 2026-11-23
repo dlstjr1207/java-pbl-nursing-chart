@@ -60,13 +60,121 @@ public class CaseValidator {
             }
         }
         checkAnswerKey(p, c);
+        checkKeyLanguages(p, c);
+        checkBriefingMatchesKey(p, c);
         for (int i = 0; i < c.vitals().size(); i++) {
             VitalSign v = c.vitals().get(i);
             if (v == null || v.time() == null || !v.time().matches(TIME)) {
                 p.add("vitals[" + i + "].time 형식 오류 (HH:mm)");
             }
+            if (v != null) checkVitalRanges(p, i, v);
         }
         return p;
+    }
+
+    /**
+     * 활력징후가 생리적으로 가능한 범위인지 (생성 케이스 거부 기준, 정상 범위가 아니라 '있을 수 있는 값'의 바깥 경계).
+     * 사용자 지정 범위: 수축기 70~200, 이완기 40~130, 맥박 40~160, 호흡 8~40, 체온 34~41, SpO2 80~100.
+     */
+    static final double[][] VITAL_LIMITS = {{70, 200}, {40, 130}, {40, 160}, {8, 40}, {34, 41}, {80, 100}};
+    static final String[] VITAL_NAMES = {"systolic(수축기)", "diastolic(이완기)", "pulse(맥박)", "respiration(호흡)",
+            "temperature(체온)", "spo2(SpO2)"};
+
+    private static void checkVitalRanges(List<String> p, int i, VitalSign v) {
+        Number[] values = {v.systolic(), v.diastolic(), v.pulse(), v.respiration(), v.temperature(), v.spo2()};
+        for (int k = 0; k < values.length; k++) {
+            if (values[k] == null) continue; // 값이 비어 있는 것은 형식 검사(CaseLoader)가 본다
+            double x = values[k].doubleValue();
+            if (x < VITAL_LIMITS[k][0] || x > VITAL_LIMITS[k][1]) {
+                p.add("vitals[" + i + "]." + VITAL_NAMES[k] + " " + values[k] + "이(가) 가능한 범위("
+                        + fmt(VITAL_LIMITS[k][0]) + "~" + fmt(VITAL_LIMITS[k][1]) + ") 밖");
+            }
+        }
+    }
+
+    /**
+     * 정답 키와 브리핑이 서로 맞는지: 학생은 브리핑을 보고 쓰므로, 브리핑에 없는 사실을 정답으로 요구하면 안 된다.
+     * 투약 정답 시각이 브리핑에 있는지, '장소' 동의어 중 하나가 브리핑에 있는지, '발언 인용' 동의어가 브리핑의 따옴표 안에 있는지 본다.
+     */
+    private static void checkBriefingMatchesKey(List<String> p, PatientCase c) {
+        var key = c.answerKey();
+        if (key == null || blank(c.briefing())) return;
+        String briefing = c.briefing();
+        app.scoring.ElementPattern.parseAll(key.medicationElements()).stream()
+                .filter(e -> e.label().equals("시각")).findFirst()
+                .ifPresent(t -> {
+                    if (!t.foundIn(briefing)) {
+                        p.add("answerKey 투약 시각(" + t.expected() + ")이 briefing에 없음");
+                    }
+                });
+        for (var e : app.scoring.ElementPattern.parseAll(key.observationElements())) {
+            if (e.label().equals("장소") && !e.foundIn(briefing)) {
+                p.add("answerKey '장소'(" + e.example() + ") 동의어가 briefing에 없음");
+            }
+            if (e.label().equals("발언 인용") && !e.foundIn(quoted(briefing))) {
+                p.add("answerKey '발언 인용'(" + e.example() + ") 동의어가 briefing의 따옴표 안 환자 발언에 없음");
+            }
+        }
+    }
+
+    /** 글에서 따옴표(" " “ ” ' ' ‘ ’) 안의 말만 모은다. */
+    static String quoted(String text) {
+        StringBuilder sb = new StringBuilder();
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("[\"“”]([^\"“”]+)[\"“”]|['‘’]([^'‘’]+)['‘’]").matcher(text);
+        while (m.find()) sb.append(m.group(1) != null ? m.group(1) : m.group(2)).append(' ');
+        return sb.toString();
+    }
+
+    /**
+     * 학생이 한글로 써도 맞게 채점되도록, 정답 키의 약명은 한글·영어를 모두, 경로는 PO와 경구를 모두 갖게 한다.
+     * 투약 정답(medicationElements)의 약명·경로와 관찰 핵심 사실의 '투약' 요소를 본다.
+     */
+    private static void checkKeyLanguages(List<String> p, PatientCase c) {
+        var key = c.answerKey();
+        if (key == null) return;
+        boolean hasRoute = false;
+        for (var e : app.scoring.ElementPattern.parseAll(key.medicationElements())) {
+            if (e.groups().isEmpty()) continue;
+            if (e.label().equals("약명")) requireBoth(p, "answerKey.medicationElements 약명", e.groups().get(0));
+            if (e.label().equals("경로")) {
+                hasRoute = true;
+                requireRoute(p, "answerKey.medicationElements 경로", e.groups().get(0));
+            }
+        }
+        if (!key.medicationElements().isEmpty() && !hasRoute) {
+            p.add("answerKey.medicationElements에 경로(PO|경구)가 없음");
+        }
+        for (var e : app.scoring.ElementPattern.parseAll(key.observationElements())) {
+            if (!e.label().equals("투약") || e.groups().isEmpty()) continue;
+            // 견본 형식: 투약=한글약명|영문약명&용량&PO|경구 — 첫 묶음이 약명이다
+            requireBoth(p, "answerKey.observationElements 투약 약명", e.groups().get(0));
+            for (List<String> group : e.groups()) {
+                if (group.stream().anyMatch(a -> a.equalsIgnoreCase("po") || a.equals("경구"))) {
+                    requireRoute(p, "answerKey.observationElements 투약 경로", group);
+                }
+            }
+        }
+    }
+
+    private static void requireBoth(List<String> p, String where, List<String> alts) {
+        boolean ko = alts.stream().anyMatch(CaseValidator::hasHangul);
+        boolean en = alts.stream().anyMatch(a -> a.matches("(?i).*[a-z]{3,}.*"));
+        if (!ko || !en) p.add(where + "에 한글·영어 약명이 모두 있어야 함 (현재: " + String.join("|", alts) + ")");
+    }
+
+    private static void requireRoute(List<String> p, String where, List<String> alts) {
+        boolean po = alts.stream().anyMatch(a -> a.equalsIgnoreCase("po"));
+        boolean ko = alts.stream().anyMatch(a -> a.equals("경구"));
+        if (!po || !ko) p.add(where + "에 PO와 경구가 모두 있어야 함 (예: PO|경구, 현재: " + String.join("|", alts) + ")");
+    }
+
+    private static boolean hasHangul(String s) {
+        return s != null && s.codePoints().anyMatch(ch -> ch >= 0xAC00 && ch <= 0xD7A3);
+    }
+
+    private static String fmt(double d) {
+        return d == Math.rint(d) ? String.valueOf((long) d) : String.valueOf(d);
     }
 
     /** 정답 키 필수, 투약 정답(약명·용량·경로)이 현재 처방(정규·PRN) 중 하나와 같은지 확인한다. */

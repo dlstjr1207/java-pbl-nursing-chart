@@ -186,21 +186,26 @@ public class ResultView {
         for (CheckResult c : list) sb.append("  - ").append(CheckLabels.line(c)).append('\n');
     }
 
+    /** 기록의 케이스. AI 생성 케이스는 저장된 원문에서, 고정 케이스는 케이스 파일에서 읽는다. 못 읽으면 null. */
+    public static app.domain.PatientCase caseOf(Attempt a) {
+        if (a == null) return null;
+        try {
+            if (a.generatedCaseJson() != null) {
+                return app.domain.DomainJson.fromJson(a.generatedCaseJson(), app.domain.PatientCase.class);
+            }
+            if (a.caseId() != null) return new app.cases.CaseLoader().load(a.caseId());
+        } catch (RuntimeException e) {
+            return null;
+        }
+        return null;
+    }
+
     /**
      * 제출한 기록의 케이스에 있는 모범 기록. 제출 후에만 호출되므로 정답이 제출 전에 보이지 않는다.
      * AI 생성 케이스는 저장된 원문에서, 고정 케이스는 케이스 파일에서 읽는다. 없으면 "준비 중".
      */
     public static String modelAnswerText(Attempt a) {
-        app.domain.PatientCase c = null;
-        try {
-            if (a.generatedCaseJson() != null) {
-                c = app.domain.DomainJson.fromJson(a.generatedCaseJson(), app.domain.PatientCase.class);
-            } else if (a.caseId() != null) {
-                c = new app.cases.CaseLoader().load(a.caseId());
-            }
-        } catch (RuntimeException e) {
-            c = null;
-        }
+        app.domain.PatientCase c = caseOf(a);
         app.domain.ModelAnswer m = c == null ? null : c.modelAnswer();
         if (m == null || (m.observation() == null && m.medication() == null && m.sbar() == null)) {
             return MODEL_PENDING + "\n";

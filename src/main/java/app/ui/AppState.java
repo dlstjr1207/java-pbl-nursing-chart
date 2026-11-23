@@ -126,6 +126,9 @@ public class AppState {
         studentMedications.add(record);
     }
 
+    /** 왼쪽 메뉴(로그아웃 포함)를 보일지. 로그인 전에는 숨긴다 (polish C-10). */
+    public boolean showSideMenu() { return userName != null; }
+
     /** 이동 가능 여부. 로그인·케이스 조건을 확인한다. */
     public boolean canGo(Screen target) {
         if (target.needsLogin() != (userName != null)) return false;
@@ -143,6 +146,12 @@ public class AppState {
 
     /** 상단 상태줄의 '현재 환자' 문구. */
     public String patientLabel() {
+        if (current == Screen.RESULT && resultAttempt != null) {
+            // 결과를 보는 동안에는 그 실습의 환자를 보여 준다 (실습은 끝났으므로 currentCase는 비어 있다).
+            PatientCase c = ResultView.caseOf(resultAttempt);
+            String name = c == null || c.patient() == null ? "-" : c.patient().name();
+            return "환자: " + name + " (" + resultAttempt.caseId() + ") · 결과 보기";
+        }
         if (currentCase == null) return "환자: 선택 안 함";
         return "환자: " + currentCase.patient().name() + " (" + currentCase.id() + ")";
     }

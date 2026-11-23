@@ -42,6 +42,11 @@ public final class ElementPattern {
         return elements.stream().filter(e -> e != null && !e.isBlank()).map(ElementPattern::parse).toList();
     }
 
+    /** 조건 묶음('&'로 나뉜 것)과 묶음 안의 동의어 (읽기 전용). 생성 케이스 검사에 쓴다. */
+    public List<List<String>> groups() {
+        return groups.stream().map(List::copyOf).toList();
+    }
+
     /** 사람이 읽는 이름 (예: 장소). */
     public String label() { return label; }
 

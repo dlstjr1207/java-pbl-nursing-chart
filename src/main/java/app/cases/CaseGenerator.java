@@ -46,6 +46,14 @@ public class CaseGenerator {
     /** 매번 다른 환자를 만들도록 요청 조건(성별·나이·사건 장소)을 고르는 난수. 테스트에서는 고정 시드. */
     private final java.util.Random random;
 
+    /** 생성 시각 (케이스 ID에 쓴다). 테스트에서 고정할 수 있다. */
+    private java.util.function.Supplier<java.time.LocalDateTime> clock = java.time.LocalDateTime::now;
+    /** 이 실행에서 마지막으로 붙인 ID (같은 분에 또 만들면 뒤에 -2, -3을 붙인다). */
+    private static String lastId;
+    private static int sameMinuteCount;
+    private static final java.time.format.DateTimeFormatter ID_FMT =
+            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmm");
+
     /** 사건 장소 후보 (병동 안의 장소, 임상 값 아님). */
     static final List<String> PLACES = List.of("데이룸", "복도", "병실", "간호사실 앞", "식당", "면회실 앞", "샤워실 앞", "프로그램실");
     /** 생성 환자 나이 범위 */
@@ -62,6 +70,29 @@ public class CaseGenerator {
         this.loader = loader;
         this.maxAttempts = Math.max(1, maxAttempts);
         this.random = random;
+    }
+
+    /** 생성 시각을 정한다 (테스트용). */
+    CaseGenerator withClock(java.util.function.Supplier<java.time.LocalDateTime> clock) {
+        this.clock = clock;
+        return this;
+    }
+
+    /**
+     * 생성 케이스 ID. AI가 아니라 프로그램이 생성 시각으로 붙인다 (예: GEN-20261123-1530).
+     * 같은 분에 다시 만들면 GEN-20261123-1530-2처럼 번호를 붙여 과거 기록에서 서로 구분되게 한다.
+     */
+    String newCaseId() {
+        String base = "GEN-" + clock.get().format(ID_FMT);
+        synchronized (CaseGenerator.class) {
+            if (base.equals(lastId)) {
+                sameMinuteCount++;
+                return base + "-" + sameMinuteCount;
+            }
+            lastId = base;
+            sameMinuteCount = 1;
+            return base;
+        }
     }
 
     /** AI 키가 있고 허용 약물 목록이 채워져 있어 생성을 쓸 수 있는지 (D26). */
@@ -101,8 +132,9 @@ public class CaseGenerator {
             }
             problems = new ArrayList<>(validator.check(c));
             problems.addAll(diversityProblems(c));
+            if (problems.isEmpty()) problems.addAll(modelScoreProblems(c)); // 형식이 맞을 때만 채점해 본다
             if (problems.isEmpty()) {
-                return new Result(c, true, "AI가 새 케이스를 만들었습니다.", List.of());
+                return new Result(withId(c, newCaseId()), true, "AI가 새 케이스를 만들었습니다.", List.of());
             }
         }
         return fallback("케이스 생성에 " + maxAttempts + "번 실패해 기본 케이스로 실습합니다.", problems);
@@ -115,10 +147,38 @@ public class CaseGenerator {
         if (c == null) throw new IllegalArgumentException("빈 응답");
         // 정답 키는 PC-01과 같은 규칙으로 채점하기 위해 쓴다(검사기가 처방과 맞는지 확인). 모범 기록은 제출 후 참고용.
         // 출처·검토 상태는 프로그램이 정한다.
-        return new PatientCase(c.id(), c.title(), c.difficulty(), c.objectives(), "AI_GENERATED",
+        return new PatientCase("GEN-검사중", c.title(), c.difficulty(), c.objectives(), "AI_GENERATED",
                 CaseSource.AI_GENERATED, c.patient(), c.adr(), c.riskTier(), c.orders(), c.regimenHistory(),
                 c.lithiumLevel(), c.vitals(), c.observationLog(), c.safetyRounds(), c.briefing(),
                 c.sbarReference(), c.answerKey(), c.modelAnswer());
+    }
+
+    /** 케이스 ID만 바꾼 사본. */
+    private static PatientCase withId(PatientCase c, String id) {
+        return new PatientCase(id, c.title(), c.difficulty(), c.objectives(), c.reviewStatus(), c.source(), c.patient(),
+                c.adr(), c.riskTier(), c.orders(), c.regimenHistory(), c.lithiumLevel(), c.vitals(), c.observationLog(),
+                c.safetyRounds(), c.briefing(), c.sbarReference(), c.answerKey(), c.modelAnswer());
+    }
+
+    /**
+     * 모범 기록을 자기 케이스 정답 키로 채점해 100점인지 확인한다 (생성 직후 검사).
+     * 모범 기록이 만점이 아니면 정답 키와 모범 기록이 어긋난 것이므로 거부하고 다시 생성한다.
+     */
+    static List<String> modelScoreProblems(PatientCase c) {
+        var m = c.modelAnswer();
+        if (m == null || m.observationRecord() == null || m.medicationRecord() == null || m.sbarReport() == null) {
+            return List.of("modelAnswer의 observationRecord·medicationRecord·sbarReport(구조화된 모범 기록)가 필요함");
+        }
+        app.scoring.Scorer.Result r = app.scoring.Scorer.evaluate(c, List.of(m.observationRecord()),
+                List.of(m.medicationRecord()), m.sbarReport());
+        if (r.score() != null && r.score() >= 100.0 - 1e-9) return List.of();
+        List<String> out = new ArrayList<>();
+        out.add("모범 기록이 자기 정답 키로 " + (r.score() == null ? "미산출" : r.score() + "점") + " (100점이어야 함)");
+        r.checks().stream()
+                .filter(x -> x.status() == app.domain.CheckStatus.MISSING || x.status() == app.domain.CheckStatus.MISMATCH)
+                .limit(6)
+                .forEach(x -> out.add("모범 기록 " + x.ruleId() + " " + x.targetRef() + ": " + x.message()));
+        return out;
     }
 
     private static String shortReason(RuntimeException e) {
@@ -153,13 +213,22 @@ public class CaseGenerator {
                 + "type은 REGULAR|PRN|PAST, shift는 DAY|EVENING|NIGHT, 시각은 HH:mm. "
                 + "약물·용량은 허용 목록 안에서만 고르고, 정규 처방은 (1회 용량 × scheduleTimes 수)가 1일 허용 범위 안이어야 한다. "
                 + "answerKey.medicationElements는 PRN 처방과 같은 약명·용량·경로여야 하고, 시각은 briefing의 투약 시각이다. "
-                + "briefing은 필수이고, observationLog는 2건 이상, vitals는 2회 이상(서로 다른 시각) 넣는다.\n"
+                + "briefing은 필수이고, observationLog는 2건 이상, vitals는 2회 이상(서로 다른 시각) 넣는다. "
+                + "vitals는 생리적으로 가능한 값만 쓴다(수축기 70~200, 이완기 40~130, 맥박 40~160, 호흡 8~40, 체온 34~41, SpO2 80~100). "
+                + "학생이 담당 간호사 입장이다. briefing에서 학생(간호사)을 제3자로 쓰지 말고(예: '간호사에게 알리고' 금지), "
+                + "간호 행위는 행동 그대로 서술한다(예: 1:1로 조용한 곳에서 대화하며 안정을 도움). "
+                + "briefing에는 PRN 투약 시각, answerKey '장소' 동의어 중 하나, 따옴표 안 환자 발언(answerKey '발언 인용' 동의어 포함)이 반드시 들어간다. "
+                + "answerKey의 약명 동의어는 한글·영어를 모두 쓰고(예: 로라제팜|Lorazepam), 경로는 반드시 PO|경구로 쓴다. "
+                + "id는 쓰지 않는다(프로그램이 붙인다). "
+                + "modelAnswer에는 문장(observation·medication·sbar)과 함께 구조화된 observationRecord·medicationRecord·sbarReport를 넣고, "
+                + "이 구조화된 모범 기록이 answerKey의 모든 요소를 포함해 자기 정답 키로 100점이어야 한다"
+                + "(관찰 서술에 큰따옴표로 환자 발언 인용, 판단 표현 대신 관찰한 행동, 재평가 시각 포함; 투약 기록의 모든 칸 채움).\n"
                 + "견본:\n" + TEMPLATE;
     }
 
     /** 생성 응답의 형식 견본 (값은 예시 자리일 뿐 임상 값이 아님). */
     static final String TEMPLATE = """
-            {"id":"GEN-1","title":"짧은 제목","difficulty":"기본","objectives":["학습 목표"],
+            {"title":"짧은 제목","difficulty":"기본","objectives":["학습 목표"],
              "patient":{"name":"가상 이름","age":30,"sex":"F","patientNo":"SIM-G01","room":"000호",
                         "diagnosis":"진단명","admissionType":"동의입원","admissionDate":"2026-10-01","hospitalDay":10},
              "adr":{"allergies":["없음"],"adverseReactions":[]},
@@ -171,11 +240,19 @@ public class CaseGenerator {
                        {"measurementId":"V2","time":"HH:mm","systolic":0,"diastolic":0,"pulse":0,"respiration":0,"temperature":0.0,"spo2":0}],
              "observationLog":[{"time":"HH:mm","shift":"DAY","tags":["기타"],"narrative":"사건 전 관찰 문장"},
                                {"time":"HH:mm","shift":"DAY","tags":["안정 회복"],"narrative":"재평가 결과 문장"}],
-             "briefing":"사건 시각·장소·행동·환자 발언(따옴표)·간호·PRN 투약을 담은 문장",
-             "answerKey":{"observationElements":["장소=동의어1|동의어2","행동=…","발언 인용=…","간호=…","투약=약명|영문약명&1mg|1 mg&po|경구","재평가=…"],
+             "briefing":"사건 시각·장소·행동·환자 발언(큰따옴표)·담당 간호사인 학생이 한 간호(행동 그대로)·PRN 투약 시각을 담은 문장. 끝에 과제 안내",
+             "answerKey":{"observationElements":["장소=장소|동의어","행동=…","발언 인용=발언 속 낱말","간호=1:1|지지|…","투약=한글약명|영문약명&1mg|1 mg&PO|경구","재평가=…"],
                           "medicationElements":["약명=영문약명|한글약명","용량=숫자","단위=mg","경로=PO|경구","시각=HH:mm"],
                           "sbarElements":{"situation":["불안 사건=불안|초조"],"background":["진단=진단명"],"assessment":["재평가 결과=…"],"recommendation":["다음 근무 관찰=관찰"]}},
-             "modelAnswer":{"observation":"모범 관찰 문장","medication":"모범 투약 문장","sbar":"S: …\\nB: …\\nA: …\\nR: …"}}
+             "modelAnswer":{"observation":"모범 관찰 문장","medication":"모범 투약 문장","sbar":"S: …\\nB: …\\nA: …\\nR: …",
+                            "observationRecord":{"time":"HH:mm","shift":"DAY","tags":["불안 급증","PRN 투여"],
+                                                 "narrative":"장소·행동·\\"환자 발언\\"·간호·투약(약명 용량 경로 시각)·재평가 시각을 담은 관찰 문장",
+                                                 "intervention":"한 간호"},
+                            "medicationRecord":{"orderId":"G-PRN1","drugName":"영문약명","dose":"숫자","unit":"mg","route":"PO",
+                                                "administeredTime":"HH:mm","result":"GIVEN","reason":"투약 사유(관찰한 행동)",
+                                                "orderBasis":"PRN 처방(…)","oralCheck":true,"reassessmentPlan":"HH:mm 재평가"},
+                            "sbarReport":{"situation":"…","background":"…","assessment":"…",
+                                          "recommendations":[{"time":"HH:mm","intervention":"…"},{"time":"HH:mm","intervention":"… 관찰"}]}}}
             """;
 
     /**

@@ -3,6 +3,7 @@ package app.ui;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import app.cases.CaseLoader;
 import app.domain.CheckResult;
@@ -13,6 +14,7 @@ import app.domain.OrderType;
 import app.domain.PatientCase;
 import app.ui.ObservationController.ChartPoint;
 import app.ui.ObservationController.Metric;
+import java.awt.GraphicsEnvironment;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -116,7 +118,31 @@ class PolishTest {
     }
 
     @Test
-    void 로그인_전에는_왼쪽_메뉴를_숨긴다() throws Exception {
+    void 로그인_전에는_왼쪽_메뉴를_숨긴다_판단() {
+        AppState state = new AppState();
+        assertFalse(state.showSideMenu());
+        state.login("테스터");
+        assertTrue(state.showSideMenu());
+        state.logout();
+        assertFalse(state.showSideMenu());
+    }
+
+    @Test
+    void 결과를_보는_동안_상단에_그_실습의_환자를_보인다() {
+        AppState state = new AppState();
+        state.login("테스터");
+        app.domain.Attempt a = new app.domain.Attempt(1L, 1L, "PC-01", app.domain.CaseSource.FIXED, null,
+                java.time.LocalDateTime.now(), java.time.LocalDateTime.now(), List.of(), List.of(), null, List.of(), 100.0, null);
+        assertTrue(state.showResult(a));
+        assertEquals("환자: " + pc01.patient().name() + " (PC-01) · 결과 보기", state.patientLabel());
+        state.go(Screen.HOME);
+        assertEquals("환자: 선택 안 함", state.patientLabel());
+    }
+
+    /** 실제 JFrame을 만드므로 화면 없는 환경(headless)에서는 건너뛴다. CI는 xvfb-run으로 화면을 준다. */
+    @Test
+    void 로그인_전에는_왼쪽_메뉴를_숨긴다_창() throws Exception {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "화면 없는 환경");
         AppState state = new AppState();
         MainFrame frame = new MainFrame(state);
         javax.swing.JPanel menu = (javax.swing.JPanel) field(frame, "sideMenu");
