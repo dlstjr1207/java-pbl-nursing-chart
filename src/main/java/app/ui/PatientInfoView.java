@@ -12,7 +12,8 @@ import java.util.List;
 /**
  * 환자 정보 화면에 보여 줄 내용을 케이스에서 뽑아 만든다 (Swing 비의존, 읽기 전용).
  * 정답 키·모범 기록은 제출 전 비공개이므로 어떤 구역에도 넣지 않는다.
- * 값이 없으면 "-"로 표시하고, 문서의 [확인필요]는 그대로 보여 준다.
+ * 값이 없으면 "-"로 표시한다. 근거 번호·[검증필요]·[확인필요] 같은 개발용 표기는 학생 화면에서 숨기고
+ * (StudentText), 원문은 "파일 → 근거·출처 보기" 창에서 본다.
  */
 public final class PatientInfoView {
     /** 값이 없을 때 쓰는 표시. */
@@ -35,7 +36,8 @@ public final class PatientInfoView {
         list.add(new Section("진단", List.of(text(c.patient().diagnosis()))));
         list.add(orders(c));
         list.add(allergies(c));
-        list.add(new Section("위험 지표 (참고 정보)", List.of(text(c.riskTier()))));
+        // 값이 없으면 빈 카드를 만들지 않는다 (polish 9)
+        if (!text(c.riskTier()).equals(EMPTY)) list.add(new Section("위험 지표 (참고 정보)", List.of(text(c.riskTier()))));
         list.add(history(c));
         return list;
     }
@@ -70,8 +72,10 @@ public final class PatientInfoView {
                 .append(" / 경로 ").append(text(m.route()))
                 .append(" / ").append(text(m.frequency()));
         if (!m.scheduleTimes().isEmpty()) sb.append(" / 시각 ").append(String.join(", ", m.scheduleTimes()));
-        if (m.prnIndication() != null) sb.append(" / PRN 적응: ").append(m.prnIndication());
-        if (m.note() != null && !m.note().isBlank()) sb.append(" (").append(m.note()).append(')');
+        String prn = text(m.prnIndication());
+        if (!prn.equals(EMPTY)) sb.append(" / PRN 적응: ").append(prn);
+        String note = StudentText.note(m.note());
+        if (!note.isBlank()) sb.append(" (").append(note).append(')');
         return sb.toString();
     }
 
@@ -95,21 +99,25 @@ public final class PatientInfoView {
     private static Section history(PatientCase c) {
         List<String> l = new ArrayList<>();
         for (RegimenChange r : c.regimenHistory()) {
-            l.add("처방 변경 " + text(r.date()) + ": " + text(r.description())
-                    + (r.reason() == null ? "" : " (이유: " + r.reason() + ")"));
+            String reason = text(r.reason());
+            l.add("처방 변경 " + text(r.date()) + ": " + StudentText.note(r.description())
+                    + (reason.equals(EMPTY) ? "" : " (이유: " + reason + ")"));
         }
         for (LabResult r : c.lithiumLevel()) {
-            l.add("리튬 농도 " + text(r.time()) + ": " + text(r.value()) + (r.unit() == null ? "" : " " + r.unit()));
+            String time = text(r.time());
+            l.add("리튬 농도" + (time.equals(EMPTY) ? "" : " " + time) + ": " + text(r.value()) + (r.unit() == null ? "" : " " + r.unit()));
         }
         if (l.isEmpty()) l.add("기록된 변경 이력·검사 결과가 없습니다.");
         return new Section("처방 변경 이력·검사", l);
     }
 
     private static String joinOrNone(List<String> items) {
-        return items.isEmpty() ? "없음" : String.join(", ", items);
+        List<String> clean = items.stream().map(StudentText::message).filter(x -> !x.isBlank()).toList();
+        return clean.isEmpty() ? "없음" : String.join(", ", clean);
     }
 
+    /** 값 표시: 비었거나 개발용 표기([확인필요] 등)뿐이면 "-". */
     static String text(String s) {
-        return s == null || s.isBlank() ? EMPTY : s;
+        return StudentText.value(s);
     }
 }

@@ -56,10 +56,12 @@ class SbarBackgroundSubmitTest {
         assertTrue(r.submitted());
         assertEquals(AiClient.STATUS_FAILED, r.attempt().aiFeedback().status());
         assertEquals(p.draft().checks(), r.attempt().checks());
-        // complete는 화면 상태를 바꾸지 않는다. finish()가 개인 메인으로 옮긴다.
+        // complete는 화면 상태를 바꾸지 않는다. finish()가 방금 제출한 기록의 결과 화면으로 옮긴다.
         assertEquals(Screen.SBAR, state.current());
-        c.finish();
-        assertEquals(Screen.HOME, state.current());
+        c.finish(r.attempt());
+        assertEquals(Screen.RESULT, state.current());
+        assertEquals(r.attempt(), state.resultAttempt());
+        assertEquals(null, state.currentCase());
     }
 
     @Test

@@ -67,7 +67,7 @@ public class DrugInfoCatalog {
 
     String text(DrugInfo d) {
         return "제품명: " + d.itemName() + " (" + d.company() + ")\n"
-                + "※ 같은 성분의 대표 제품 1개 기준, 참고용입니다. 채점 기준은 근거표 확인 값입니다."
+                + "※ 같은 성분의 대표 제품 1개 기준 참고 정보입니다."
                 + (fetchedAt().isEmpty() ? "" : " 자료 받은 날 " + fetchedAt() + ".") + "\n\n"
                 + "[효능효과]\n" + d.efficacy() + "\n\n[용법용량]\n" + d.dosage();
     }

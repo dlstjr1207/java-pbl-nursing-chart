@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 
 /**
  * SBAR 인계 화면의 로직(Swing 없음). S·B·A 텍스트와 R(시각·중재) 행의 필수값을 검증하고,
- * 통과하면 이번 실습 전체(관찰·투약·SBAR)를 저장한 뒤 개인 메인으로 이동한다 (S5, V5, V7).
+ * 통과하면 이번 실습 전체(관찰·투약·SBAR)를 저장한 뒤 결과 화면으로 이동한다 (S5, V5, V7).
  * 제출 당시 규칙 점검 결과와 점수(D30)를 함께 저장한다. AI 해설은 점수에 반영하지 않는다.
  */
 public class SbarController {
@@ -134,8 +134,8 @@ public class SbarController {
         }
     }
 
-    /** 제출이 끝난 뒤(화면 스레드) 실습을 마치고 개인 메인으로 상태를 옮긴다. */
-    public void finish() { state.go(Screen.HOME); }
+    /** 제출을 마치고 방금 제출한 실습의 결과 화면으로 간다 (polish B-3). */
+    public void finish(Attempt submitted) { state.showResult(submitted); }
 
     /** AI 해설을 요청할 수 있는지(키가 있는지). 화면 안내 문구용. */
     public boolean aiEnabled() { return ai != null && ai.isEnabled(); }
@@ -145,13 +145,13 @@ public class SbarController {
 
     /**
      * 한 번에 제출한다(테스트·동기 실행용). 검증 실패면 저장하지 않고 오류만 돌려주며 입력은 화면에 남는다.
-     * 성공하면 사용자별로 저장하고 개인 메인으로 이동한다.
+     * 성공하면 사용자별로 저장하고 결과 화면으로 이동한다.
      */
     public SubmitResult submit(String s, String b, String a, List<SbarRecommendation> rows) {
         Prepared p = prepare(s, b, a, rows);
         if (!p.ok()) return new SubmitResult(false, p.errors(), null, p.message());
         SubmitResult r = complete(p);
-        if (r.submitted()) finish();
+        if (r.submitted()) finish(r.attempt());
         return r;
     }
 

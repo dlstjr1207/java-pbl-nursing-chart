@@ -30,7 +30,7 @@ class PatientInfoViewTest {
         assertTrue(text.contains("병실: 501-1호"));
         assertTrue(text.contains("조현정동장애"));
         assertTrue(text.contains("알레르기: Penicillin"));
-        assertTrue(text.contains("약물 부작용 이력: Haloperidol 부작용 [확인필요]"));
+        assertTrue(text.contains("약물 부작용 이력: Haloperidol 부작용")); // [확인필요]는 근거 창에서만
     }
 
     @Test
@@ -44,9 +44,10 @@ class PatientInfoViewTest {
     }
 
     @Test
-    void 확정되지_않은_값은_확인필요를_그대로_보여_주고_없는_값은_대시로_표시한다() {
+    void 확정되지_않은_값은_학생_화면에서_숨기고_대시로_표시한다() {
         String text = all(PatientInfoView.sections(demo));
-        assertTrue(text.contains("입원 유형: [확인필요]"));
+        assertTrue(text.contains("입원 유형: " + PatientInfoView.EMPTY)); // [확인필요]는 근거 창에서만 (polish A-1)
+        assertFalse(text.contains("[확인필요]"));
         assertTrue(text.contains("입원 일수: " + PatientInfoView.EMPTY));
     }
 

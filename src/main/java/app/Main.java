@@ -90,8 +90,14 @@ public class Main {
         CaseGenerator generator = new CaseGenerator(ai, new CaseValidator(AllowedDrugs.load()),
                 new CaseLoader(), CaseGenerator.DEFAULT_MAX_ATTEMPTS);
         // 개인 메인의 평가지표·과거 기록은 로그인한 사용자의 기록만 조회한다.
-        frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader(), generator), frame::refresh,
-                () -> auth.currentUser().map(u -> new ResultView(storage.attempts(), u.id())).orElse(null)));
+        HomePanel home = new HomePanel(new HomeController(state, new CaseLoader(), generator), frame::refresh,
+                () -> auth.currentUser().map(u -> new ResultView(storage.attempts(), u.id())).orElse(null));
+        // 과거 기록을 누르면 같은 결과 화면으로 연다 (polish B-4)
+        home.setOnOpen(a -> {
+            if (state.showResult(a)) frame.refresh();
+        });
+        frame.register(Screen.HOME, home);
+        frame.register(Screen.RESULT, new app.ui.ResultPanel(state, frame::show));
         frame.register(Screen.PATIENT, new PatientInfoPanel(state, frame::show));
         frame.register(Screen.OBSERVATION, new ObservationPanel(state, frame::show));
         frame.register(Screen.MEDICATION, new MedicationPanel(state, frame::show));

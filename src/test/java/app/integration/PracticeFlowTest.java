@@ -105,7 +105,7 @@ class PracticeFlowTest {
 
         var r = sbar(new AiClient(ON, reply(GOOD_JSON))).submit("상황", "배경", "평가", ROWS);
         assertTrue(r.submitted());
-        assertEquals(Screen.HOME, state.current());
+        assertEquals(Screen.RESULT, state.current());
         assertEquals("SUCCESS", r.attempt().aiFeedback().status());
         // 점수는 규칙 점검 결과로만 계산한다 (AI 해설은 반영하지 않음, D4)
         assertEquals(app.scoring.Scorer.score(r.attempt().checks()).score(), r.attempt().score());

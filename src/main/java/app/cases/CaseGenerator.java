@@ -43,12 +43,72 @@ public class CaseGenerator {
     private final CaseValidator validator;
     private final CaseLoader loader;
     private final int maxAttempts;
+    /** 매번 다른 환자를 만들도록 요청 조건(성별·나이·사건 장소)을 고르는 난수. 테스트에서는 고정 시드. */
+    private final java.util.Random random;
+
+    /** 생성 시각 (케이스 ID에 쓴다). 테스트에서 고정할 수 있다. */
+    private java.util.function.Supplier<java.time.LocalDateTime> clock = java.time.LocalDateTime::now;
+    /** 이 실행에서 마지막으로 붙인 ID (같은 분에 또 만들면 뒤에 -2, -3을 붙인다). */
+    private static String lastId;
+    private static int sameMinuteCount;
+    private static final java.time.format.DateTimeFormatter ID_FMT =
+            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmm");
+
+    /** 사건 장소 후보 (병동 안의 장소, 임상 값 아님). */
+    static final List<String> PLACES = List.of("데이룸", "복도", "병실", "간호사실 앞", "식당", "면회실 앞", "샤워실 앞", "프로그램실");
+    /** 이름 성씨 후보 (매번 다른 성을 제안해 같은 성이 반복되지 않게 한다, 임상 값 아님). */
+    static final List<String> SURNAMES = List.of("김", "이", "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오",
+            "서", "신", "권", "황", "안", "송", "류", "홍");
+    /** 이 실행에서 최근에 만든 환자의 이름·성·사건 장소 (다음 생성에서 피한다). */
+    private final java.util.ArrayDeque<String> recentNames = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<String> recentSurnames = new java.util.ArrayDeque<>();
+    /** 실제로 만든 케이스의 장소 (거부 기준) */
+    private final java.util.ArrayDeque<String> recentPlaces = new java.util.ArrayDeque<>();
+    /** 요청할 때 제안한 장소 (다음 제안에서 피한다) */
+    private final java.util.ArrayDeque<String> requestedPlaces = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<String> recentRooms = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<String> recentDiagnoses = new java.util.ArrayDeque<>();
+    /** 진단 후보 (허용 약물로 치료하는 범위, D29) */
+    static final List<String> DIAGNOSES = List.of("조현병", "조현정동장애", "양극성 장애");
+    private static final int RECENT_MAX = 3;
+
+    /** 생성 환자 나이 범위 */
+    static final int MIN_AGE = 20;
+    static final int MAX_AGE = 60;
 
     public CaseGenerator(AiClient ai, CaseValidator validator, CaseLoader loader, int maxAttempts) {
+        this(ai, validator, loader, maxAttempts, new java.util.Random());
+    }
+
+    public CaseGenerator(AiClient ai, CaseValidator validator, CaseLoader loader, int maxAttempts, java.util.Random random) {
         this.ai = ai;
         this.validator = validator;
         this.loader = loader;
         this.maxAttempts = Math.max(1, maxAttempts);
+        this.random = random;
+    }
+
+    /** 생성 시각을 정한다 (테스트용). */
+    CaseGenerator withClock(java.util.function.Supplier<java.time.LocalDateTime> clock) {
+        this.clock = clock;
+        return this;
+    }
+
+    /**
+     * 생성 케이스 ID. AI가 아니라 프로그램이 생성 시각으로 붙인다 (예: GEN-20261123-1530).
+     * 같은 분에 다시 만들면 GEN-20261123-1530-2처럼 번호를 붙여 과거 기록에서 서로 구분되게 한다.
+     */
+    String newCaseId() {
+        String base = "GEN-" + clock.get().format(ID_FMT);
+        synchronized (CaseGenerator.class) {
+            if (base.equals(lastId)) {
+                sameMinuteCount++;
+                return base + "-" + sameMinuteCount;
+            }
+            lastId = base;
+            sameMinuteCount = 1;
+            return base;
+        }
     }
 
     /** AI 키가 있고 허용 약물 목록이 채워져 있어 생성을 쓸 수 있는지 (D26). */
@@ -69,10 +129,11 @@ public class CaseGenerator {
             return fallback(unavailableReason(), List.of());
         }
         List<String> problems = List.of();
+        String conditions = conditions();
         for (int i = 1; i <= maxAttempts; i++) {
             String content;
             try {
-                content = ai.complete(systemPrompt(), userPrompt(problems));
+                content = ai.complete(systemPrompt(), userPrompt(conditions, problems));
             } catch (IOException e) {
                 problems = List.of("AI 호출 실패");
                 continue;
@@ -85,9 +146,12 @@ public class CaseGenerator {
                 problems = List.of("JSON 형식 오류: 응답을 케이스로 읽을 수 없음 (" + shortReason(e) + ")");
                 continue;
             }
-            problems = validator.check(c);
+            problems = new ArrayList<>(validator.check(c));
+            problems.addAll(diversityProblems(c));
+            if (problems.isEmpty()) problems.addAll(modelScoreProblems(c)); // 형식이 맞을 때만 채점해 본다
             if (problems.isEmpty()) {
-                return new Result(c, true, "AI가 새 케이스를 만들었습니다.", List.of());
+                remember(c);
+                return new Result(withId(c, newCaseId()), true, "AI가 새 케이스를 만들었습니다.", List.of());
             }
         }
         return fallback("케이스 생성에 " + maxAttempts + "번 실패해 기본 케이스로 실습합니다.", problems);
@@ -100,10 +164,38 @@ public class CaseGenerator {
         if (c == null) throw new IllegalArgumentException("빈 응답");
         // 정답 키는 PC-01과 같은 규칙으로 채점하기 위해 쓴다(검사기가 처방과 맞는지 확인). 모범 기록은 제출 후 참고용.
         // 출처·검토 상태는 프로그램이 정한다.
-        return new PatientCase(c.id(), c.title(), c.difficulty(), c.objectives(), "AI_GENERATED",
+        return new PatientCase("GEN-검사중", c.title(), c.difficulty(), c.objectives(), "AI_GENERATED",
                 CaseSource.AI_GENERATED, c.patient(), c.adr(), c.riskTier(), c.orders(), c.regimenHistory(),
                 c.lithiumLevel(), c.vitals(), c.observationLog(), c.safetyRounds(), c.briefing(),
                 c.sbarReference(), c.answerKey(), c.modelAnswer());
+    }
+
+    /** 케이스 ID만 바꾼 사본. */
+    private static PatientCase withId(PatientCase c, String id) {
+        return new PatientCase(id, c.title(), c.difficulty(), c.objectives(), c.reviewStatus(), c.source(), c.patient(),
+                c.adr(), c.riskTier(), c.orders(), c.regimenHistory(), c.lithiumLevel(), c.vitals(), c.observationLog(),
+                c.safetyRounds(), c.briefing(), c.sbarReference(), c.answerKey(), c.modelAnswer());
+    }
+
+    /**
+     * 모범 기록을 자기 케이스 정답 키로 채점해 100점인지 확인한다 (생성 직후 검사).
+     * 모범 기록이 만점이 아니면 정답 키와 모범 기록이 어긋난 것이므로 거부하고 다시 생성한다.
+     */
+    static List<String> modelScoreProblems(PatientCase c) {
+        var m = c.modelAnswer();
+        if (m == null || m.observationRecord() == null || m.medicationRecord() == null || m.sbarReport() == null) {
+            return List.of("modelAnswer의 observationRecord·medicationRecord·sbarReport(구조화된 모범 기록)가 필요함");
+        }
+        app.scoring.Scorer.Result r = app.scoring.Scorer.evaluate(c, List.of(m.observationRecord()),
+                List.of(m.medicationRecord()), m.sbarReport());
+        if (r.score() != null && r.score() >= 100.0 - 1e-9) return List.of();
+        List<String> out = new ArrayList<>();
+        out.add("모범 기록이 자기 정답 키로 " + (r.score() == null ? "미산출" : r.score() + "점") + " (100점이어야 함)");
+        r.checks().stream()
+                .filter(x -> x.status() == app.domain.CheckStatus.MISSING || x.status() == app.domain.CheckStatus.MISMATCH)
+                .limit(6)
+                .forEach(x -> out.add("모범 기록 " + x.ruleId() + " " + x.targetRef() + ": " + x.message()));
+        return out;
     }
 
     private static String shortReason(RuntimeException e) {
@@ -137,13 +229,30 @@ public class CaseGenerator {
                 + "briefing·title·modelAnswer의 observation·medication·sbar는 반드시 문자열이다. "
                 + "type은 REGULAR|PRN|PAST, shift는 DAY|EVENING|NIGHT, 시각은 HH:mm. "
                 + "약물·용량은 허용 목록 안에서만 고르고, 정규 처방은 (1회 용량 × scheduleTimes 수)가 1일 허용 범위 안이어야 한다. "
-                + "answerKey.medicationElements는 PRN 처방과 같은 약명·용량·경로여야 하고, 시각은 briefing의 투약 시각이다.\n"
+                + "answerKey.medicationElements는 PRN 처방과 같은 약명·용량·경로여야 하고, 시각은 briefing의 투약 시각이다. "
+                + "briefing은 필수이고, observationLog는 2건 이상, vitals는 2회 이상(서로 다른 시각) 넣는다. "
+                + "vitals는 생리적으로 가능한 값만 쓴다(수축기 70~200, 이완기 40~130, 맥박 40~160, 호흡 8~40, 체온 34~41, SpO2 80~100). "
+                + "학생이 담당 간호사 입장이다. briefing에서 학생(간호사)을 제3자로 쓰지 말고(예: '간호사에게 알리고' 금지), "
+                + "간호 행위는 행동 그대로 서술한다(예: 1:1로 조용한 곳에서 대화하며 안정을 도움). "
+                + "briefing에는 PRN 투약 시각, answerKey '장소' 동의어 중 하나, 따옴표 안 환자 발언(answerKey '발언 인용' 동의어 포함)이 반드시 들어간다. "
+                + "answerKey의 약명 동의어는 한글·영어를 모두 쓰고(예: 로라제팜|Lorazepam), 경로는 반드시 PO|경구로 쓴다. "
+                + "id는 쓰지 않는다(프로그램이 붙인다). "
+                + "modelAnswer에는 문장(observation·medication·sbar)과 함께 구조화된 observationRecord·medicationRecord·sbarReport를 넣고, "
+                + "이 구조화된 모범 기록이 answerKey의 모든 요소를 포함해 자기 정답 키로 100점이어야 한다"
+                + "(관찰 서술에 큰따옴표로 환자 발언 인용, 판단 표현 대신 관찰한 행동, 재평가 시각 포함; 투약 기록의 모든 칸 채움; 모든 시각은 HH:mm). "
+                + "answerKey 요소의 동의어는 '…' 같은 자리 표시 없이 실제 낱말로 쓰고, 이 케이스의 사건에 맞게 바꾼다(견본 낱말을 그대로 베끼지 않는다). "
+                + "'발언 인용' 동의어는 따옴표 없이 환자 발언 속 핵심 낱말 1~3개다(문장 전체 금지, 예: 발언 인용=답답|무서워). "
+                + "answerKey.observationElements의 투약 요소는 정확히 '투약=한글약명|영문약명&{용량}mg|{용량} mg&PO|경구' 형식이다(경로 묶음은 PO|경구 하나). "
+                + "모범 기록(modelAnswer의 모든 문장과 구조화된 기록)은 학생에게 보여 줄 자연스러운 문장이며 정답 키 기호(| &)를 쓰지 않는다. "
+                + "observationRecord.narrative에는 observationElements 각 요소(장소·행동·발언 인용·간호·투약·재평가)의 동의어 중 하나를 글자 그대로 넣고, "
+                + "sbarReport의 S·B·A·R 각 칸에는 sbarElements 해당 영역 요소의 동의어를 글자 그대로 넣는다. "
+                + "sbarReport.recommendations의 time도 반드시 HH:mm 시각이다(예: 16:00). DAY·EVENING·NIGHT 같은 근무 이름이나 '다음 근무'를 time에 쓰지 않는다.\n"
                 + "견본:\n" + TEMPLATE;
     }
 
     /** 생성 응답의 형식 견본 (값은 예시 자리일 뿐 임상 값이 아님). */
     static final String TEMPLATE = """
-            {"id":"GEN-1","title":"짧은 제목","difficulty":"기본","objectives":["학습 목표"],
+            {"title":"짧은 제목","difficulty":"기본","objectives":["학습 목표"],
              "patient":{"name":"가상 이름","age":30,"sex":"F","patientNo":"SIM-G01","room":"000호",
                         "diagnosis":"진단명","admissionType":"동의입원","admissionDate":"2026-10-01","hospitalDay":10},
              "adr":{"allergies":["없음"],"adverseReactions":[]},
@@ -151,17 +260,140 @@ public class CaseGenerator {
                         "frequency":"1일 N회","scheduleTimes":["08:30"]},
                        {"orderId":"G-PRN1","type":"PRN","drugName":"허용 약명","dose":"숫자","unit":"mg","route":"PO",
                         "frequency":"필요 시","prnIndication":"불안·초조 시"}],
-             "vitals":[{"measurementId":"V1","time":"11:30","systolic":120,"diastolic":80,"pulse":80,"respiration":18,"temperature":36.5,"spo2":98}],
-             "observationLog":[{"time":"10:00","shift":"DAY","tags":["안정 회복"],"narrative":"재평가 결과 문장"}],
-             "briefing":"사건 시각·장소·행동·환자 발언(따옴표)·간호·PRN 투약을 담은 문장",
-             "answerKey":{"observationElements":["장소=동의어1|동의어2","행동=…","발언 인용=…","간호=…","투약=약명|영문약명&1mg|1 mg&po|경구","재평가=…"],
+             "vitals":[{"measurementId":"V1","time":"HH:mm","systolic":0,"diastolic":0,"pulse":0,"respiration":0,"temperature":0.0,"spo2":0},
+                       {"measurementId":"V2","time":"HH:mm","systolic":0,"diastolic":0,"pulse":0,"respiration":0,"temperature":0.0,"spo2":0}],
+             "observationLog":[{"time":"HH:mm","shift":"DAY","tags":["기타"],"narrative":"사건 전 관찰 문장"},
+                               {"time":"HH:mm","shift":"DAY","tags":["안정 회복"],"narrative":"재평가 결과 문장"}],
+             "briefing":"사건 시각·장소·행동·환자 발언(큰따옴표)·담당 간호사인 학생이 한 간호(행동 그대로)·PRN 투약 시각을 담은 문장. 끝에 과제 안내",
+             "answerKey":{"observationElements":["장소=데이룸|휴게실","행동=서성|왔다 갔다|손톱","발언 인용=답답|무서워","간호=1:1|일대일|지지|조용한 곳","투약=로라제팜|Lorazepam&1mg|1 mg&PO|경구","재평가=30분|재평가"],
                           "medicationElements":["약명=영문약명|한글약명","용량=숫자","단위=mg","경로=PO|경구","시각=HH:mm"],
-                          "sbarElements":{"situation":["불안 사건=불안|초조"],"background":["진단=진단명"],"assessment":["재평가 결과=…"],"recommendation":["다음 근무 관찰=관찰"]}},
-             "modelAnswer":{"observation":"모범 관찰 문장","medication":"모범 투약 문장","sbar":"S: …\\nB: …\\nA: …\\nR: …"}}
+                          "sbarElements":{"situation":["불안 사건=불안|초조"],"background":["진단=진단명"],"assessment":["재평가 결과=안정|불안 감소"],"recommendation":["다음 근무 관찰=관찰"]}},
+             "modelAnswer":{"observation":"모범 관찰 문장","medication":"모범 투약 문장","sbar":"S: …\\nB: …\\nA: …\\nR: …",
+                            "observationRecord":{"time":"HH:mm","shift":"DAY","tags":["불안 급증","PRN 투여"],
+                                                 "narrative":"장소·행동·\\"환자 발언\\"·간호·투약(약명 용량 경로 시각)·재평가 시각을 담은 관찰 문장",
+                                                 "intervention":"한 간호"},
+                            "medicationRecord":{"orderId":"G-PRN1","drugName":"영문약명","dose":"숫자","unit":"mg","route":"PO",
+                                                "administeredTime":"HH:mm","result":"GIVEN","reason":"투약 사유(관찰한 행동)",
+                                                "orderBasis":"PRN 처방(…)","oralCheck":true,"reassessmentPlan":"HH:mm 재평가"},
+                            "sbarReport":{"situation":"…","background":"…","assessment":"…",
+                                          "recommendations":[{"time":"16:00","intervention":"…"},{"time":"18:00","intervention":"… 관찰"}]}}}
             """;
 
+    /**
+     * 이번 요청의 환자·사건 조건. 매번 성별·나이·사건 장소를 바꿔 같은 환자가 반복되지 않게 한다 (polish 11).
+     * 기본 케이스(PC-01)의 이름·나이·병실은 쓰지 못하게 알린다.
+     */
+    String conditions() {
+        String sex = random.nextBoolean() ? "F" : "M";
+        int age = MIN_AGE + random.nextInt(MAX_AGE - MIN_AGE + 1);
+        java.util.Set<String> avoid = new java.util.HashSet<>(recentPlaces);
+        avoid.addAll(requestedPlaces);
+        String place = pick(PLACES, avoid);
+        String surname = pick(SURNAMES, recentSurnames);
+        String diagnosis = pick(DIAGNOSES, recentDiagnoses.stream().limit(1).toList());
+        String room;
+        do {
+            room = (2 + random.nextInt(6)) + "0" + (1 + random.nextInt(8)) + "호";
+        } while (recentRooms.contains(room));
+        remember(recentDiagnoses, diagnosis);
+        remember(requestedPlaces, place);
+        remember(recentSurnames, surname);
+        // 사건 시각도 매번 다르게 (08:00~19:55, 5분 단위)
+        String time = String.format("%02d:%02d", 8 + random.nextInt(12), 5 * random.nextInt(12));
+        StringBuilder sb = new StringBuilder("이번 환자 조건: 성별 ").append(sex).append(", 나이 ").append(age)
+                .append("세, 성씨 ").append(surname).append(", 사건 장소 ").append(place)
+                .append(", 사건 시각 ").append(time).append(" 무렵, 병실 ").append(room).append(", 진단 ").append(diagnosis).append(".\n")
+                .append("이름(위 성씨로 시작)·입원 일수·환자 발언은 매번 새로 정한다(흔한 예시 반복 금지). 병실·진단은 위 조건을 그대로 쓴다. ")
+                .append("진단은 허용 약물로 치료하는 범위(조현병, 조현정동장애, 양극성 장애) 안에서 고른다. ")
+                .append("나이는 ").append(MIN_AGE).append("~").append(MAX_AGE).append("세.\n");
+        if (!recentNames.isEmpty()) {
+            sb.append("최근에 만든 이름은 쓰지 않는다: ").append(String.join(", ", recentNames)).append(".\n");
+        }
+        PatientCase base = baseCase();
+        if (base != null && base.patient() != null) {
+            sb.append("금지: 이름 '").append(base.patient().name()).append("', 나이 ").append(base.patient().age())
+                    .append("세, 병실 '").append(base.patient().room()).append("' (기본 케이스와 같은 값).\n");
+        }
+        return sb.toString();
+    }
+
+    /** 생성 케이스가 기본 케이스와 같은 이름·나이·병실이거나 나이 범위를 벗어나면 문제로 알린다. */
+    List<String> diversityProblems(PatientCase c) {
+        List<String> out = new ArrayList<>();
+        if (c.patient() == null) return out;
+        Integer age = c.patient().age();
+        if (age == null || age < MIN_AGE || age > MAX_AGE) {
+            out.add("patient.age는 " + MIN_AGE + "~" + MAX_AGE + "세여야 함");
+        }
+        if (c.patient().name() != null && recentNames.stream().anyMatch(n -> same(n, c.patient().name()))) {
+            out.add("patient.name이 최근에 만든 환자와 같음: " + c.patient().name());
+        }
+        if (c.patient().room() != null && recentRooms.stream().anyMatch(x -> same(x, c.patient().room()))) {
+            out.add("patient.room이 최근 케이스와 같음: " + c.patient().room() + ", 요청한 병실을 쓴다");
+        }
+        String place = placeOf(c);
+        if (place != null && recentPlaces.stream().anyMatch(x -> same(x, place))) {
+            out.add("answerKey 장소(" + place + ")가 최근 케이스와 같음, 요청한 사건 장소를 쓴다");
+        }
+        PatientCase base = baseCase();
+        if (base != null && base.patient() != null) {
+            var b = base.patient();
+            if (same(b.name(), c.patient().name())) out.add("patient.name이 기본 케이스와 같음");
+            if (b.age() != null && b.age().equals(age)) out.add("patient.age가 기본 케이스와 같음");
+            if (same(b.room(), c.patient().room())) out.add("patient.room이 기본 케이스와 같음");
+        }
+        return out;
+    }
+
+    /** 정답 키 '장소'의 첫 동의어 (없으면 null). */
+    static String placeOf(PatientCase c) {
+        if (c.answerKey() == null) return null;
+        return app.scoring.ElementPattern.parseAll(c.answerKey().observationElements()).stream()
+                .filter(e -> e.label().equals("장소")).map(app.scoring.ElementPattern::expected).findFirst().orElse(null);
+    }
+
+    /** 최근 목록에 없는 후보를 무작위로 고른다 (모두 최근이면 아무거나). */
+    private String pick(List<String> all, java.util.Collection<String> recent) {
+        List<String> left = all.stream().filter(x -> !recent.contains(x)).toList();
+        List<String> from = left.isEmpty() ? all : left;
+        return from.get(random.nextInt(from.size()));
+    }
+
+    private static void remember(java.util.ArrayDeque<String> list, String v) {
+        if (v == null) return;
+        list.remove(v);
+        list.addFirst(v);
+        while (list.size() > RECENT_MAX) list.removeLast();
+    }
+
+    /** 생성에 성공한 케이스의 이름을 기억한다 (다음 생성에서 피한다). */
+    private void remember(PatientCase c) {
+        if (c.patient() != null) {
+            remember(recentNames, c.patient().name());
+            remember(recentRooms, c.patient().room());
+        }
+        remember(recentPlaces, placeOf(c));
+    }
+
+    private PatientCase baseCase() {
+        try {
+            return loader.exists(FIXED_ID) ? loader.load(FIXED_ID) : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static boolean same(String a, String b) {
+        return a != null && b != null && a.replaceAll("\\s+", "").equals(b.replaceAll("\\s+", ""));
+    }
+
     String userPrompt(List<String> problems) {
+        return userPrompt("", problems);
+    }
+
+    String userPrompt(String conditions, List<String> problems) {
         StringBuilder sb = new StringBuilder("사건 유형: ").append(EVENT_ANXIETY_PRN).append('\n');
+        sb.append(conditions);
         sb.append("허용 약물: ").append(DomainJson.toJson(validator.allowedDrugs().all())).append('\n');
         if (!problems.isEmpty()) {
             sb.append("이전 응답의 문제를 고쳐 다시 만든다: ").append(String.join("; ", problems));

@@ -50,22 +50,38 @@ public class ObservationController {
 
     /** 차트에 그릴 수 있는 활력징후 항목. */
     public enum Metric {
-        SYSTOLIC("수축기 혈압", VitalSign::systolic),
-        DIASTOLIC("이완기 혈압", VitalSign::diastolic),
-        PULSE("맥박", VitalSign::pulse),
-        RESPIRATION("호흡수", VitalSign::respiration),
-        TEMPERATURE("체온", VitalSign::temperature),
-        SPO2("SpO2", VitalSign::spo2);
+        // 세로축 최소 범위와 눈금 간격 (polish 7). 값이 범위를 벗어나면 차트가 범위를 넓힌다. 화면 표시용이며 임상 기준값이 아니다.
+        SYSTOLIC("수축기 혈압", VitalSign::systolic, 60, 180, 20),
+        DIASTOLIC("이완기 혈압", VitalSign::diastolic, 40, 120, 20),
+        PULSE("맥박", VitalSign::pulse, 40, 140, 20),
+        RESPIRATION("호흡수", VitalSign::respiration, 8, 30, 5),
+        TEMPERATURE("체온", VitalSign::temperature, 35, 40, 1),
+        SPO2("SpO2", VitalSign::spo2, 85, 100, 5);
 
         private final String label;
         private final Function<VitalSign, Number> getter;
+        private final double axisMin;
+        private final double axisMax;
+        private final double tick;
 
-        Metric(String label, Function<VitalSign, Number> getter) {
+        Metric(String label, Function<VitalSign, Number> getter, double axisMin, double axisMax, double tick) {
             this.label = label;
             this.getter = getter;
+            this.axisMin = axisMin;
+            this.axisMax = axisMax;
+            this.tick = tick;
         }
 
         public String label() { return label; }
+
+        /** 세로축 최소 범위의 아래쪽 */
+        public double axisMin() { return axisMin; }
+
+        /** 세로축 최소 범위의 위쪽 */
+        public double axisMax() { return axisMax; }
+
+        /** 눈금 간격 */
+        public double tick() { return tick; }
 
         Number valueOf(VitalSign v) { return getter.apply(v); }
     }

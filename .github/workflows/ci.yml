@@ -12,12 +12,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
       # AI·약물 API 키 없이 실행한다. secrets를 사용하지 않는다.
+      # Swing 창을 만드는 테스트가 있어 가상 화면(xvfb)에서 실행한다. ubuntu-latest에는 xvfb가 기본 설치되어 있다.
       - name: Test
-        run: ./mvnw -B test
+        run: xvfb-run -a ./mvnw -B test
