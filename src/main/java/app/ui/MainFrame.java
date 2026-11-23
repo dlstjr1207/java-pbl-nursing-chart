@@ -35,6 +35,8 @@ public class MainFrame extends JFrame {
     /** 마지막으로 보여 준 화면. 화면이 바뀔 때만 패널을 다시 채운다(입력 중인 내용 보호). */
     private Screen shownScreen;
     private final Map<Screen, JButton> menuButtons = new EnumMap<>(Screen.class);
+    /** 왼쪽 메뉴. 로그인 전에는 숨긴다 (polish 10). */
+    private JPanel sideMenu;
     private final JLabel screenLabel = new JLabel();
     private final JLabel patientLabel = new JLabel();
     private final JLabel userLabel = new JLabel();
@@ -56,7 +58,8 @@ public class MainFrame extends JFrame {
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setJMenuBar(buildMenuBar());
         add(buildStatusBar(), BorderLayout.NORTH);
-        add(buildSideMenu(), BorderLayout.WEST);
+        sideMenu = buildSideMenu();
+        add(sideMenu, BorderLayout.WEST);
         add(content, BorderLayout.CENTER);
         for (Screen s : Screen.values()) register(s, placeholder(s));
         refresh();
@@ -127,6 +130,7 @@ public class MainFrame extends JFrame {
             JScrollPane sp = scrolls.get(now);
             if (sp != null) javax.swing.SwingUtilities.invokeLater(() -> sp.getVerticalScrollBar().setValue(0)); // 새 화면은 맨 위부터
         }
+        sideMenu.setVisible(state.userName() != null);
         screenLabel.setText(state.screenLabel());
         patientLabel.setText(state.patientLabel());
         userLabel.setText(state.userLabel());
@@ -245,6 +249,11 @@ public class MainFrame extends JFrame {
     private JMenuBar buildMenuBar() {
         JMenuBar bar = new JMenuBar();
         JMenu file = new JMenu("파일");
+        // 학생 화면에서 숨긴 근거 번호·검토 상태는 이 창에서 본다 (polish A-1)
+        JMenuItem evidence = new JMenuItem("근거·출처 보기");
+        evidence.addActionListener(e -> new EvidenceDialog(this, state.currentCase()).setVisible(true));
+        file.add(evidence);
+        file.addSeparator();
         JMenuItem exit = new JMenuItem("종료");
         exit.addActionListener(e -> dispose());
         file.add(exit);

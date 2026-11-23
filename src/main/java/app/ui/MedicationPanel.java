@@ -48,6 +48,8 @@ public class MedicationPanel extends JPanel implements Reloadable {
     private final JCheckBox oralBox = new JCheckBox("구강 확인");
     private final JTextArea planArea = new JTextArea(2, 30);
     private final JLabel errorLabel = new JLabel(" ");
+    /** 선택한 처방 내용 (polish 8). 학생은 이것을 보고 용량·단위·경로·시각을 직접 입력한다. */
+    private final JLabel selectedOrderLabel = new JLabel(" ");
     /** 선택한 처방의 식약처 허가정보 (저장된 파일만 읽음, 참고용). */
     private final DrugInfoCatalog drugInfo = DrugInfoCatalog.load();
     private final JTextArea drugInfoArea = new JTextArea(8, 30);
@@ -73,9 +75,9 @@ public class MedicationPanel extends JPanel implements Reloadable {
 
         orderBox.setRenderer((l, value, i, sel, foc) ->
                 new JLabel(value == null ? "" : MedicationController.orderLabel(value)));
-        // 처방을 고르면 확정된 용량·단위·경로를 채운다([확인필요] 값은 채우지 않는다).
+        // 처방을 골라도 용량·단위·경로·시각은 자동으로 채우지 않는다(교육 목적, D32). 처방 내용만 위에 보여 준다.
         orderBox.addItemListener(e -> {
-            if (e.getStateChange() == ItemEvent.SELECTED) fillFromOrder();
+            if (e.getStateChange() == ItemEvent.SELECTED) showSelectedOrder();
             updateReasonHint();
             showDrugInfo();
         });
@@ -90,6 +92,12 @@ public class MedicationPanel extends JPanel implements Reloadable {
         r1.add(new JLabel("처방"));
         r1.add(orderBox);
         form.add(r1);
+
+        JPanel r1b = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        selectedOrderLabel.setForeground(Theme.NAVY);
+        selectedOrderLabel.setFont(Theme.font(java.awt.Font.BOLD, 14f));
+        r1b.add(selectedOrderLabel);
+        form.add(r1b);
 
         JPanel r2 = new JPanel(new FlowLayout(FlowLayout.LEFT));
         r2.add(new JLabel("용량"));
@@ -171,16 +179,15 @@ public class MedicationPanel extends JPanel implements Reloadable {
         return drugInfoArea.getText();
     }
 
-    private void fillFromOrder() {
+    /** 선택한 처방을 "선택한 처방: …"으로 보여 준다. 입력칸은 건드리지 않는다. */
+    private void showSelectedOrder() {
         Medication o = (Medication) orderBox.getSelectedItem();
-        if (o == null) return;
-        doseField.setText(confirmed(o.dose()));
-        unitField.setText(confirmed(o.unit()));
-        routeField.setText(confirmed(o.route()));
+        selectedOrderLabel.setText(o == null ? " " : "선택한 처방: " + MedicationController.orderSummary(o));
     }
 
-    private static String confirmed(String v) {
-        return v == null || v.startsWith("[") ? "" : v;
+    /** 화면 테스트용: 지금 보이는 선택한 처방 문구. */
+    String selectedOrderText() {
+        return selectedOrderLabel.getText();
     }
 
     /** 입력을 모아 저장을 시도한다. 실패하면 입력은 그대로 두고 오류를 보여 준다. */
@@ -212,6 +219,7 @@ public class MedicationPanel extends JPanel implements Reloadable {
         PatientCase c = state.currentCase();
         if (c != null) controller.selectableOrders().forEach(orderBox::addItem);
         errorLabel.setText(" ");
+        showSelectedOrder();
         updateReasonHint();
         showDrugInfo();
         refreshList();

@@ -14,6 +14,10 @@ import java.util.List;
  * 허용 약물 목록이 비어 있으면 AI 생성을 쓸 수 없다({@link #generationAvailable()}).
  */
 public class CaseValidator {
+    /** 기존 관찰 로그 최소 건수 */
+    public static final int MIN_LOGS = 2;
+    /** 활력징후 최소 측정 횟수 */
+    public static final int MIN_VITALS = 2;
 
     private static final String TIME = "([01]\\d|2[0-3]):[0-5]\\d";
 
@@ -41,6 +45,13 @@ public class CaseValidator {
         List<String> p = new ArrayList<>(CaseLoader.validate(c));
         if (blank(c.briefing())) {
             p.add("briefing(상황 브리핑) 누락");
+        }
+        // 학생이 읽고 기록할 재료가 충분해야 한다 (polish 12): 기존 관찰 로그·활력징후 2건 이상
+        if (c.observationLog().size() < MIN_LOGS) {
+            p.add("observationLog(기존 관찰 로그) " + MIN_LOGS + "건 이상 필요 (현재 " + c.observationLog().size() + "건)");
+        }
+        if (c.vitals().size() < MIN_VITALS) {
+            p.add("vitals(활력징후) " + MIN_VITALS + "회 이상 필요 (현재 " + c.vitals().size() + "회)");
         }
         for (int i = 0; i < c.orders().size(); i++) {
             Medication m = c.orders().get(i);

@@ -51,6 +51,32 @@ public class MedicationController {
     }
 
     /**
+     * 선택한 처방을 학생이 읽을 한 줄로 (polish 8). 예: "Lorazepam 1mg PO PRN (불안·초조 시, 1일 최대 4mg)",
+     * "Lithium carbonate 300mg PO 1일 3회 (08:30, 12:30, 18:30)". 개발용 표기는 숨긴다.
+     */
+    public static String orderSummary(Medication o) {
+        if (o == null) return "";
+        StringBuilder sb = new StringBuilder();
+        sb.append(o.drugName()).append(' ').append(StudentText.value(o.dose())).append(o.unit() == null ? "" : o.unit())
+                .append(' ').append(StudentText.value(o.route()));
+        java.util.List<String> extra = new java.util.ArrayList<>();
+        if (o.type() == OrderType.PRN) {
+            sb.append(" PRN");
+            if (o.prnIndication() != null && !StudentText.value(o.prnIndication()).equals(PatientInfoView.EMPTY)) {
+                extra.add(StudentText.value(o.prnIndication()));
+            }
+        } else {
+            String f = StudentText.value(o.frequency());
+            if (!f.equals(PatientInfoView.EMPTY)) sb.append(' ').append(f);
+            if (!o.scheduleTimes().isEmpty()) extra.add(String.join(", ", o.scheduleTimes()));
+        }
+        String note = StudentText.note(o.note());
+        if (!note.isBlank()) extra.add(note);
+        if (!extra.isEmpty()) sb.append(" (").append(String.join(", ", extra)).append(')');
+        return sb.toString();
+    }
+
+    /**
      * 투약 입력을 검증하고, 통과하면 학생 기록에 저장한다. 실패하면 저장하지 않으며 입력은 화면에 남긴다.
      * 입력값은 그대로 보존한다.
      */

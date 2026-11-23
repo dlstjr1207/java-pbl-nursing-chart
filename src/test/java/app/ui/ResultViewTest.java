@@ -41,8 +41,9 @@ class ResultViewTest {
         String text = ResultView.checksText(a.checks());
         assertTrue(text.contains("누락"));
         assertTrue(text.contains("잘 작성한 내용"));
-        assertTrue(text.contains("observation"));
-        assertTrue(text.contains("미산출")); // R9: 필수 요소 목록 없음
+        assertTrue(text.contains("관찰 기록")); // 위치는 사람 말로 (polish A-2)
+        assertFalse(text.contains("observation"));
+        assertTrue(text.contains("피드백")); // R9: 필수 요소 목록 없음 → 미산출은 피드백 묶음
     }
 
     @Test

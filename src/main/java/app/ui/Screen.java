@@ -8,7 +8,9 @@ public enum Screen {
     PATIENT("환자 정보", true, true),
     OBSERVATION("활력징후·관찰", true, true),
     MEDICATION("투약 점검", true, true),
-    SBAR("SBAR", true, true);
+    SBAR("SBAR", true, true),
+    /** 제출한 실습의 결과 (polish B). 실습이 끝난 뒤라 케이스가 없어도 된다. */
+    RESULT("실습 결과", true, false);
 
     private final String title;
     private final boolean needsLogin;

@@ -54,7 +54,7 @@ class SbarControllerTest {
     }
 
     @Test
-    void 성공하면_사용자별로_저장하고_개인_메인으로_이동한다() {
+    void 성공하면_사용자별로_저장하고_결과_화면으로_이동한다() {
         var r = controller.submit("상황", "배경", "평가", ROWS);
         assertTrue(r.submitted());
         Attempt saved = r.attempt();
@@ -65,7 +65,7 @@ class SbarControllerTest {
         assertTrue(saved.isSubmitted());
         assertEquals(1, repo.findByUser(7L).size());
         assertTrue(repo.findByUser(8L).isEmpty());
-        assertEquals(Screen.HOME, state.current());
+        assertEquals(Screen.RESULT, state.current()); // 제출하면 결과 화면 (polish B-3)
         assertEquals(null, state.currentCase());
     }
 

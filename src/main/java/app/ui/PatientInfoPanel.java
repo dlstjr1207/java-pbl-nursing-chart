@@ -31,7 +31,10 @@ public class PatientInfoPanel extends JPanel implements Reloadable {
         reload();
     }
 
-    /** 현재 케이스로 내용을 다시 그린다. 위에는 환자 배너(이름·기본 정보·배지), 아래는 구역 카드 두 줄. */
+    /**
+     * 현재 케이스로 내용을 다시 그린다. 위에는 환자 배너, 그 아래 상황 브리핑(과제), 그 아래 구역 카드를 두 열로 둔다.
+     * 카드는 내용 높이만큼만 차지한다(빈 여백 없음, polish 9).
+     */
     @Override
     public void reload() {
         body.removeAll();
@@ -41,18 +44,92 @@ public class PatientInfoPanel extends JPanel implements Reloadable {
         } else {
             body.add(banner(c));
             body.add(javax.swing.Box.createVerticalStrut(10));
-            java.util.List<PatientInfoView.Section> sections = PatientInfoView.sections(c);
-            JPanel grid = new JPanel(new java.awt.GridLayout(0, 2, 10, 10));
-            grid.setOpaque(false);
-            for (PatientInfoView.Section s : sections) {
-                if (s.title().equals("환자 기본 정보")) continue; // 배너에 있음
-                grid.add(sectionPanel(s));
+            if (c.briefing() != null && !c.briefing().isBlank()) {
+                JPanel brief = fitHeight(briefingCard(c.briefing()));
+                brief.setAlignmentX(LEFT_ALIGNMENT);
+                body.add(brief);
+                body.add(javax.swing.Box.createVerticalStrut(10));
             }
+            JPanel left = column();
+            JPanel right = column();
+            int leftWeight = 0;
+            int rightWeight = 0;
+            for (PatientInfoView.Section s : PatientInfoView.sections(c)) {
+                if (s.title().equals("환자 기본 정보")) continue; // 배너에 있음
+                int w = weight(s);
+                // 두 열의 길이가 비슷해지도록 짧은 쪽에 넣는다
+                if (leftWeight <= rightWeight) {
+                    add(left, sectionPanel(s));
+                    leftWeight += w;
+                } else {
+                    add(right, sectionPanel(s));
+                    rightWeight += w;
+                }
+            }
+            JPanel grid = new JPanel(new java.awt.GridLayout(1, 2, 10, 0));
+            grid.setOpaque(false);
+            grid.add(top(left));
+            grid.add(top(right));
             grid.setAlignmentX(LEFT_ALIGNMENT);
             body.add(grid);
         }
         body.revalidate();
         body.repaint();
+    }
+
+    /** 상황 브리핑(과제) 카드. 큰 글씨, 줄바꿈으로 전체가 보이게 한다. 관찰 화면과 같은 카드. */
+    static JPanel briefingCard(String text) {
+        JPanel p = Theme.cardPanel("상황 브리핑 (과제)", new BorderLayout());
+        JTextArea area = new JTextArea(text);
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setOpaque(false);
+        area.setFont(Theme.font(java.awt.Font.PLAIN, 15f));
+        area.setForeground(Theme.TEXT);
+        p.add(area, BorderLayout.CENTER);
+        return p;
+    }
+
+    /** 세로로 늘어나지 않고 내용 높이만큼만 차지하게 감싼다. */
+    private static JPanel fitHeight(JPanel inner) {
+        JPanel wrap = new JPanel(new BorderLayout()) {
+            @Override
+            public java.awt.Dimension getMaximumSize() {
+                return new java.awt.Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+            }
+        };
+        wrap.setOpaque(false);
+        wrap.add(inner, BorderLayout.CENTER);
+        return wrap;
+    }
+
+    private static JPanel column() {
+        JPanel col = new JPanel();
+        col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
+        col.setOpaque(false);
+        return col;
+    }
+
+    private static void add(JPanel col, JPanel card) {
+        if (col.getComponentCount() > 0) col.add(javax.swing.Box.createVerticalStrut(10));
+        card.setAlignmentX(LEFT_ALIGNMENT);
+        col.add(card);
+    }
+
+    /** 열을 위쪽에 붙여 카드가 늘어나지 않게 한다. */
+    private static JPanel top(JPanel col) {
+        JPanel wrap = new JPanel(new BorderLayout());
+        wrap.setOpaque(false);
+        wrap.add(col, BorderLayout.NORTH);
+        return wrap;
+    }
+
+    /** 대략적인 카드 길이 (줄 수 + 긴 줄의 줄바꿈). */
+    private static int weight(PatientInfoView.Section s) {
+        int w = 2;
+        for (String line : s.lines()) w += 1 + line.length() / 45;
+        return w;
     }
 
     /** Figma 환자 정보 화면의 상단 배너: 이름, 나이/성별/등록번호/병실/입원, 진단·알레르기·케이스 상태 배지. */
@@ -87,9 +164,9 @@ public class PatientInfoPanel extends JPanel implements Reloadable {
             badges.add(Theme.badge(AppState.AI_NOTICE, Theme.PURPLE, Theme.PURPLE_BG));
         } else if (c.source() == app.domain.CaseSource.DEMO) {
             badges.add(Theme.badge(AppState.DEMO_NOTICE, Theme.RED, Theme.RED_BG));
-        } else if (c.reviewStatus() != null) {
-            badges.add(Theme.badge(c.reviewStatus(), Theme.MUTED, Theme.BG));
         }
+        // 검토 상태(예: "팀 확정 초안…")는 학생 화면에 두지 않는다. 상단 "교육용 예시 · 임상 검수 전" 배지로 충분하고,
+        // 원문은 "파일 → 근거·출처 보기"에서 본다 (polish 1).
         b.add(left, BorderLayout.WEST);
         b.add(badges, BorderLayout.CENTER);
         b.setAlignmentX(LEFT_ALIGNMENT);

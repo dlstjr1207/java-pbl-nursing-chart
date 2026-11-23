@@ -62,8 +62,10 @@ class CaseGeneratorTest {
     private static String caseJson(String drug, String dose) {
         return """
             {"id":"GEN-1","title":"합성 생성","source":"FIXED",
-             "patient":{"name":"가상환자"},"briefing":"상황",
-             "vitals":[{"time":"09:30","pulse":80}],
+             "patient":{"name":"가상환자","age":35,"room":"합성-1호"},"briefing":"상황",
+             "vitals":[{"time":"09:30","pulse":80},{"time":"10:30","pulse":82}],
+             "observationLog":[{"time":"09:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"},
+                               {"time":"10:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"}],
              "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%s","dose":"%s","unit":"mg","route":"PO","scheduleTimes":["08:00"]}],
              "answerKey":{"observationElements":["장소=데이룸"],
                           "medicationElements":["약명=%s","용량=%s","단위=mg","경로=PO","시각=08:00"]}}
@@ -204,5 +206,40 @@ class CaseGeneratorTest {
         var scored = app.scoring.Scorer.evaluate(r.patientCase(), List.of(), List.of(med), null);
         assertEquals(25.0, scored.ruleScores().get("R7")); // 정답 키의 약명·용량·단위·경로·시각 모두 일치
         assertTrue(scored.ruleScores().containsKey("R2"));
+    }
+
+    @Test
+    void 요청마다_환자_조건을_바꾸고_기본_케이스의_이름_나이_병실을_금지한다() {
+        CaseGenerator g1 = new CaseGenerator(new AiClient(ON, new Fake()), new CaseValidator(ALLOWED),
+                new CaseLoader(CaseGeneratorTest.class.getClassLoader()), 3, new java.util.Random(1));
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (int i = 0; i < 5; i++) seen.add(g1.conditions().lines().findFirst().orElse(""));
+        assertTrue(seen.size() > 1, "조건이 매번 같으면 안 됨: " + seen);
+        String c = g1.conditions();
+        assertTrue(c.contains("금지: 이름 '김하늘', 나이 28세, 병실 '501-1호'"), c);
+        assertTrue(c.contains("조현병, 조현정동장애, 양극성 장애"));
+    }
+
+    @Test
+    void 기본_케이스와_같은_이름이나_범위_밖_나이는_다시_요청한다() {
+        Fake f = new Fake();
+        f.contents.add(caseJson("테스트약A", "3").replace("\"name\":\"가상환자\"", "\"name\":\"김하늘\""));
+        f.contents.add(caseJson("테스트약A", "3").replace("\"age\":35", "\"age\":70"));
+        f.contents.add(caseJson("테스트약A", "3"));
+        CaseGenerator.Result r = generator(ON, f, ALLOWED, 3).generate();
+        assertTrue(r.generated());
+        assertEquals(3, f.calls);
+        assertTrue(f.prompts.get(1).contains("patient.name이 기본 케이스와 같음"));
+        assertTrue(f.prompts.get(2).contains("patient.age는 20~60세여야 함"));
+    }
+
+    @Test
+    void 관찰_로그와_활력징후가_부족하면_다시_요청한다() {
+        Fake f = new Fake();
+        f.contents.add(caseJson("테스트약A", "3").replace(",{\"time\":\"10:30\",\"pulse\":82}", ""));
+        f.contents.add(caseJson("테스트약A", "3"));
+        CaseGenerator.Result r = generator(ON, f, ALLOWED, 3).generate();
+        assertTrue(r.generated());
+        assertTrue(f.prompts.get(1).contains("vitals(활력징후) 2회 이상 필요 (현재 1회)"));
     }
 }

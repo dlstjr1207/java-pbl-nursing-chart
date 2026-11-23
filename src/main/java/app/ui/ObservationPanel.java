@@ -15,12 +15,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
-import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
@@ -35,10 +33,12 @@ public class ObservationPanel extends JPanel implements Reloadable {
     private final AppState state;
     private final ObservationController controller;
 
-    private final JTextArea briefing = new JTextArea(3, 30);
+    /** 상황 브리핑(과제). 화면 맨 위에 큰 글씨로, 스크롤 없이 전체가 보이게 둔다 (polish 6). */
+    private final JTextArea briefing = new JTextArea();
     private final JComboBox<Metric> metricBox = new JComboBox<>(Metric.values());
     private final VitalChartPanel chart = new VitalChartPanel();
-    private final DefaultListModel<String> logModel = new DefaultListModel<>();
+    /** 관찰 기록 목록: 한 줄씩 출처 배지 + 줄바꿈되는 글 (polish 5). */
+    private final JPanel logPanel = new JPanel();
 
     private final JTextField timeField = new JTextField(6);
     private final Map<Shift, JRadioButton> shiftButtons = new EnumMap<>(Shift.class);
@@ -55,6 +55,7 @@ public class ObservationPanel extends JPanel implements Reloadable {
         this.state = state;
         this.controller = new ObservationController(state);
         setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+        add(buildBriefing(), BorderLayout.NORTH);
         add(buildTop(), BorderLayout.CENTER);
         add(buildForm(onNavigate), BorderLayout.SOUTH);
         metricBox.addActionListener(e -> refreshChart());
@@ -68,24 +69,35 @@ public class ObservationPanel extends JPanel implements Reloadable {
         reload();
     }
 
+    private JPanel buildBriefing() {
+        JPanel card = Theme.cardPanel("상황 브리핑 (과제)", new BorderLayout());
+        briefing.setEditable(false);
+        briefing.setLineWrap(true);
+        briefing.setWrapStyleWord(true);
+        briefing.setOpaque(false);
+        briefing.setFont(Theme.font(java.awt.Font.PLAIN, 15f));
+        card.add(briefing, BorderLayout.CENTER);
+        JPanel wrap = new JPanel(new BorderLayout());
+        wrap.setOpaque(false);
+        wrap.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+        wrap.add(card, BorderLayout.CENTER);
+        return wrap;
+    }
+
     private JPanel buildTop() {
         JPanel top = new JPanel(new GridLayout(1, 2, 8, 8));
         JPanel left = new JPanel(new BorderLayout(4, 4));
         left.setBorder(BorderFactory.createTitledBorder("활력징후 추이 (● 기존 / ○ 학생 기록)"));
         left.add(metricBox, BorderLayout.NORTH);
         left.add(chart, BorderLayout.CENTER);
-        briefing.setEditable(false);
-        briefing.setLineWrap(true);
-        briefing.setWrapStyleWord(true);
-        JScrollPane briefScroll = new JScrollPane(briefing);
-        briefScroll.setBorder(BorderFactory.createTitledBorder("상황 브리핑"));
-        left.add(briefScroll, BorderLayout.SOUTH);
 
-        JList<String> list = new JList<>(logModel);
-        JScrollPane logScroll = new JScrollPane(list);
-        logScroll.setBorder(BorderFactory.createTitledBorder("관찰 기록 (시각순)"));
+        logPanel.setLayout(new javax.swing.BoxLayout(logPanel, javax.swing.BoxLayout.Y_AXIS));
+        logPanel.setOpaque(false);
+        JPanel logCard = new JPanel(new BorderLayout());
+        logCard.setBorder(BorderFactory.createTitledBorder("관찰 기록 (시각순)"));
+        logCard.add(logPanel, BorderLayout.NORTH);
         top.add(left);
-        top.add(logScroll);
+        top.add(logCard);
         return top;
     }
 
@@ -193,14 +205,43 @@ public class ObservationPanel extends JPanel implements Reloadable {
     }
 
     private void refreshLists() {
-        logModel.clear();
-        controller.timeline().forEach(row -> logModel.addElement(row.text()));
+        logPanel.removeAll();
+        for (ObservationController.TimelineRow row : controller.timeline()) {
+            if (logPanel.getComponentCount() > 0) logPanel.add(javax.swing.Box.createVerticalStrut(6));
+            logPanel.add(logRow(row));
+        }
+        if (logPanel.getComponentCount() == 0) logPanel.add(new JLabel("관찰 기록이 없습니다."));
+        logPanel.revalidate();
+        logPanel.repaint();
         refreshChart();
     }
 
     private void refreshChart() {
         Metric m = (Metric) metricBox.getSelectedItem();
         if (m == null) m = Metric.values()[0];
-        chart.setData(m.label(), controller.chartPoints(m));
+        chart.setData(m.label(), controller.chartPoints(m), m.axisMin(), m.axisMax(), m.tick());
+    }
+
+    /** 관찰 기록 한 줄: 출처 배지(기존 파랑·학생 주황)와 줄바꿈되는 글. */
+    private static JPanel logRow(ObservationController.TimelineRow row) {
+        JPanel p = new JPanel(new BorderLayout(8, 0));
+        p.setOpaque(false);
+        JLabel badge = row.fromCase() ? Theme.badge("기존", Theme.BLUE, Theme.BLUE_BG)
+                : Theme.badge("학생", Theme.ORANGE, Theme.ORANGE_BG);
+        JPanel badgeWrap = new JPanel(new BorderLayout());
+        badgeWrap.setOpaque(false);
+        badgeWrap.add(badge, BorderLayout.NORTH);
+        var e = row.entry();
+        JTextArea text = new JTextArea(row.time() + "  " + (e.shift() == null ? "" : e.shift().name()) + "  "
+                + String.join(", ", e.tags()) + "\n" + (e.narrative() == null ? "" : e.narrative()));
+        text.setEditable(false);
+        text.setLineWrap(true);
+        text.setWrapStyleWord(true);
+        text.setOpaque(false);
+        text.setForeground(Theme.TEXT);
+        p.add(badgeWrap, BorderLayout.WEST);
+        p.add(text, BorderLayout.CENTER);
+        p.setAlignmentX(LEFT_ALIGNMENT);
+        return p;
     }
 }

@@ -22,7 +22,9 @@ class CaseValidatorTest {
             {"id":"G-1","title":"합성","source":"AI_GENERATED",
              "patient":{"name":"가상환자"},
              "briefing":"%s",
-             "vitals":[{"time":"%s","pulse":80}],
+             "vitals":[{"time":"%s","pulse":80},{"time":"10:00","pulse":82}],
+             "observationLog":[{"time":"09:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"},
+                               {"time":"10:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"}],
              "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%s","dose":"%s","unit":"%s","route":"%s","scheduleTimes":["08:00"]}],
              "answerKey":{"observationElements":["장소=데이룸"],"medicationElements":["약명=%s","용량=%s"]}}
             """.formatted(briefing, time, drug, dose, unit, route, drug, dose);

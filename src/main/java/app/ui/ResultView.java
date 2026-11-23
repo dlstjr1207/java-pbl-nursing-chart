@@ -86,6 +86,15 @@ public class ResultView {
         sb.append(ruleScoreText(a.checks()));
         sb.append("[점검 결과]\n");
         sb.append(checksText(a.checks())).append('\n');
+        sb.append(submittedText(a));
+        sb.append('\n').append(modelAnswerText(a));
+        sb.append(aiText(a.aiFeedback()));
+        return sb.toString();
+    }
+
+    /** 제출 당시 학생이 쓴 관찰·투약·SBAR을 그대로 재현한다 (결과 화면 "내가 제출한 기록", S8). */
+    public static String submittedText(Attempt a) {
+        StringBuilder sb = new StringBuilder();
         sb.append("[관찰 기록]\n");
         int i = 1;
         for (ObservationEntry o : a.observationEntries()) {
@@ -112,21 +121,50 @@ public class ResultView {
                 sb.append("R: ").append(x.time()).append(' ').append(x.intervention()).append('\n');
             }
         }
-        sb.append('\n').append(modelAnswerText(a));
-        sb.append(aiText(a.aiFeedback()));
         return sb.toString();
     }
 
-    /** 점검 결과를 잘한 점·누락·불일치·미산출로 나눠 입력 위치와 이유를 적는다. */
+    /**
+     * 결과 화면의 묶음 (polish B-3). 고칠 점(누락·불일치)이 맨 위, 그다음 피드백(R1 판단 표현·R9 SBAR 구성·미산출),
+     * 마지막에 잘 작성한 내용. R9는 배점이 없으므로 누락이어도 피드백으로 보낸다.
+     */
+    public record Groups(List<CheckResult> missing, List<CheckResult> mismatch, List<CheckResult> feedback,
+                         List<CheckResult> passed) {
+    }
+
+    public static Groups groups(List<CheckResult> checks) {
+        List<CheckResult> missing = new ArrayList<>();
+        List<CheckResult> mismatch = new ArrayList<>();
+        List<CheckResult> feedback = new ArrayList<>();
+        List<CheckResult> passed = new ArrayList<>();
+        for (CheckResult c : checks == null ? List.<CheckResult>of() : checks) {
+            boolean feedbackOnly = "R9".equals(c.ruleId());
+            switch (c.status()) {
+                case PASS -> passed.add(c);
+                case MISSING -> (feedbackOnly ? feedback : missing).add(c);
+                case MISMATCH -> (feedbackOnly ? feedback : mismatch).add(c);
+                default -> feedback.add(c); // FEEDBACK, NOT_SCORED
+            }
+        }
+        return new Groups(missing, mismatch, feedback, passed);
+    }
+
+    /** 점검 결과를 고칠 점·피드백·잘한 점 순서로, 위치는 사람 말로 적는다 (내보내기 파일과 같은 내용). */
     public static String checksText(List<CheckResult> checks) {
         if (checks == null || checks.isEmpty()) return "(점검 결과 없음)\n";
+        Groups g = groups(checks);
         StringBuilder sb = new StringBuilder();
-        // 고칠 점을 먼저 보여 주고, 잘 작성한 내용은 뒤에 둔다
-        section(sb, "누락", checks, CheckStatus.MISSING);
-        section(sb, "불일치", checks, CheckStatus.MISMATCH);
-        section(sb, "피드백 (배점 없음)", checks, CheckStatus.FEEDBACK);
-        section(sb, "미산출", checks, CheckStatus.NOT_SCORED);
-        section(sb, "잘 작성한 내용", checks, CheckStatus.PASS);
+        section(sb, "누락", g.missing());
+        section(sb, "불일치", g.mismatch());
+        section(sb, "피드백 (배점 없음)", g.feedback());
+        section(sb, "잘 작성한 내용", g.passed());
+        return sb.toString();
+    }
+
+    /** 묶음 한 개의 줄들: "- 관찰 기록 · 장소 — 이유 (R2 핵심 사실)" */
+    public static String lines(List<CheckResult> list) {
+        StringBuilder sb = new StringBuilder();
+        for (CheckResult c : list) sb.append("- ").append(CheckLabels.line(c)).append('\n');
         return sb.toString();
     }
 
@@ -142,14 +180,10 @@ public class ResultView {
         return sb.toString();
     }
 
-    private static void section(StringBuilder sb, String title, List<CheckResult> all, CheckStatus st) {
-        List<CheckResult> list = all.stream().filter(c -> c.status() == st).toList();
+    private static void section(StringBuilder sb, String title, List<CheckResult> list) {
         if (list.isEmpty()) return;
         sb.append("■ ").append(title).append(" (").append(list.size()).append(")\n");
-        for (CheckResult c : list) {
-            sb.append("  - [").append(c.ruleId()).append("] ").append(c.targetRef()).append(": ")
-                    .append(c.message()).append('\n');
-        }
+        for (CheckResult c : list) sb.append("  - ").append(CheckLabels.line(c)).append('\n');
     }
 
     /**

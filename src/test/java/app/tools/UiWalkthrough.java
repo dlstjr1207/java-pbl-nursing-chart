@@ -19,6 +19,7 @@ import javax.swing.AbstractButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
+import app.ui.ResultView;
 import javax.swing.text.JTextComponent;
 
 /**
@@ -107,9 +108,40 @@ public final class UiWalkthrough {
         edt(() -> clickText(frame.getContentPane(), "로그아웃"));
     }
 
-    private static String detailOf(int index) throws Exception {
+    /** 개인 메인의 과거 기록을 눌러 결과 화면을 연다(polish B-4). 결과 화면의 글을 돌려준다. */
+    private static String openRecord(int index) throws Exception {
         edt(() -> ((javax.swing.JList<?>) get(panel(Screen.HOME), "historyList")).setSelectedIndex(index));
-        return call(() -> ((JTextComponent) get(panel(Screen.HOME), "detailArea")).getText());
+        return resultText();
+    }
+
+    private static String resultText() throws Exception {
+        return call(() -> allText(panel(Screen.RESULT)));
+    }
+
+    private static app.domain.Attempt shownAttempt() throws Exception {
+        return call(() -> ((app.ui.AppState) get(frame, "state")).resultAttempt());
+    }
+
+    private static Double r7(app.domain.Attempt a) {
+        return app.scoring.Scorer.score(a.checks()).ruleScores().get("R7");
+    }
+
+    private static void goHome() throws Exception {
+        edt(() -> clickText(panel(Screen.RESULT), "개인 메인으로"));
+    }
+
+    /** 출처 배지(기존·학생)가 있는지 (polish 5). */
+    private static boolean hasBadge(Container root, String text) throws Exception {
+        return call(() -> all(root).stream().anyMatch(c -> c instanceof JLabel l && text.equals(l.getText())));
+    }
+
+    /** 개발용 표기: 근거 번호, [검증필요]·[확인필요], 검토 상태 문구 */
+    private static final java.util.regex.Pattern DEV_MARKS =
+            java.util.regex.Pattern.compile("\\bE-\\d+\\b|\\[(검증|확인)필요|팀 확정 초안");
+
+    private static String devMarks(String text) {
+        var m = DEV_MARKS.matcher(text);
+        return m.find() ? "발견: " + m.group() : "없음";
     }
 
     private static int historySize() throws Exception {
@@ -124,6 +156,8 @@ public final class UiWalkthrough {
         String suffix = String.valueOf(System.currentTimeMillis() % 1_000_000);
         String idA = "chka" + suffix, idB = "chkb" + suffix, pwA = "check-pass-A1", pwB = "check-pass-B1";
         String loginText = call(() -> allText(panel(Screen.LOGIN)));
+        boolean menuHidden = !call(() -> ((java.awt.Component) get(frame, "sideMenu")).isVisible());
+        row("로그인 화면", "로그인 전에는 왼쪽 메뉴(로그아웃 포함) 숨김", menuHidden ? "메뉴 숨김" : "메뉴 보임", menuHidden);
         row("저장 방식", fileMode ? "DB 설정이 없으면 파일 저장 모드 안내" : "MySQL에 저장(파일 모드 안내 없음)",
                 loginText.contains("파일 저장 모드") ? "파일 저장 모드 안내 표시" : "파일 모드 안내 없음",
                 fileMode == loginText.contains("파일 저장 모드"));
@@ -156,7 +190,32 @@ public final class UiWalkthrough {
         String info = call(() -> allText(panel(Screen.PATIENT)));
         row("S2", "PC-01 환자 정보 표시, 정답 비공개", (info.contains("김하늘") ? "김하늘 표시" : "환자 없음")
                 + (info.contains("모범") ? ", 모범 기록 노출" : ", 모범 기록 없음"), info.contains("김하늘") && !info.contains("모범"));
+        app.domain.PatientCase pc = call(() -> ((app.ui.AppState) get(frame, "state")).currentCase());
+        String briefStart = pc.briefing().substring(0, 20);
+        row("환자 정보", "상황 브리핑(과제) 표시, 개발용 표기 숨김", (info.contains(briefStart) ? "브리핑 표시" : "브리핑 없음")
+                + ", 개발용 표기 " + devMarks(info), info.contains(briefStart) && devMarks(info).equals("없음"));
+        row("환자 정보", "비어 있는 위험 지표 카드 숨김", info.contains("위험 지표") ? "카드 있음" : "카드 없음", !info.contains("위험 지표"));
         shot("04-patient");
+        // 근거·출처 창 (파일 메뉴)
+        edt(() -> {
+            javax.swing.JMenu file = frame.getJMenuBar().getMenu(0);
+            for (int i = 0; i < file.getItemCount(); i++) {
+                if (file.getItem(i) != null && "근거·출처 보기".equals(file.getItem(i).getText())) file.getItem(i).doClick();
+            }
+        });
+        Thread.sleep(600);
+        String evidence = call(() -> {
+            for (java.awt.Window w : java.awt.Window.getWindows()) {
+                if (w instanceof javax.swing.JDialog d && d.isShowing() && "근거·출처 보기".equals(d.getTitle())) return allText(d.getContentPane());
+            }
+            return "";
+        });
+        row("근거 창", "파일 → 근거·출처 보기에서 근거 번호·검토 상태 원문", evidence.contains("E-20") && evidence.contains("검토 상태")
+                ? "E-20·검토 상태 표시" : "창 없음", evidence.contains("E-20") && evidence.contains("검토 상태"));
+        shotScreenDialog("04b-evidence");
+        edt(() -> {
+            for (java.awt.Window w : java.awt.Window.getWindows()) if (w instanceof javax.swing.JDialog d) d.dispose();
+        });
         // S3 관찰: 빈 서술 → 안내, 정상 저장
         edt(() -> frame.show(Screen.OBSERVATION));
         boolean chart = call(() -> all(panel(Screen.OBSERVATION)).stream().anyMatch(c -> c instanceof app.ui.VitalChartPanel));
@@ -169,7 +228,7 @@ public final class UiWalkthrough {
             clickText((Container) p, "관찰 기록 저장");
         });
         String obsErr = call(() -> ((JLabel) get(panel(Screen.OBSERVATION), "errorLabel")).getText());
-        boolean noStudent = !call(() -> allText(panel(Screen.OBSERVATION))).contains("[학생]");
+        boolean noStudent = !hasBadge(panel(Screen.OBSERVATION), "학생");
         row("S3", "빈 서술 저장 보류·안내", obsErr.replaceAll("<[^>]+>", " ").trim(), noStudent && !obsErr.isBlank() && !obsErr.contains("저장했습니다"));
         shot("05-observation-empty");
         edt(() -> {
@@ -178,9 +237,13 @@ public final class UiWalkthrough {
             set(p, "interventionField", "조용한 곳으로 이동, 1:1 지지, 로라제팜 1mg PO 투여(09:30)");
             clickText((Container) p, "관찰 기록 저장");
         });
+        boolean student = hasBadge(panel(Screen.OBSERVATION), "학생") && hasBadge(panel(Screen.OBSERVATION), "기존");
         String obs = call(() -> allText(panel(Screen.OBSERVATION)));
-        row("S3", "정상 관찰 저장, 기존 기록과 구분, 활력징후 추이", (obs.contains("[학생]") ? "[학생] 기록 추가" : "추가 안 됨")
-                + (chart ? ", 추이 차트 있음" : ", 차트 없음"), obs.contains("[학생]") && chart);
+        row("S3", "정상 관찰 저장, 기존·학생 배지로 구분, 활력징후 추이", (student ? "학생·기존 배지 표시" : "배지 없음")
+                + (chart ? ", 추이 차트 있음" : ", 차트 없음"), student && chart);
+        row("관찰 화면", "상황 브리핑이 화면 위쪽에 전체 표시", obs.contains(pc.briefing()) ? "브리핑 전체 표시" : "없음", obs.contains(pc.briefing()));
+        double[] axis = call(() -> ((app.ui.VitalChartPanel) get(panel(Screen.OBSERVATION), "chart")).axisRange());
+        row("차트", "수축기 혈압 세로축 60~180, 눈금", (long) axis[0] + "~" + (long) axis[1], axis[0] == 60 && axis[1] == 180);
         shot("06-observation");
         // S4 투약: 약 정보, 거부 사유 누락(V6), PRN 사유 누락, 정상 저장
         edt(() -> frame.show(Screen.MEDICATION));
@@ -198,11 +261,19 @@ public final class UiWalkthrough {
         row("V6", "거부 + 사유 누락 저장 보류", refusedErr, refusedErr.contains("사유") && !call(() -> allText(mp)).contains("[학생]"));
         shot("07-medication-refused");
         edt(() -> {
+            // 앞의 거부 시도에서 남긴 입력(실패 시 입력 유지)을 비운 뒤 처방을 바꿔, 자동으로 채워지는지 본다
+            for (String f : List.of("doseField", "unitField", "routeField", "timeField")) set(mp, f, "");
             JComboBox<?> box = (JComboBox<?>) get(mp, "orderBox");
             for (int i = 0; i < box.getItemCount(); i++) {
                 if (String.valueOf(box.getItemAt(i)).contains("PRN")) box.setSelectedIndex(i);
             }
         });
+        String sel = call(() -> ((JLabel) get(mp, "selectedOrderLabel")).getText());
+        String filled = call(() -> ((JTextComponent) get(mp, "doseField")).getText() + ((JTextComponent) get(mp, "unitField")).getText()
+                + ((JTextComponent) get(mp, "routeField")).getText() + ((JTextComponent) get(mp, "timeField")).getText());
+        row("투약 화면", "처방을 골라도 입력칸 빈칸, '선택한 처방' 표시", sel + (filled.isEmpty() ? " / 입력칸 빈칸" : " / 자동 채움: " + filled),
+                sel.startsWith("선택한 처방: Lorazepam 1mg PO PRN") && filled.isEmpty());
+        row("투약 화면", "개발용 표기 숨김", devMarks(call(() -> allText(mp))), devMarks(call(() -> allText(mp))).equals("없음"));
         String drug = call(() -> ((JTextComponent) get(mp, "drugInfoArea")).getText());
         row("약 정보", "PRN 로라제팜 선택 시 식약처 허가정보 표시", drug.lines().findFirst().orElse(""),
                 drug.contains("스리반정1밀리그램") && drug.contains("[용법용량]"));
@@ -260,27 +331,47 @@ public final class UiWalkthrough {
         edt(() -> clickText(sp, "SBAR 제출"));
         if (aiOn) shot("10b-sbar-submitting");
         waitSubmit();
-        row("S5", "제출 성공 → 개인 메인", title(), title().contains("개인 메인") && historySize() == 1);
-        String detail = detailOf(0);
-        String first = detail.lines().findFirst().orElse("");
-        row("S6", "모범 기록대로 입력하면 100점·누락/불일치 없음", first,
-                first.contains("100점") && !detail.contains("■ 누락") && !detail.contains("■ 불일치"));
-        row("S6", "제출 후 모범 기록 공개", detail.contains("[모범 기록]") ? "모범 기록 표시" : "없음", detail.contains("[모범 기록]"));
+        row("S5", "제출 성공 → 방금 제출한 실습의 결과 화면", title(), title().contains("실습 결과"));
+        String detail = resultText();
+        app.domain.Attempt modelAttempt = shownAttempt();
+        String first = ResultView.historyLine(modelAttempt);
+        row("S6", "모범 기록대로 입력하면 100점·누락/불일치 없음", first + ", R7 " + r7(modelAttempt),
+                first.contains("100점") && detail.contains("누락·불일치가 없습니다."));
+        row("결과 화면", "총점 → 항목별 점수 → 고칠 점 → 피드백 → 잘 작성한 내용(접힘) → 모범 기록 → AI 해설",
+                order(detail, "100점", "항목별 점수", "고칠 점", "잘 작성한 내용", "내가 제출한 기록", "모범 기록", "AI 해설")
+                        + (detail.contains("펼치기") ? ", 잘한 내용 접힘" : ""),
+                order(detail, "100점", "항목별 점수", "고칠 점", "잘 작성한 내용", "내가 제출한 기록", "모범 기록", "AI 해설").equals("순서 맞음")
+                        && detail.contains("펼치기") && detail.contains("개인 메인으로"));
+        row("결과 화면", "점검 위치를 사람 말로, 개발용 표기 숨김", (detail.contains("observation") || detail.contains("rec1.") ? "영문 위치 남음" : "사람 말 위치")
+                + ", 개발용 표기 " + devMarks(detail), !detail.contains("observation") && !detail.contains("rec1.") && devMarks(detail).equals("없음"));
         shot("11-result-model");
         if (aiOn) {
-            row("S7", "SBAR 제출 후 AI 해설 표시(점수 불변)", detail.contains("AI 해설 (점수에 반영되지 않음)") ? "해설 표시" : aiLine(detail),
-                    detail.contains("AI 해설 (점수에 반영되지 않음)") && first.contains("100점"));
+            boolean ok = "SUCCESS".equals(modelAttempt.aiFeedback() == null ? null : modelAttempt.aiFeedback().status());
+            row("S7", "SBAR 제출 후 AI 해설 표시(점수 불변)", ok ? "해설 표시" : "해설 없음", ok && first.contains("100점"));
         } else {
-            row("S7", "AI 키 없음 → 해설 없음 안내, 점수 유지", aiLine(detail), detail.contains("AI 해설: 없음"));
+            row("S7", "AI 키 없음 → 해설 없음 안내, 점수 유지", detail.contains("AI 해설: 없음") ? "AI 해설: 없음 안내" : "안내 없음",
+                    detail.contains("AI 해설: 없음"));
         }
         // 내보내기 한글
         Path exported = out.resolve("export-sample.txt");
-        app.domain.Attempt sel = call(() -> (app.domain.Attempt) ((javax.swing.JList<?>) get(panel(Screen.HOME), "historyList")).getSelectedValue());
-        String exportErr = new app.export.ResultExporter().export(sel, exported);
+        String exportErr = new app.export.ResultExporter().export(modelAttempt, exported);
         String exportedText = exportErr == null ? Files.readString(exported, java.nio.charset.StandardCharsets.UTF_8) : "";
         row("내보내기", "UTF-8 파일에 한글이 깨지지 않음", exportErr != null ? exportErr
                 : exportedText.contains("김하늘") || exportedText.contains("데이룸") ? "한글 정상(데이룸·로라제팜)" : "한글 확인 안 됨",
                 exportErr == null && exportedText.contains("데이룸") && exportedText.contains("로라제팜"));
+        // 잘 작성한 내용 펼치기 캡처 후 개인 메인으로
+        edt(() -> {
+            for (Component c : all(panel(Screen.RESULT))) {
+                if (c instanceof AbstractButton b && b.getText() != null && b.getText().contains("잘 작성한 내용")) {
+                    b.doClick();
+                    break;
+                }
+            }
+        });
+        shot("11b-result-model-open");
+        goHome();
+        row("S8", "개인 메인은 과거 기록 목록만", "기록 " + historySize() + "건", historySize() == 1 && title().contains("개인 메인"));
+        shot("11c-home-list");
         // S6·V1~V4: 틀린 기록으로 두 번째 실습
         edt(() -> clickText(panel(Screen.HOME), "실습 시작"));
         edt(() -> frame.show(Screen.OBSERVATION));
@@ -319,14 +410,19 @@ public final class UiWalkthrough {
             clickText((Container) sp, "SBAR 제출");
         });
         waitSubmit();
-        String bad = detailOf(0);
-        String badFirst = bad.lines().findFirst().orElse("");
-        row("S6", "틀린 기록은 감점·항목별 지적", badFirst, historySize() == 2 && !badFirst.contains("100점"));
-        row("V1", "판단 표현 '협조적' 지적(R1)", lineWith(bad, "[R1]", "협조적"), bad.contains("협조적") && bad.contains("[R1]"));
-        row("V2", "환자 발언 인용 누락 지적(R1·R2)", lineWith(bad, "[R", "인용"), bad.contains("인용"));
-        row("V3", "다른 용량 2mg → R7 불일치(입력·기준)", lineWith(bad, "[R7]", "입력 '2'"), bad.contains("[R7]") && bad.contains("입력 '2'"));
-        row("V4", "재평가 계획 누락 → R4 지적", lineWith(bad, "[R4]", "재평가"), bad.contains("[R4]") && bad.contains("재평가 계획(언제"));
+        String bad = resultText();
+        app.domain.Attempt badAttempt = shownAttempt();
+        String badFirst = ResultView.historyLine(badAttempt);
+        row("S6", "틀린 기록은 감점·항목별 지적", badFirst, !badFirst.contains("100점"));
+        row("R7", "투약 자동 채움이 없어 R7이 학생 입력에 따라 달라짐", "모범 입력 R7 " + r7(modelAttempt) + " / 용량 2mg 입력 R7 " + r7(badAttempt),
+                r7(modelAttempt) == 25.0 && r7(badAttempt) != null && r7(badAttempt) < 25.0);
+        row("V1", "판단 표현 '협조적' 피드백(R1)", lineWith(bad, "(R1", "협조적"), bad.contains("협조적") && bad.contains("(R1"));
+        row("V2", "환자 발언 인용 누락 → R1 따옴표 인용 + R2 발언 인용 요소 지적", lineWith(bad, "(R1", "따옴표") + " / " + lineWith(bad, "(R2", "발언 인용"),
+                lineWith(bad, "(R1", "따옴표").startsWith("-") && lineWith(bad, "(R2", "발언 인용").startsWith("-"));
+        row("V3", "다른 용량 2mg → R7 불일치(입력·기준)", lineWith(bad, "(R7", "입력 '2'"), bad.contains("(R7") && bad.contains("입력 '2'"));
+        row("V4", "재평가 계획 누락 → R4 지적", lineWith(bad, "(R4", "재평가"), bad.contains("(R4") && bad.contains("재평가 계획(언제"));
         shot("12-result-wrong");
+        goHome();
         // S8 로그아웃 → 다른 사용자 → 재로그인
         logout();
         boolean cleared = title().contains("로그인") && call(() -> ((app.ui.AppState) get(frame, "state")).currentCase()) == null;
@@ -339,8 +435,11 @@ public final class UiWalkthrough {
         logout();
         login(idA, pwA);
         int back = historySize();
-        String again = detailOf(1);
         String metrics = call(() -> ((JTextComponent) get(panel(Screen.HOME), "metricsArea")).getText());
+        String again = openRecord(1);
+        row("결과 화면", "과거 기록을 누르면 같은 결과 화면", title(), title().contains("실습 결과"));
+        shot("14b-result-reopen");
+        goHome();
         row("S8", "재로그인 시 A의 기록·입력·평가지표 복원", "기록 " + back + "건, " + metrics.lines().filter(l -> l.startsWith("총")).findFirst().orElse(""),
                 back == 2 && again.contains("100점") && again.contains("데이룸") && metrics.contains("총 실습 횟수: 2회"));
         shot("14-home-relogin");
@@ -352,8 +451,20 @@ public final class UiWalkthrough {
         }
     }
 
-    private static String aiLine(String detail) {
-        return detail.lines().filter(l -> l.startsWith("AI 해설")).findFirst().orElse("AI 해설 줄 없음");
+    /** 글 안에 조각들이 차례대로 나오는지. */
+    private static String order(String text, String... parts) {
+        int at = -1;
+        for (String p : parts) {
+            int i = text.indexOf(p, at + 1);
+            if (i < 0) return "'" + p + "' 없음 또는 순서 다름";
+            at = i;
+        }
+        return "순서 맞음";
+    }
+
+    /** 대화상자까지 보이도록 창 영역을 캡처한다. */
+    private static void shotScreenDialog(String name) throws Exception {
+        shot(name);
     }
 
     /** 상세 글에서 두 조각이 모두 든 첫 줄. */
@@ -417,11 +528,18 @@ public final class UiWalkthrough {
             clickText((Container) p, "SBAR 제출");
         });
         for (int i = 0; i < 120 && call(() -> frame.getTitle()).contains("SBAR"); i++) Thread.sleep(500);
-        edt(() -> ((javax.swing.JList<?>) get(panel(Screen.HOME), "historyList")).setSelectedIndex(0));
-        String d = call(() -> ((JTextComponent) get(panel(Screen.HOME), "detailArea")).getText());
-        String first = d.lines().findFirst().orElse("");
-        row("S9", "AI 생성 케이스 기록 저장·채점(R7·R2)", first, first.contains(c.id()) && first.contains("점")
-                && d.contains("R7 ") && d.contains("R2 "));
+        String d = resultText();
+        app.domain.Attempt ga = shownAttempt();
+        String first = ga == null ? "" : ResultView.historyLine(ga);
+        var rs = ga == null ? java.util.Map.<String, Double>of() : app.scoring.Scorer.score(ga.checks()).ruleScores();
+        row("S9", "AI 생성 케이스 기록 저장·채점(R7·R2)", first + ", R7 " + rs.get("R7") + ", R2 " + rs.get("R2"),
+                first.contains(c.id()) && rs.containsKey("R7") && rs.containsKey("R2"));
+        String ai = call(() -> allText(panel(Screen.PATIENT)));
+        row("S9", "AI 환자는 PC-01과 다른 이름·나이·병실, 로그 2건·활력 2회 이상",
+                c.patient().name() + ", " + c.patient().age() + "세, " + c.patient().room() + ", 로그 " + c.observationLog().size()
+                        + "건, 활력 " + c.vitals().size() + "회",
+                !"김하늘".equals(c.patient().name()) && !Integer.valueOf(28).equals(c.patient().age())
+                        && c.observationLog().size() >= 2 && c.vitals().size() >= 2);
         shot("17-ai-result");
     }
 
@@ -487,13 +605,24 @@ public final class UiWalkthrough {
     private static String allText(Container root) {
         StringBuilder sb = new StringBuilder();
         for (Component c : all(root)) {
+            if (c instanceof javax.swing.JComponent jc) borderTitle(jc.getBorder(), sb);
             if (c instanceof JLabel l) sb.append(l.getText()).append('\n');
+            else if (c instanceof AbstractButton bt && bt.getText() != null) sb.append(bt.getText()).append('\n');
             else if (c instanceof JTextComponent t) sb.append(t.getText()).append('\n');
             else if (c instanceof javax.swing.JList<?> list) {
                 for (int i = 0; i < list.getModel().getSize(); i++) sb.append(list.getModel().getElementAt(i)).append('\n');
             }
         }
         return sb.toString();
+    }
+
+    /** 카드 제목(TitledBorder)도 글로 읽는다. */
+    private static void borderTitle(javax.swing.border.Border b, StringBuilder sb) {
+        if (b instanceof javax.swing.border.TitledBorder t) sb.append(t.getTitle()).append('\n');
+        else if (b instanceof javax.swing.border.CompoundBorder cb) {
+            borderTitle(cb.getOutsideBorder(), sb);
+            borderTitle(cb.getInsideBorder(), sb);
+        }
     }
 
     private static List<Component> all(Container root) {

@@ -43,12 +43,25 @@ public class CaseGenerator {
     private final CaseValidator validator;
     private final CaseLoader loader;
     private final int maxAttempts;
+    /** 매번 다른 환자를 만들도록 요청 조건(성별·나이·사건 장소)을 고르는 난수. 테스트에서는 고정 시드. */
+    private final java.util.Random random;
+
+    /** 사건 장소 후보 (병동 안의 장소, 임상 값 아님). */
+    static final List<String> PLACES = List.of("데이룸", "복도", "병실", "간호사실 앞", "식당", "면회실 앞", "샤워실 앞", "프로그램실");
+    /** 생성 환자 나이 범위 */
+    static final int MIN_AGE = 20;
+    static final int MAX_AGE = 60;
 
     public CaseGenerator(AiClient ai, CaseValidator validator, CaseLoader loader, int maxAttempts) {
+        this(ai, validator, loader, maxAttempts, new java.util.Random());
+    }
+
+    public CaseGenerator(AiClient ai, CaseValidator validator, CaseLoader loader, int maxAttempts, java.util.Random random) {
         this.ai = ai;
         this.validator = validator;
         this.loader = loader;
         this.maxAttempts = Math.max(1, maxAttempts);
+        this.random = random;
     }
 
     /** AI 키가 있고 허용 약물 목록이 채워져 있어 생성을 쓸 수 있는지 (D26). */
@@ -69,10 +82,11 @@ public class CaseGenerator {
             return fallback(unavailableReason(), List.of());
         }
         List<String> problems = List.of();
+        String conditions = conditions();
         for (int i = 1; i <= maxAttempts; i++) {
             String content;
             try {
-                content = ai.complete(systemPrompt(), userPrompt(problems));
+                content = ai.complete(systemPrompt(), userPrompt(conditions, problems));
             } catch (IOException e) {
                 problems = List.of("AI 호출 실패");
                 continue;
@@ -85,7 +99,8 @@ public class CaseGenerator {
                 problems = List.of("JSON 형식 오류: 응답을 케이스로 읽을 수 없음 (" + shortReason(e) + ")");
                 continue;
             }
-            problems = validator.check(c);
+            problems = new ArrayList<>(validator.check(c));
+            problems.addAll(diversityProblems(c));
             if (problems.isEmpty()) {
                 return new Result(c, true, "AI가 새 케이스를 만들었습니다.", List.of());
             }
@@ -137,7 +152,8 @@ public class CaseGenerator {
                 + "briefing·title·modelAnswer의 observation·medication·sbar는 반드시 문자열이다. "
                 + "type은 REGULAR|PRN|PAST, shift는 DAY|EVENING|NIGHT, 시각은 HH:mm. "
                 + "약물·용량은 허용 목록 안에서만 고르고, 정규 처방은 (1회 용량 × scheduleTimes 수)가 1일 허용 범위 안이어야 한다. "
-                + "answerKey.medicationElements는 PRN 처방과 같은 약명·용량·경로여야 하고, 시각은 briefing의 투약 시각이다.\n"
+                + "answerKey.medicationElements는 PRN 처방과 같은 약명·용량·경로여야 하고, 시각은 briefing의 투약 시각이다. "
+                + "briefing은 필수이고, observationLog는 2건 이상, vitals는 2회 이상(서로 다른 시각) 넣는다.\n"
                 + "견본:\n" + TEMPLATE;
     }
 
@@ -151,8 +167,10 @@ public class CaseGenerator {
                         "frequency":"1일 N회","scheduleTimes":["08:30"]},
                        {"orderId":"G-PRN1","type":"PRN","drugName":"허용 약명","dose":"숫자","unit":"mg","route":"PO",
                         "frequency":"필요 시","prnIndication":"불안·초조 시"}],
-             "vitals":[{"measurementId":"V1","time":"11:30","systolic":120,"diastolic":80,"pulse":80,"respiration":18,"temperature":36.5,"spo2":98}],
-             "observationLog":[{"time":"10:00","shift":"DAY","tags":["안정 회복"],"narrative":"재평가 결과 문장"}],
+             "vitals":[{"measurementId":"V1","time":"HH:mm","systolic":0,"diastolic":0,"pulse":0,"respiration":0,"temperature":0.0,"spo2":0},
+                       {"measurementId":"V2","time":"HH:mm","systolic":0,"diastolic":0,"pulse":0,"respiration":0,"temperature":0.0,"spo2":0}],
+             "observationLog":[{"time":"HH:mm","shift":"DAY","tags":["기타"],"narrative":"사건 전 관찰 문장"},
+                               {"time":"HH:mm","shift":"DAY","tags":["안정 회복"],"narrative":"재평가 결과 문장"}],
              "briefing":"사건 시각·장소·행동·환자 발언(따옴표)·간호·PRN 투약을 담은 문장",
              "answerKey":{"observationElements":["장소=동의어1|동의어2","행동=…","발언 인용=…","간호=…","투약=약명|영문약명&1mg|1 mg&po|경구","재평가=…"],
                           "medicationElements":["약명=영문약명|한글약명","용량=숫자","단위=mg","경로=PO|경구","시각=HH:mm"],
@@ -160,8 +178,64 @@ public class CaseGenerator {
              "modelAnswer":{"observation":"모범 관찰 문장","medication":"모범 투약 문장","sbar":"S: …\\nB: …\\nA: …\\nR: …"}}
             """;
 
+    /**
+     * 이번 요청의 환자·사건 조건. 매번 성별·나이·사건 장소를 바꿔 같은 환자가 반복되지 않게 한다 (polish 11).
+     * 기본 케이스(PC-01)의 이름·나이·병실은 쓰지 못하게 알린다.
+     */
+    String conditions() {
+        String sex = random.nextBoolean() ? "F" : "M";
+        int age = MIN_AGE + random.nextInt(MAX_AGE - MIN_AGE + 1);
+        String place = PLACES.get(random.nextInt(PLACES.size()));
+        StringBuilder sb = new StringBuilder("이번 환자 조건: 성별 ").append(sex).append(", 나이 ").append(age)
+                .append("세, 사건 장소 ").append(place).append(".\n")
+                .append("이름·병실 번호·입원 일수·진단·환자 발언은 매번 새로 정한다(흔한 예시 반복 금지). ")
+                .append("진단은 허용 약물로 치료하는 범위(조현병, 조현정동장애, 양극성 장애) 안에서 고른다. ")
+                .append("나이는 ").append(MIN_AGE).append("~").append(MAX_AGE).append("세.\n");
+        PatientCase base = baseCase();
+        if (base != null && base.patient() != null) {
+            sb.append("금지: 이름 '").append(base.patient().name()).append("', 나이 ").append(base.patient().age())
+                    .append("세, 병실 '").append(base.patient().room()).append("' (기본 케이스와 같은 값).\n");
+        }
+        return sb.toString();
+    }
+
+    /** 생성 케이스가 기본 케이스와 같은 이름·나이·병실이거나 나이 범위를 벗어나면 문제로 알린다. */
+    List<String> diversityProblems(PatientCase c) {
+        List<String> out = new ArrayList<>();
+        if (c.patient() == null) return out;
+        Integer age = c.patient().age();
+        if (age == null || age < MIN_AGE || age > MAX_AGE) {
+            out.add("patient.age는 " + MIN_AGE + "~" + MAX_AGE + "세여야 함");
+        }
+        PatientCase base = baseCase();
+        if (base != null && base.patient() != null) {
+            var b = base.patient();
+            if (same(b.name(), c.patient().name())) out.add("patient.name이 기본 케이스와 같음");
+            if (b.age() != null && b.age().equals(age)) out.add("patient.age가 기본 케이스와 같음");
+            if (same(b.room(), c.patient().room())) out.add("patient.room이 기본 케이스와 같음");
+        }
+        return out;
+    }
+
+    private PatientCase baseCase() {
+        try {
+            return loader.exists(FIXED_ID) ? loader.load(FIXED_ID) : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static boolean same(String a, String b) {
+        return a != null && b != null && a.replaceAll("\\s+", "").equals(b.replaceAll("\\s+", ""));
+    }
+
     String userPrompt(List<String> problems) {
+        return userPrompt("", problems);
+    }
+
+    String userPrompt(String conditions, List<String> problems) {
         StringBuilder sb = new StringBuilder("사건 유형: ").append(EVENT_ANXIETY_PRN).append('\n');
+        sb.append(conditions);
         sb.append("허용 약물: ").append(DomainJson.toJson(validator.allowedDrugs().all())).append('\n');
         if (!problems.isEmpty()) {
             sb.append("이전 응답의 문제를 고쳐 다시 만든다: ").append(String.join("; ", problems));

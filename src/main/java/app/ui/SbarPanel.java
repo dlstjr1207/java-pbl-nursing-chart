@@ -202,8 +202,8 @@ public class SbarPanel extends JPanel implements Reloadable {
                     return;
                 }
                 clearInputs();
-                controller.finish();
-                onNavigate.accept(Screen.HOME);
+                controller.finish(r.attempt());
+                onNavigate.accept(Screen.RESULT);
             }
         }.execute();
     }

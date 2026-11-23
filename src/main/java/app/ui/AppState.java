@@ -31,6 +31,9 @@ public class AppState {
     /** 이번 실습에서 학생이 작성한 투약 기록 (제출 전 임시 보관). */
     private final List<MedicationRecord> studentMedications = new ArrayList<>();
 
+    /** 결과 화면에 보일 실습 기록 (방금 제출했거나 과거 기록에서 고른 것). */
+    private app.domain.Attempt resultAttempt;
+
     /** 이번 실습의 시작 시각 (제출 시 Attempt에 저장). */
     private java.time.LocalDateTime practiceStartedAt;
 
@@ -51,6 +54,28 @@ public class AppState {
 
     public PatientCase currentCase() { return currentCase; }
 
+    /** 결과 화면에 보일 기록 (없으면 null). */
+    public app.domain.Attempt resultAttempt() { return resultAttempt; }
+
+    /**
+     * 실습 기록의 결과 화면으로 간다. 진행 중이던 실습은 끝낸다(제출 직후이거나 개인 메인에서 연 경우).
+     * 로그인 전이면 false.
+     */
+    public boolean showResult(app.domain.Attempt attempt) {
+        if (userName == null || attempt == null) return false;
+        endPractice();
+        resultAttempt = attempt;
+        current = Screen.RESULT;
+        return true;
+    }
+
+    private void endPractice() {
+        currentCase = null;
+        practiceStartedAt = null;
+        studentObservations.clear();
+        studentMedications.clear();
+    }
+
     /** 로그인 처리. 로그인 직후 개인 메인으로 이동한다. */
     public void login(String name) {
         this.userName = name;
@@ -63,6 +88,7 @@ public class AppState {
     /** 로그아웃 처리. 이전 사용자의 상태(케이스 포함)를 모두 지우고 로그인 화면으로 돌아간다. */
     public void logout() {
         this.userName = null;
+        this.resultAttempt = null;
         this.practiceStartedAt = null;
         this.currentCase = null;
         this.studentObservations.clear();
@@ -103,18 +129,14 @@ public class AppState {
     /** 이동 가능 여부. 로그인·케이스 조건을 확인한다. */
     public boolean canGo(Screen target) {
         if (target.needsLogin() != (userName != null)) return false;
+        if (target == Screen.RESULT && resultAttempt == null) return false;
         return !(target.needsCase() && currentCase == null);
     }
 
     /** 이동한다. 불가능하면 현재 화면을 유지하고 false를 돌려준다. */
     public boolean go(Screen target) {
         if (!canGo(target)) return false;
-        if (target == Screen.HOME) {
-            currentCase = null;
-            practiceStartedAt = null; // 개인 메인으로 돌아가면 실습 종료
-            studentObservations.clear();
-            studentMedications.clear();
-        }
+        if (target == Screen.HOME) endPractice(); // 개인 메인으로 돌아가면 실습 종료
         current = target;
         return true;
     }
