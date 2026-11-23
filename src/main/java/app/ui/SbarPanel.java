@@ -157,9 +157,13 @@ public class SbarPanel extends JPanel implements Reloadable {
      * 통과하면 AI 해설·저장을 SwingWorker로 백그라운드에서 실행하고, 그동안 버튼을 끈다.
      */
     private void submit() {
-        // 입력칸에 쓰다 만 R 행이 있으면 함께 제출 대상에 넣는다.
-        if (!timeField.getText().isBlank() || !interField.getText().isBlank()) addRow();
-        var p = controller.prepare(sArea.getText(), bArea.getText(), aArea.getText(), rows());
+        // 입력칸에 쓰다 만 R 행이 있으면 함께 제출 대상에 넣는다. 검증에 실패하면 그 행은 목록에 옮기지 않고
+        // 입력칸에 그대로 둔다(고칠 곳이 입력칸에 남도록, 단계 9 검증에서 발견).
+        List<SbarRecommendation> candidate = rows();
+        if (!timeField.getText().isBlank() || !interField.getText().isBlank()) {
+            candidate.add(new SbarRecommendation(timeField.getText(), interField.getText()));
+        }
+        var p = controller.prepare(sArea.getText(), bArea.getText(), aArea.getText(), candidate);
         var e = p.errors();
         sErr.setText(e.getOrDefault("situation", " "));
         bErr.setText(e.getOrDefault("background", " "));
