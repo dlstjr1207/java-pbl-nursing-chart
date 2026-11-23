@@ -12,7 +12,7 @@
    ```bash
    java -version
    ```
-2. **JAR 실행.** 받은 `nursing-chart-trainer.jar`가 있는 폴더에서 실행합니다(파일을 두 번 눌러 열 수도 있지만, `config/` 설정을 쓰려면 이 명령으로 실행합니다).
+2. **JAR 받기와 실행.** [Releases의 v0.1.0-1130](https://github.com/dlstjr1207/java-pbl-nursing-chart/releases/tag/v0.1.0-1130)에서 `nursing-chart-trainer.jar`를 내려받아, 그 파일이 있는 폴더에서 실행합니다(파일을 두 번 눌러 열 수도 있지만, `config/` 설정을 쓰려면 이 명령으로 실행합니다).
    ```bash
    java -jar nursing-chart-trainer.jar
    ```
@@ -20,7 +20,19 @@
 3. **DB가 없으면 파일 저장 모드.** MySQL 설정이 없으면 로그인 화면에 "DB 없이 파일 저장 모드입니다"가 보이고, 계정과 실습 기록은 이 PC의 사용자 폴더 `~/.nursing-chart-trainer/`에 저장됩니다. 그대로 회원가입 → 로그인하면 됩니다.
 4. **AI 키가 없으면 PC-01로 실습.** 개인 메인에서 "실습 시작"을 누르면 기본 케이스 PC-01(김하늘, 28세, 조현정동장애)로 실습합니다. AI 해설은 "없음"으로 표시되고, 점수와 점검 결과는 그대로 나옵니다. AI 케이스 생성 버튼은 꺼지고 이유가 표시됩니다.
 
-실습 흐름: 회원가입 → 로그인 → 개인 메인 → 실습 시작 → 환자 정보 → 관찰 기록 → 투약 점검 → SBAR 인계 제출 → 개인 메인에서 점수·점검 결과·모범 기록 확인. 기록은 계정마다 따로 보이고, "선택한 기록 내보내기"로 텍스트 파일(UTF-8)로 저장할 수 있습니다.
+실습 흐름: 회원가입 → 로그인 → 개인 메인 → 실습 시작 → 환자 정보(상황 브리핑) → 관찰 기록 → 투약 점검(처방을 보고 용량·경로·시각을 직접 입력) → SBAR 인계 제출 → 결과 화면에서 점수·항목별 점수·고칠 점·모범 기록 확인. 개인 메인의 과거 기록을 누르면 같은 결과 화면이 열립니다. 근거 번호와 검토 상태는 메뉴 **파일 → 근거·출처 보기**에서 봅니다. 기록은 계정마다 따로 보이고, "선택한 기록 내보내기"로 텍스트 파일(UTF-8)로 저장할 수 있습니다.
+
+## 배포용 JAR 올리기 (GitHub Release)
+
+개발자가 main에서 JAR을 만들어 Release에 올립니다. 팀원은 Releases 페이지에서 내려받기만 하면 됩니다.
+
+```bash
+git checkout main && git pull
+./mvnw clean package
+gh release create v0.1.0-1130 target/nursing-chart-trainer.jar --target main --title "v0.1.0-1130 (1차 초안)" --notes "Java 21에서 java -jar nursing-chart-trainer.jar 로 실행. DB 없으면 파일 저장 모드, AI 키 없으면 PC-01로 실습."
+```
+
+이미 만든 릴리스의 JAR만 바꿀 때는 `gh release upload v0.1.0-1130 target/nursing-chart-trainer.jar --clobber`를 씁니다.
 
 ## 선택 설정 (`config/` 폴더)
 
