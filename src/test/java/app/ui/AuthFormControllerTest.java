@@ -85,10 +85,11 @@ class AuthFormControllerTest {
     @Test
     void 시작_점검_값이_비면_항목을_알려_주고_비밀번호는_없다(@TempDir Path dir) throws Exception {
         Path f = dir.resolve("db.properties");
-        Files.writeString(f, "db.url=jdbc:mysql://localhost/x\ndb.user=u\ndb.password=SECRETVALUE\n");
+        // db.test.url은 앱 실행에 필수가 아니므로, 비어 있는 db.user를 알려 주는지 본다.
+        Files.writeString(f, "db.url=jdbc:mysql://localhost/x\ndb.user=\ndb.password=SECRETVALUE\n");
         var r = StartupCheck.check(f);
         assertFalse(r.ok());
-        assertTrue(r.problem().contains("db.test.url"));
+        assertTrue(r.problem().contains("db.user"));
         assertFalse(r.problem().contains("SECRETVALUE"));
     }
 }

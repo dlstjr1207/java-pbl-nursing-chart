@@ -83,39 +83,85 @@ public class SbarController {
     }
 
     /**
-     * 제출한다. 검증 실패면 저장하지 않고 오류만 돌려주며 입력은 화면에 남는다.
-     * 성공하면 사용자별로 저장하고 개인 메인으로 이동한다. 입력값은 그대로 보존한다.
+     * 제출 준비(화면 스레드에서 빠르게 실행). 필수값을 검증하고, 통과하면 제출 당시 입력과 규칙 점검 결과를
+     * 묶어 둔다. AI 호출과 저장은 complete()가 백그라운드에서 한다.
      */
-    public SubmitResult submit(String s, String b, String a, List<SbarRecommendation> rows) {
+    public Prepared prepare(String s, String b, String a, List<SbarRecommendation> rows) {
         Map<String, String> errors = validate(s, b, a, rows);
         if (!errors.isEmpty()) {
-            return new SubmitResult(false, errors, null, "비어 있는 항목을 확인하세요. 입력한 내용은 유지됩니다.");
+            return Prepared.failed(errors, "비어 있는 항목을 확인하세요. 입력한 내용은 유지됩니다.");
         }
         if (state.currentCase() == null) {
-            return new SubmitResult(false, Map.of(), null, "실습 중인 케이스가 없습니다.");
+            return Prepared.failed(Map.of(), "실습 중인 케이스가 없습니다.");
         }
         List<SbarRecommendation> kept = new ArrayList<>();
         for (SbarRecommendation r : rows) kept.add(new SbarRecommendation(r.time().trim(), r.intervention()));
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime started = state.practiceStartedAt() == null ? now : state.practiceStartedAt();
         SbarReport report = new SbarReport(s, b, a, kept);
         // 제출 당시 규칙 점검(R8·R6·R9)을 함께 저장한다. 점수는 가중치 미정이라 null(미산출).
         List<CheckResult> checks = new ArrayList<>(RequiredInputChecker.check(
                 state.studentObservations(), state.studentMedications(), report));
         checks.addAll(MedicationCompletenessChecker.check(state.studentMedications(), state.currentCase().orders()));
         checks.addAll(SbarStructureChecker.check(report, null)); // 케이스에 SBAR 필수 요소 목록이 없어 미산출
-        Attempt attempt = new Attempt(null, userId.getAsLong(), state.currentCase().id(), state.currentCase().source(),
-                state.currentCase().source() == app.domain.CaseSource.AI_GENERATED
-                        ? app.domain.DomainJson.toJson(state.currentCase()) : null, started, now, state.studentObservations(), state.studentMedications(),
-                report, checks, null, explain(report, checks));
-        Attempt saved;
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime started = state.practiceStartedAt() == null ? now : state.practiceStartedAt();
+        app.domain.PatientCase c = state.currentCase();
+        Attempt draft = new Attempt(null, userId.getAsLong(), c.id(), c.source(),
+                c.source() == app.domain.CaseSource.AI_GENERATED ? app.domain.DomainJson.toJson(c) : null,
+                started, now, List.copyOf(state.studentObservations()), List.copyOf(state.studentMedications()),
+                report, checks, null, null);
+        return new Prepared(Map.of(), null, draft);
+    }
+
+    /**
+     * AI 해설을 받고 저장한다(백그라운드 스레드에서 실행 가능, 화면 상태는 바꾸지 않음).
+     * AI가 실패하거나 예외가 나도 해설 상태만 FAILED가 되고 저장·점검 결과는 그대로 남는다 (S7).
+     */
+    public SubmitResult complete(Prepared prepared) {
+        Attempt draft = prepared.draft();
+        app.domain.AiFeedback feedback;
         try {
-            saved = attempts.save(attempt);
+            feedback = explain(draft.sbar(), draft.checks());
+        } catch (RuntimeException e) {
+            feedback = new app.domain.AiFeedback(app.ai.AiClient.STATUS_FAILED, null, null, null);
+        }
+        Attempt attempt = new Attempt(null, draft.userId(), draft.caseId(), draft.caseSource(), draft.generatedCaseJson(),
+                draft.startedAt(), draft.submittedAt(), draft.observationEntries(), draft.medicationRecords(),
+                draft.sbar(), draft.checks(), draft.score(), feedback);
+        try {
+            return new SubmitResult(true, Map.of(), attempts.save(attempt), "제출했습니다.");
         } catch (RuntimeException e) {
             return new SubmitResult(false, Map.of(), null, "저장하지 못했습니다. 입력은 유지됩니다. (" + e.getMessage() + ")");
         }
-        state.go(Screen.HOME);
-        return new SubmitResult(true, Map.of(), saved, "제출했습니다.");
+    }
+
+    /** 제출이 끝난 뒤(화면 스레드) 실습을 마치고 개인 메인으로 상태를 옮긴다. */
+    public void finish() { state.go(Screen.HOME); }
+
+    /** AI 해설을 요청할 수 있는지(키가 있는지). 화면 안내 문구용. */
+    public boolean aiEnabled() { return ai != null && ai.isEnabled(); }
+
+    /** 지금 실습을 구분하는 값(실습 시작 시각). 실습이 바뀌면 SBAR 입력칸을 비우는 데 쓴다. */
+    public Object practiceKey() { return state.practiceStartedAt(); }
+
+    /**
+     * 한 번에 제출한다(테스트·동기 실행용). 검증 실패면 저장하지 않고 오류만 돌려주며 입력은 화면에 남는다.
+     * 성공하면 사용자별로 저장하고 개인 메인으로 이동한다.
+     */
+    public SubmitResult submit(String s, String b, String a, List<SbarRecommendation> rows) {
+        Prepared p = prepare(s, b, a, rows);
+        if (!p.ok()) return new SubmitResult(false, p.errors(), null, p.message());
+        SubmitResult r = complete(p);
+        if (r.submitted()) finish();
+        return r;
+    }
+
+    /** 제출 준비 결과. ok()면 draft에 저장할 기록(AI 해설 전)이 들어 있다. */
+    public record Prepared(Map<String, String> errors, String message, Attempt draft) {
+        static Prepared failed(Map<String, String> errors, String message) {
+            return new Prepared(errors, message, null);
+        }
+
+        public boolean ok() { return draft != null; }
     }
 
     private static boolean blank(String s) {

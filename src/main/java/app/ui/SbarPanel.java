@@ -22,7 +22,7 @@ import javax.swing.JTextField;
  * SBAR 인계 화면 (S5). S·B·A는 JTextArea, R은 시각·중재 행 목록(JList)으로 입력한다.
  * 검증 실패 시 칸별 안내를 보이고 입력은 유지한다. 성공하면 저장 후 개인 메인으로 이동한다.
  */
-public class SbarPanel extends JPanel {
+public class SbarPanel extends JPanel implements Reloadable {
     private final SbarController controller;
     private final Consumer<Screen> onNavigate;
 
@@ -38,6 +38,9 @@ public class SbarPanel extends JPanel {
     private final DefaultListModel<SbarRecommendation> rowModel = new DefaultListModel<>();
     private final JList<SbarRecommendation> rowList = new JList<>(rowModel);
     private final JLabel statusLabel = new JLabel(" ");
+    private final JButton submitButton = new JButton("SBAR 제출");
+    /** 입력칸이 속한 실습(시작 시각). 새 실습이 시작되면 칸을 비운다. */
+    private Object practiceKey;
 
     /** @param onNavigate 화면 이동(제출 성공 시 개인 메인) 요청 함수 */
     public SbarPanel(SbarController controller, Consumer<Screen> onNavigate) {
@@ -56,9 +59,8 @@ public class SbarPanel extends JPanel {
         JPanel south = new JPanel(new BorderLayout());
         south.add(statusLabel, BorderLayout.NORTH);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton submit = new JButton("SBAR 제출");
-        submit.addActionListener(e -> submit());
-        buttons.add(submit);
+        submitButton.addActionListener(e -> submit());
+        buttons.add(submitButton);
         for (Screen s : new Screen[] {Screen.PATIENT, Screen.OBSERVATION, Screen.MEDICATION}) {
             JButton b = new JButton(s.title() + "(으)로 이동");
             b.addActionListener(e -> onNavigate.accept(s));
@@ -123,12 +125,42 @@ public class SbarPanel extends JPanel {
         return list;
     }
 
-    /** 제출을 시도한다. 실패하면 칸별 안내만 갱신하고 입력은 유지한다. */
+    /** 새 실습이 시작됐으면 이전 실습의 입력을 비운다. 같은 실습 안에서 화면을 오가면 입력을 유지한다. */
+    @Override
+    public void reload() {
+        Object key = controller.practiceKey();
+        if (key == null || !key.equals(practiceKey)) {
+            practiceKey = key;
+            clearInputs();
+        }
+    }
+
+    /** SBAR 입력칸에 쓰다 만 내용이 있는지 (화면을 떠날 때 확인용). */
+    public boolean hasDraft() {
+        return !sArea.getText().isBlank() || !bArea.getText().isBlank() || !aArea.getText().isBlank()
+                || !rowModel.isEmpty() || !timeField.getText().isBlank() || !interField.getText().isBlank();
+    }
+
+    private void clearInputs() {
+        sArea.setText("");
+        bArea.setText("");
+        aArea.setText("");
+        rowModel.clear();
+        timeField.setText("");
+        interField.setText("");
+        for (JLabel l : new JLabel[] {sErr, bErr, aErr, rErr}) l.setText(" ");
+        statusLabel.setText(" ");
+    }
+
+    /**
+     * 제출을 시도한다. 검증은 바로 하고, 실패하면 칸별 안내만 갱신하고 입력은 유지한다.
+     * 통과하면 AI 해설·저장을 SwingWorker로 백그라운드에서 실행하고, 그동안 버튼을 끈다.
+     */
     private void submit() {
         // 입력칸에 쓰다 만 R 행이 있으면 함께 제출 대상에 넣는다.
         if (!timeField.getText().isBlank() || !interField.getText().isBlank()) addRow();
-        var r = controller.submit(sArea.getText(), bArea.getText(), aArea.getText(), rows());
-        var e = r.errors();
+        var p = controller.prepare(sArea.getText(), bArea.getText(), aArea.getText(), rows());
+        var e = p.errors();
         sErr.setText(e.getOrDefault("situation", " "));
         bErr.setText(e.getOrDefault("background", " "));
         aErr.setText(e.getOrDefault("assessment", " "));
@@ -137,14 +169,38 @@ public class SbarPanel extends JPanel {
             if (k.startsWith("rec")) rowErrors.append(v).append(' ');
         });
         rErr.setText(rowErrors.length() == 0 ? " " : rowErrors.toString().trim());
-        statusLabel.setText(r.message());
-        if (r.submitted()) {
-            sArea.setText("");
-            bArea.setText("");
-            aArea.setText("");
-            rowModel.clear();
-            statusLabel.setText(" ");
-            onNavigate.accept(Screen.HOME);
+        if (!p.ok()) {
+            statusLabel.setText(p.message());
+            return;
         }
+        submitButton.setEnabled(false);
+        statusLabel.setText(controller.aiEnabled()
+                ? "제출 중입니다. AI 해설을 받는 중이에요… (AI가 실패해도 기록과 점검 결과는 저장됩니다)"
+                : "제출 중입니다…");
+        new javax.swing.SwingWorker<SbarController.SubmitResult, Void>() {
+            @Override
+            protected SbarController.SubmitResult doInBackground() {
+                return controller.complete(p);
+            }
+
+            @Override
+            protected void done() {
+                submitButton.setEnabled(true);
+                SbarController.SubmitResult r;
+                try {
+                    r = get();
+                } catch (Exception ex) {
+                    statusLabel.setText("제출하지 못했습니다. 입력은 유지됩니다. (" + ex.getMessage() + ")");
+                    return;
+                }
+                if (!r.submitted()) {
+                    statusLabel.setText(r.message());
+                    return;
+                }
+                clearInputs();
+                controller.finish();
+                onNavigate.accept(Screen.HOME);
+            }
+        }.execute();
     }
 }

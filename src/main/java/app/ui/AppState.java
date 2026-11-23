@@ -16,6 +16,11 @@ public class AppState {
     public static final String EDU_NOTICE = "교육용 예시 · 임상 검수 전";
     public static final String DEMO_NOTICE = "DEMO · 실제 케이스 아님";
     public static final String AI_NOTICE = "AI 생성 · 임상 검수 전";
+    /** DB 없이 파일에 저장할 때 상단에 표시하는 문구 (D27). */
+    public static final String FILE_MODE_NOTICE = "DB 없이 파일 저장 모드";
+
+    /** 저장 방식 안내 문구 (파일 저장 모드일 때만 값이 있다). */
+    private String storageNotice;
 
     private String userName;
     private PatientCase currentCase;
@@ -30,6 +35,14 @@ public class AppState {
     private java.time.LocalDateTime practiceStartedAt;
 
     public Screen current() { return current; }
+
+    /** 저장 방식 안내 문구를 정한다 (파일 저장 모드면 FILE_MODE_NOTICE, DB면 null). */
+    public void setStorageNotice(String notice) { this.storageNotice = notice; }
+
+    /** 실습 중에 학생이 작성해 둔 관찰·투약 기록이 있는지 (제출 전이라 이동하면 사라진다). */
+    public boolean hasStudentRecords() {
+        return currentCase != null && (!studentObservations.isEmpty() || !studentMedications.isEmpty());
+    }
 
     /** 이번 실습의 시작 시각. 실습 중이 아니면 null. */
     public java.time.LocalDateTime practiceStartedAt() { return practiceStartedAt; }
@@ -124,6 +137,7 @@ public class AppState {
     public List<String> notices() {
         List<String> list = new ArrayList<>();
         list.add(EDU_NOTICE);
+        if (storageNotice != null) list.add(storageNotice);
         if (currentCase != null) {
             if (currentCase.source() == CaseSource.DEMO) list.add(DEMO_NOTICE);
             else if (currentCase.source() == CaseSource.AI_GENERATED) list.add(AI_NOTICE);

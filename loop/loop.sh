@@ -3,8 +3,10 @@
 # 사용법: ./loop/loop.sh [반복 횟수, 기본 1]
 # - loop/ 로 시작하는 브랜치에서만 실행된다 (main/master 거부).
 # - Claude는 커밋까지만 한다. push와 PR은 사람이 한다.
-# - 멈추는 경우: status blocked/done, 같은 작업에서 연속 3회 실패, docs/ 변경, 남은 작업 없음.
-#   실패 = 회차 뒤 ./mvnw test 실패, claude 오류 종료, 마지막 줄 status 없음.
+# - 멈추는 경우: status blocked, done(남은 작업이 정말 없을 때만 정상 종료), 같은 작업에서 연속 3회 실패,
+#   docs/ 변경, 남은 작업 없음.
+#   실패 = 회차 뒤 ./mvnw test 실패, claude 오류 종료, 마지막 줄 status 없음, 진척 없음(커밋·변경 없이 continue).
+# - 테스트가 실패했는데 그 회차에 작업이 체크됐으면 체크를 되돌려 같은 작업을 다시 하게 한다.
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -17,6 +19,21 @@ stop() { echo "[loop] 중단: $*" >&2; exit 1; }
 
 # 체크되지 않은 첫 작업 ID (예: T-01). 없으면 빈 문자열
 next_task() { awk '/^- \[ \] / { print $4; exit }' loop/TASKS.md; }
+
+# 체크되지 않은 작업 수
+unchecked_count() { grep -c '^- \[ \] ' loop/TASKS.md || true; }
+
+# 작업이 체크되어 있는지 (예: is_checked T-01)
+is_checked() { grep -q "^- \[x\] $1 " loop/TASKS.md; }
+
+# 테스트가 실패한 작업의 체크와 날짜를 되돌리고 커밋한다
+uncheck_task() {
+  local task="$1"
+  perl -0pi -e "s/^- \\[x\\] \Q$task\E (.*?)(?: \\(\\d{4}-\\d{2}-\\d{2}\\))?\$/- [ ] $task \$1/m" loop/TASKS.md
+  git add loop/TASKS.md
+  git commit -q -m "loop: $task 체크 되돌림 (테스트 재확인 실패)" || true
+  echo "[loop] $task 체크를 되돌렸습니다 (테스트 실패)."
+}
 
 # ---- 반복 횟수 ----
 COUNT="${1:-1}"
@@ -78,6 +95,7 @@ for ((i = 1; i <= COUNT; i++)); do
   STAMP="$(date +%Y%m%d-%H%M%S)"
   LOG="$LOG_DIR/$STAMP-$i-$TASK.log"
   START_HEAD="$(git rev-parse HEAD)"
+  WAS_CHECKED=0; is_checked "$TASK" && WAS_CHECKED=1
   echo "[loop] $i/$COUNT 시작: $TASK (브랜치 $BRANCH, 로그 $LOG)"
 
   set +e
@@ -118,7 +136,8 @@ for ((i = 1; i <= COUNT; i++)); do
   # 테스트를 직접 다시 돌린다
   echo "[loop] $i/$COUNT 테스트 확인 (./mvnw test)"
   if ! ./mvnw -B -q test >"$LOG.test" 2>&1; then
-    [[ "$STATUS" == "done" ]] && stop "status는 done인데 테스트가 실패했습니다. 로그: $LOG.test"
+    # 이번 회차에 체크됐다면 되돌려서, 다음 회차가 실패한 작업을 건너뛰지 않게 한다
+    if [[ "$WAS_CHECKED" == 0 ]] && is_checked "$TASK"; then uncheck_task "$TASK"; fi
     record_failure "$TASK" "테스트 실패. 로그: $LOG.test"
     continue
   fi
@@ -128,11 +147,21 @@ for ((i = 1; i <= COUNT; i++)); do
     continue
   fi
 
+  # 진척 없음: 새 커밋도, 커밋되지 않은 변경도 없이 continue만 나온 경우
+  if [[ "$STATUS" == "continue" && "$(git rev-parse HEAD)" == "$START_HEAD" && -z "$(git status --porcelain)" ]]; then
+    record_failure "$TASK" "진척 없음(새 커밋·변경 없이 continue). 로그: $LOG"
+    continue
+  fi
+
   # 테스트 통과: 작업이 넘어갔든 아니든 연속 실패 기록을 지운다
   FAIL_TASK=""
   FAIL_COUNT=0
 
   if [[ "$STATUS" == "done" ]]; then
+    LEFT="$(unchecked_count)"
+    if (( LEFT > 0 )); then
+      stop "status는 done인데 체크되지 않은 작업이 ${LEFT}개 남았습니다 (다음: $(next_task))."
+    fi
     echo "[loop] 모든 작업 완료(status: done). 결과를 확인하고 push·PR 하세요."
     exit 0
   fi

@@ -41,15 +41,30 @@ public class HomeController {
     }
 
     /**
-     * AI로 새 케이스를 만들어 실습을 시작한다. 생성에 실패하면 기본 케이스(PC-01, 없으면 DEMO)로 시작한다.
-     * 돌려주는 문구는 화면 안내로 보인다(성공이면 null). 케이스를 못 읽으면 오류 문구를 돌려주고 화면은 그대로다.
+     * AI로 새 케이스를 만든다(백그라운드 스레드에서 실행, 화면 상태는 바꾸지 않음).
+     * 생성에 실패하면 기본 케이스(PC-01, 없으면 DEMO)가 결과에 들어 있다.
+     *
+     * @throws CaseLoadException 기본 케이스 파일도 읽지 못할 때
+     */
+    public CaseGenerator.Result generateCase() {
+        if (generator == null) throw new IllegalStateException(AI_DISABLED_REASON);
+        return generator.generate();
+    }
+
+    /** 생성 결과로 실습을 시작한다(화면 스레드). 돌려주는 문구는 화면 안내(성공이면 null). */
+    public String applyGenerated(CaseGenerator.Result r) {
+        state.startPractice(r.patientCase());
+        return r.generated() ? null : r.message();
+    }
+
+    /**
+     * AI로 새 케이스를 만들어 바로 실습을 시작한다(테스트·동기 실행용).
+     * 생성에 실패하면 기본 케이스(PC-01, 없으면 DEMO)로 시작한다. 케이스를 못 읽으면 오류 문구를 돌려준다.
      */
     public String startGeneratedPractice() {
         if (generator == null) return AI_DISABLED_REASON;
         try {
-            CaseGenerator.Result r = generator.generate();
-            state.startPractice(r.patientCase());
-            return r.generated() ? null : r.message();
+            return applyGenerated(generateCase());
         } catch (CaseLoadException e) {
             return "케이스를 불러오지 못했습니다: " + e.getMessage();
         }

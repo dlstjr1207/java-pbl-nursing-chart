@@ -3,8 +3,6 @@ package app.ui;
 import app.domain.PatientCase;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.util.function.Consumer;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
@@ -17,7 +15,7 @@ import javax.swing.JTextArea;
  * 환자 정보 화면(읽기 전용). 화면이 보일 때마다 현재 케이스로 내용을 다시 만들고,
  * 관찰·투약·SBAR 화면으로 이동하는 버튼을 둔다. 내용 구성은 PatientInfoView가 맡는다.
  */
-public class PatientInfoPanel extends JPanel {
+public class PatientInfoPanel extends JPanel implements Reloadable {
     private final AppState state;
     private final JPanel body = new JPanel();
 
@@ -29,17 +27,11 @@ public class PatientInfoPanel extends JPanel {
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         add(body, BorderLayout.CENTER);
         add(buildNavigation(onNavigate), BorderLayout.SOUTH);
-        // CardLayout으로 화면이 나타날 때마다 현재 케이스로 갱신한다.
-        addComponentListener(new ComponentAdapter() {
-            @Override
-            public void componentShown(ComponentEvent e) {
-                reload();
-            }
-        });
         reload();
     }
 
     /** 현재 케이스로 내용을 다시 그린다. 케이스가 없으면 안내만 보여 준다. */
+    @Override
     public void reload() {
         body.removeAll();
         PatientCase c = state.currentCase();

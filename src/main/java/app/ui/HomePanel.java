@@ -4,7 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import app.domain.Attempt;
 import java.awt.GridLayout;
-import java.awt.event.HierarchyEvent;
 import java.util.function.Supplier;
 import javax.swing.DefaultListModel;
 import javax.swing.JList;
@@ -19,7 +18,7 @@ import javax.swing.JPanel;
  * 개인 메인 화면. 실습 시작(기본 케이스, AI 생성은 비활성+이유)과 결과·기록 영역 자리를 보여 준다.
  * 로직은 HomeController가 맡고, 이 패널은 배치와 버튼 이벤트만 다룬다.
  */
-public class HomePanel extends JPanel {
+public class HomePanel extends JPanel implements Reloadable {
     private final HomeController controller;
     private final Runnable onChanged;
     private final JLabel messageLabel = new JLabel(" ");
@@ -61,10 +60,31 @@ public class HomePanel extends JPanel {
         area.add(start);
         JButton ai = new JButton("AI로 새 케이스 생성");
         ai.setEnabled(controller.aiGenerationAvailable());
+        // AI 호출은 수 초~수십 초가 걸릴 수 있어 SwingWorker로 백그라운드에서 실행한다.
         ai.addActionListener(e -> {
-            String notice = controller.startGeneratedPractice();
-            messageLabel.setText(notice == null ? " " : notice);
-            onChanged.run();
+            start.setEnabled(false);
+            ai.setEnabled(false);
+            messageLabel.setText("AI가 새 케이스를 만드는 중입니다. 잠시 기다려 주세요…");
+            new javax.swing.SwingWorker<app.cases.CaseGenerator.Result, Void>() {
+                @Override
+                protected app.cases.CaseGenerator.Result doInBackground() {
+                    return controller.generateCase();
+                }
+
+                @Override
+                protected void done() {
+                    start.setEnabled(true);
+                    ai.setEnabled(controller.aiGenerationAvailable());
+                    try {
+                        String notice = controller.applyGenerated(get());
+                        messageLabel.setText(notice == null ? " " : notice);
+                        onChanged.run();
+                    } catch (Exception ex) {
+                        Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+                        messageLabel.setText("케이스를 불러오지 못했습니다: " + cause.getMessage());
+                    }
+                }
+            }.execute();
         });
         area.add(ai);
         if (!controller.aiGenerationAvailable()) area.add(new JLabel(controller.aiGenerationReason()));
@@ -102,13 +122,12 @@ public class HomePanel extends JPanel {
             label.setBackground(sel ? l.getSelectionBackground() : l.getBackground());
             return label;
         });
-        // CardLayout으로 이 화면이 다시 보일 때마다 기록을 새로 읽는다.
-        addHierarchyListener(e -> {
-            if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && isShowing()) refreshRecords();
-        });
         refreshRecords();
         return area;
     }
+
+    @Override
+    public void reload() { refreshRecords(); }
 
     /** 로그인한 사용자의 저장 기록으로 평가지표와 목록을 갱신한다. 로그인 전이면 안내만 둔다. */
     public void refreshRecords() {
