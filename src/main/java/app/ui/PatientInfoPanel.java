@@ -25,12 +25,13 @@ public class PatientInfoPanel extends JPanel implements Reloadable {
         this.state = state;
         setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setOpaque(false);
         add(body, BorderLayout.CENTER);
         add(buildNavigation(onNavigate), BorderLayout.SOUTH);
         reload();
     }
 
-    /** 현재 케이스로 내용을 다시 그린다. 케이스가 없으면 안내만 보여 준다. */
+    /** 현재 케이스로 내용을 다시 그린다. 위에는 환자 배너(이름·기본 정보·배지), 아래는 구역 카드 두 줄. */
     @Override
     public void reload() {
         body.removeAll();
@@ -38,22 +39,65 @@ public class PatientInfoPanel extends JPanel implements Reloadable {
         if (c == null) {
             body.add(new JLabel("실습 중인 케이스가 없습니다. 개인 메인에서 실습을 시작하세요."));
         } else {
-            for (PatientInfoView.Section s : PatientInfoView.sections(c)) {
-                body.add(sectionPanel(s));
+            body.add(banner(c));
+            body.add(javax.swing.Box.createVerticalStrut(10));
+            java.util.List<PatientInfoView.Section> sections = PatientInfoView.sections(c);
+            JPanel grid = new JPanel(new java.awt.GridLayout(0, 2, 10, 10));
+            grid.setOpaque(false);
+            for (PatientInfoView.Section s : sections) {
+                if (s.title().equals("환자 기본 정보")) continue; // 배너에 있음
+                grid.add(sectionPanel(s));
             }
+            grid.setAlignmentX(LEFT_ALIGNMENT);
+            body.add(grid);
         }
         body.revalidate();
         body.repaint();
     }
 
+    /** Figma 환자 정보 화면의 상단 배너: 이름, 나이/성별/등록번호/병실/입원, 진단·알레르기·케이스 상태 배지. */
+    private JPanel banner(PatientCase c) {
+        var p = c.patient();
+        JPanel b = Theme.cardPanel(null, new BorderLayout(12, 6));
+        JLabel name = new JLabel(p.name());
+        name.setFont(Theme.font(java.awt.Font.BOLD, 22f));
+        name.setForeground(Theme.NAVY);
+        String meta = (p.age() == null ? "-" : p.age() + "세") + " / " + (p.sex() == null ? "-" : p.sex())
+                + "  ·  " + PatientInfoView.text(p.patientNo()) + "  ·  " + PatientInfoView.text(p.room())
+                + "  ·  " + PatientInfoView.text(p.admissionType())
+                + (p.hospitalDay() == null ? "" : " " + p.hospitalDay() + "일차")
+                + (p.admissionDate() == null ? "" : " (입원 " + p.admissionDate() + ")");
+        JLabel info = new JLabel(meta);
+        info.setForeground(Theme.MUTED);
+        JPanel left = new JPanel(new java.awt.GridLayout(2, 1));
+        left.setOpaque(false);
+        left.add(name);
+        left.add(info);
+        JPanel badges = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
+        badges.setOpaque(false);
+        badges.add(Theme.badge("진단: " + PatientInfoView.text(p.diagnosis()), Theme.BLUE, Theme.BLUE_BG));
+        if (c.adr() != null && !c.adr().allergies().isEmpty()) {
+            badges.add(Theme.badge("알레르기: " + String.join(", ", c.adr().allergies()), Theme.RED, Theme.RED_BG));
+        }
+        if (c.adr() != null && !c.adr().adverseReactions().isEmpty()) {
+            badges.add(Theme.badge("부작용 이력", Theme.ORANGE, Theme.ORANGE_BG));
+        }
+        if (c.reviewStatus() != null) badges.add(Theme.badge(c.reviewStatus(), Theme.MUTED, Theme.BG));
+        b.add(left, BorderLayout.WEST);
+        b.add(badges, BorderLayout.CENTER);
+        b.setAlignmentX(LEFT_ALIGNMENT);
+        b.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, b.getPreferredSize().height));
+        return b;
+    }
+
     private JPanel sectionPanel(PatientInfoView.Section s) {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setBorder(BorderFactory.createTitledBorder(s.title()));
+        JPanel p = Theme.cardPanel(s.title(), new BorderLayout());
         JTextArea area = new JTextArea(String.join("\n", s.lines()));
         area.setEditable(false); // 읽기 전용
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
         area.setOpaque(false);
+        area.setForeground(Theme.TEXT);
         p.add(area, BorderLayout.CENTER);
         return p;
     }

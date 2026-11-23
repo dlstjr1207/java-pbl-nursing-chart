@@ -109,7 +109,7 @@ public final class PatientInfoView {
         return items.isEmpty() ? "없음" : String.join(", ", items);
     }
 
-    private static String text(String s) {
+    static String text(String s) {
         return s == null || s.isBlank() ? EMPTY : s;
     }
 }

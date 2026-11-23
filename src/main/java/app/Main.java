@@ -80,7 +80,7 @@ public class Main {
         AuthFormController form = new AuthFormController(auth, state);
         LoginPanel login = new LoginPanel(form, frame::refresh);
         if (storage.fileModeReason() != null) {
-            login.showInfo("DB 없이 파일 저장 모드로 실행합니다. 기록은 " + dataDir + "에 저장됩니다.");
+            login.showInfo("DB 없이 파일 저장 모드입니다. 기록은 이 PC의 사용자 폴더에 저장됩니다.");
         }
         frame.register(Screen.LOGIN, login);
         frame.register(Screen.SIGNUP, new SignupPanel(form, frame::refresh, login::showInfo));

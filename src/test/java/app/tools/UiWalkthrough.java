@@ -41,7 +41,7 @@ public final class UiWalkthrough {
         SwingUtilities.invokeAndWait(() -> {
             MainFrame.installTheme();
             frame = Main.createFrame(db, data, Path.of("does-not-exist-ai.properties"));
-            frame.setBounds(40, 60, 1200, 820);
+            frame.setBounds(20, 40, 1280, 820);
             frame.setAlwaysOnTop(true);
             frame.setVisible(true);
         });
@@ -65,8 +65,9 @@ public final class UiWalkthrough {
             set(p, "idField", "check01");
             set(p, "pwField", "check-pass-01");
             set(p, "confirmField", "check-pass-01");
-            clickText((Container) p, "가입하기");
         });
+        shot("00b-signup");
+        edt(() -> clickText(panel(Screen.SIGNUP), "가입하기"));
         edt(() -> {
             Object p = panel(Screen.LOGIN);
             set(p, "idField", "check01");
@@ -86,8 +87,8 @@ public final class UiWalkthrough {
             set(p, "timeField", "09:25");
             ((Map<?, ? extends AbstractButton>) get(p, "shiftButtons")).values().iterator().next().doClick();
             ((List<? extends AbstractButton>) get(p, "tagBoxes")).get(0).doClick();
-            set(p, "narrativeArea", "합성 서술: 데이룸에서 서성임. \"합성 발언\"이라고 말함.");
-            set(p, "interventionField", "합성 처치");
+            set(p, "narrativeArea", "데이룸에서 서성이며 손톱을 물어뜯는 모습이 관찰됨. 환자는 \"누가 나를 감시하는 것 같아요\"라고 말함. 조용한 곳으로 이동해 1:1로 지지적 대화를 함. 09:30 PRN 처방에 따라 로라제팜 1mg PO 투여함. 10:00(투여 30분 후) 불안 정도 재평가 예정.");
+            set(p, "interventionField", "조용한 곳으로 이동, 1:1 지지, 로라제팜 1mg PO 투여(09:30)");
             clickText((Container) p, "관찰 기록 저장");
         });
         String obs = call(() -> allText(panel(Screen.OBSERVATION)));
@@ -99,15 +100,19 @@ public final class UiWalkthrough {
         check("투약 화면에 처방 선택지가 있다 (" + orders + "개)", orders > 0);
         edt(() -> {
             Object p = panel(Screen.MEDICATION);
-            ((JComboBox<?>) get(p, "orderBox")).setSelectedIndex(0);
+            JComboBox<?> box = (JComboBox<?>) get(p, "orderBox");
+            for (int i = 0; i < box.getItemCount(); i++) {
+                if (String.valueOf(box.getItemAt(i)).contains("PRN")) box.setSelectedIndex(i);
+            }
             set(p, "doseField", "1");
             set(p, "unitField", "mg");
             set(p, "routeField", "PO");
             set(p, "timeField", "09:30");
             ((Map<?, ? extends AbstractButton>) get(p, "resultButtons")).values().iterator().next().doClick();
-            set(p, "reasonField", "합성 사유");
-            set(p, "basisField", "합성 근거");
-            set(p, "planArea", "10:00 재평가");
+            set(p, "reasonField", "불안·초조: 데이룸에서 서성임, 손톱 물어뜯기, \"누가 나를 감시하는 것 같아요\" 발언");
+            set(p, "basisField", "PRN 처방(불안·초조 시 Lorazepam 1mg PO, 1일 최대 4mg)");
+            ((AbstractButton) get(p, "oralBox")).setSelected(true);
+            set(p, "planArea", "10:00 불안 VAS·RASS 재평가");
             clickText((Container) p, "투약 기록 저장");
         });
         String med = call(() -> allText(panel(Screen.MEDICATION)));
@@ -117,11 +122,14 @@ public final class UiWalkthrough {
         edt(() -> frame.show(Screen.SBAR));
         edt(() -> {
             Object p = panel(Screen.SBAR);
-            set(p, "sArea", "합성 상황");
-            set(p, "bArea", "합성 배경");
-            set(p, "aArea", "합성 평가");
+            set(p, "sArea", "09:25 데이룸에서 불안·초조(서성임, 손톱 물어뜯기, \"누가 나를 감시하는 것 같아요\" 발언)가 있어 1:1 지지 후 09:30 PRN 로라제팜 1mg PO 투여함.");
+            set(p, "bArea", "28세 여성, 조현정동장애(양극형)로 동의입원 14일차. 현재 처방 아리피프라졸 10mg PO 1일 1회, 탄산리튬 300mg PO 1일 3회, PRN 로라제팜 1mg PO.");
+            set(p, "aArea", "10:00 재평가에서 불안 VAS 8→2, RASS 0, 자리에 앉아 휴식함.");
+            set(p, "timeField", "16:00");
+            set(p, "interField", "불안·초조 재발 여부 관찰");
+            clickText((Container) p, "행 추가");
             set(p, "timeField", "18:30");
-            set(p, "interField", "합성 중재");
+            set(p, "interField", "탄산리튬 300mg PO 투약");
         });
         shot("05-sbar");
         edt(() -> clickText(panel(Screen.SBAR), "SBAR 제출"));
@@ -130,6 +138,13 @@ public final class UiWalkthrough {
         check("제출 후 개인 메인으로 돌아와 기록이 보인다", call(() -> frame.getTitle()).contains("개인 메인")
                 && !home.contains("아직 저장된 실습 기록이 없습니다"));
         shot("06-home-after-submit");
+        // 결과: 방금 제출한 기록을 골라 상세(점검 결과·점수·모범 기록)를 본다
+        edt(() -> ((javax.swing.JList<?>) get(panel(Screen.HOME), "historyList")).setSelectedIndex(0));
+        String detail = call(() -> ((JTextComponent) get(panel(Screen.HOME), "detailArea")).getText());
+        check("결과 상세에 점수와 모범 기록이 보인다 (" + detail.lines().findFirst().orElse("") + ")",
+                detail.contains("점") && detail.contains("[모범 기록]"));
+        check("모범 기록대로 입력하면 만점이다", detail.lines().findFirst().orElse("").contains("100점"));
+        shot("07-result-detail");
     }
 
     // ---- 도우미 ----

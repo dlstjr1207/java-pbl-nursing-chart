@@ -83,6 +83,7 @@ public class ResultView {
     public static String detailText(Attempt a) {
         StringBuilder sb = new StringBuilder();
         sb.append(historyLine(a)).append("\n\n");
+        sb.append(ruleScoreText(a.checks()));
         sb.append("[점검 결과]\n");
         sb.append(checksText(a.checks())).append('\n');
         sb.append("[관찰 기록]\n");
@@ -120,11 +121,24 @@ public class ResultView {
     public static String checksText(List<CheckResult> checks) {
         if (checks == null || checks.isEmpty()) return "(점검 결과 없음)\n";
         StringBuilder sb = new StringBuilder();
-        section(sb, "잘 작성한 내용", checks, CheckStatus.PASS);
+        // 고칠 점을 먼저 보여 주고, 잘 작성한 내용은 뒤에 둔다
         section(sb, "누락", checks, CheckStatus.MISSING);
         section(sb, "불일치", checks, CheckStatus.MISMATCH);
         section(sb, "피드백 (배점 없음)", checks, CheckStatus.FEEDBACK);
         section(sb, "미산출", checks, CheckStatus.NOT_SCORED);
+        section(sb, "잘 작성한 내용", checks, CheckStatus.PASS);
+        return sb.toString();
+    }
+
+    /** 규칙별 점수 요약 (D30 배점). 제출 당시 점검 결과로 다시 계산해 보여 준다. */
+    public static String ruleScoreText(List<CheckResult> checks) {
+        if (checks == null || checks.isEmpty()) return "";
+        var r = app.scoring.Scorer.score(checks);
+        if (r.ruleScores().isEmpty()) return "[항목별 점수] 미산출\n\n";
+        StringBuilder sb = new StringBuilder("[항목별 점수]\n");
+        r.ruleScores().forEach((rule, v) -> sb.append("  ").append(rule).append(' ')
+                .append(v).append(" / ").append(app.scoring.Scorer.WEIGHTS.get(rule)).append('\n'));
+        sb.append("  R9 SBAR 구성은 피드백만 (배점 없음)\n\n");
         return sb.toString();
     }
 
