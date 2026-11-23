@@ -18,8 +18,8 @@ import java.util.Optional;
 
 /**
  * 평가지표·과거 기록·결과 패널의 로직(Swing 없음, S6~S8).
- * 저장된 Attempt에서 화면에 보일 문장을 만든다. 점수는 가중치 미정이라 "미산출"로 표시하고,
- * 다른 사용자의 기록은 조회하지 않는다.
+ * 저장된 Attempt에서 화면에 보일 문장을 만든다. 점수는 제출 당시 계산한 값(D30)이며, 없으면 "미산출"이다.
+ * 모범 기록은 제출한 기록의 상세에서만 보여 준다(제출 전에는 보이지 않음). 다른 사용자의 기록은 조회하지 않는다.
  */
 public class ResultView {
     public static final String NOT_SCORED = "미산출";
@@ -55,7 +55,9 @@ public class ResultView {
         if (perRule.isEmpty()) out.add("항목별 결과: 기록 없음");
         else perRule.forEach((k, v) -> out.add("항목별 " + k + ": " + v[0] + "/" + v[1] + " 통과"));
         int n = Math.min(5, all.size());
-        out.add("최근 " + n + "회 점수: " + (n == 0 ? "기록 없음" : NOT_SCORED + " (가중치 미정)"));
+        List<String> recent = new ArrayList<>();
+        for (int i = n - 1; i >= 0; i--) recent.add(scoreText(all.get(i)));
+        out.add("최근 " + n + "회 점수(오래된 순): " + (n == 0 ? "기록 없음" : String.join(" → ", recent)));
         return out;
     }
 
@@ -67,7 +69,9 @@ public class ResultView {
 
     /** 점수 문구. 값이 없으면 미산출. */
     public static String scoreText(Attempt a) {
-        return a.score() == null ? NOT_SCORED : String.valueOf(a.score());
+        if (a.score() == null) return NOT_SCORED;
+        double v = a.score();
+        return (v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v)) + "점";
     }
 
     /** 기록 1건의 상세. 본인의 기록이 아니면 빈 값. */
@@ -107,7 +111,7 @@ public class ResultView {
                 sb.append("R: ").append(x.time()).append(' ').append(x.intervention()).append('\n');
             }
         }
-        sb.append('\n').append(MODEL_PENDING).append('\n');
+        sb.append('\n').append(modelAnswerText(a));
         sb.append(aiText(a.aiFeedback()));
         return sb.toString();
     }
@@ -119,6 +123,7 @@ public class ResultView {
         section(sb, "잘 작성한 내용", checks, CheckStatus.PASS);
         section(sb, "누락", checks, CheckStatus.MISSING);
         section(sb, "불일치", checks, CheckStatus.MISMATCH);
+        section(sb, "피드백 (배점 없음)", checks, CheckStatus.FEEDBACK);
         section(sb, "미산출", checks, CheckStatus.NOT_SCORED);
         return sb.toString();
     }
@@ -131,6 +136,32 @@ public class ResultView {
             sb.append("  - [").append(c.ruleId()).append("] ").append(c.targetRef()).append(": ")
                     .append(c.message()).append('\n');
         }
+    }
+
+    /**
+     * 제출한 기록의 케이스에 있는 모범 기록. 제출 후에만 호출되므로 정답이 제출 전에 보이지 않는다.
+     * AI 생성 케이스는 저장된 원문에서, 고정 케이스는 케이스 파일에서 읽는다. 없으면 "준비 중".
+     */
+    public static String modelAnswerText(Attempt a) {
+        app.domain.PatientCase c = null;
+        try {
+            if (a.generatedCaseJson() != null) {
+                c = app.domain.DomainJson.fromJson(a.generatedCaseJson(), app.domain.PatientCase.class);
+            } else if (a.caseId() != null) {
+                c = new app.cases.CaseLoader().load(a.caseId());
+            }
+        } catch (RuntimeException e) {
+            c = null;
+        }
+        app.domain.ModelAnswer m = c == null ? null : c.modelAnswer();
+        if (m == null || (m.observation() == null && m.medication() == null && m.sbar() == null)) {
+            return MODEL_PENDING + "\n";
+        }
+        StringBuilder sb = new StringBuilder("[모범 기록] (제출 후 공개, 참고용)\n");
+        if (m.observation() != null) sb.append("관찰: ").append(m.observation()).append('\n');
+        if (m.medication() != null) sb.append("투약: ").append(m.medication()).append('\n');
+        if (m.sbar() != null) sb.append("SBAR:\n").append(m.sbar()).append('\n');
+        return sb.toString();
     }
 
     /** AI 해설 상태 문구. 없거나 실패해도 점검 결과는 그대로 유지된다. */

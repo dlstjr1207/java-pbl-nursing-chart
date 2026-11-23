@@ -107,7 +107,8 @@ class PracticeFlowTest {
         assertTrue(r.submitted());
         assertEquals(Screen.HOME, state.current());
         assertEquals("SUCCESS", r.attempt().aiFeedback().status());
-        assertNull(r.attempt().score(), "AI 해설과 무관하게 점수는 미산출");
+        // 점수는 규칙 점검 결과로만 계산한다 (AI 해설은 반영하지 않음, D4)
+        assertEquals(app.scoring.Scorer.score(r.attempt().checks()).score(), r.attempt().score());
         assertFalse(r.attempt().checks().isEmpty());
 
         ResultView view = new ResultView(attempts, auth.currentUser().orElseThrow().id());
@@ -165,7 +166,7 @@ class PracticeFlowTest {
             assertTrue(r.submitted());
             assertEquals("FAILED", r.attempt().aiFeedback().status());
             assertFalse(r.attempt().checks().isEmpty());
-            assertNull(r.attempt().score());
+            assertEquals(app.scoring.Scorer.score(r.attempt().checks()).score(), r.attempt().score());
             assertTrue(ResultView.aiText(r.attempt().aiFeedback()).contains("불러오지 못했습니다"));
             auth.logout();
         }

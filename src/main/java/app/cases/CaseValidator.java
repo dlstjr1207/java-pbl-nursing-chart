@@ -9,7 +9,8 @@ import java.util.List;
 
 /**
  * 생성된 케이스를 사용하기 전에 검사한다 (F-14, T-30).
- * 필수 항목·형식(시각 HH:mm, 용량 숫자)·허용 약물·용량 범위를 보고, 위반을 원인과 함께 모두 모아 돌려준다.
+ * 필수 항목·형식(시각 HH:mm, 용량 숫자)·허용 약물·용량 범위·정답 키를 보고, 위반을 원인과 함께 모두 모아 돌려준다.
+ * 생성 케이스도 PC-01과 같은 규칙으로 채점하므로 정답 키가 있어야 하고, 정답 키의 약·용량은 처방과 같아야 한다.
  * 허용 약물 목록이 비어 있으면 AI 생성을 쓸 수 없다({@link #generationAvailable()}).
  */
 public class CaseValidator {
@@ -47,6 +48,7 @@ public class CaseValidator {
                 checkOrder(p, i, m);
             }
         }
+        checkAnswerKey(p, c);
         for (int i = 0; i < c.vitals().size(); i++) {
             VitalSign v = c.vitals().get(i);
             if (v == null || v.time() == null || !v.time().matches(TIME)) {
@@ -54,6 +56,35 @@ public class CaseValidator {
             }
         }
         return p;
+    }
+
+    /** 정답 키 필수, 투약 정답(약명·용량·경로)이 현재 처방(정규·PRN) 중 하나와 같은지 확인한다. */
+    private static void checkAnswerKey(List<String> p, PatientCase c) {
+        var key = c.answerKey();
+        if (key == null) {
+            p.add("answerKey(정답 키) 누락");
+            return;
+        }
+        if (key.observationElements().isEmpty()) p.add("answerKey.observationElements(관찰 핵심 사실) 누락");
+        if (key.medicationElements().isEmpty()) {
+            p.add("answerKey.medicationElements(투약 정답 값) 누락");
+            return;
+        }
+        var elements = app.scoring.ElementPattern.parseAll(key.medicationElements());
+        var drug = elements.stream().filter(e -> e.label().equals("약명")).findFirst();
+        var dose = elements.stream().filter(e -> e.label().equals("용량")).findFirst();
+        var route = elements.stream().filter(e -> e.label().equals("경로")).findFirst();
+        if (drug.isEmpty() || dose.isEmpty()) {
+            p.add("answerKey.medicationElements에 약명·용량이 없음");
+            return;
+        }
+        boolean matched = c.orders().stream().anyMatch(m -> m != null && m.type() != OrderType.PAST
+                && drug.get().foundIn(m.drugName()) && dose.get().equalsValue(m.dose())
+                && (route.isEmpty() || route.get().equalsValue(m.route())));
+        if (!matched) {
+            p.add("answerKey 투약 정답(" + drug.get().expected() + " " + dose.get().expected()
+                    + ")이 현재 처방(정규·PRN)의 약·용량과 다름");
+        }
     }
 
     /** 통과하지 못하면 원인과 함께 {@link CaseLoadException}으로 거부한다. */

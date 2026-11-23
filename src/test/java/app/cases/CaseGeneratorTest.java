@@ -64,8 +64,10 @@ class CaseGeneratorTest {
             {"id":"GEN-1","title":"합성 생성","source":"FIXED",
              "patient":{"name":"가상환자"},"briefing":"상황",
              "vitals":[{"time":"09:30","pulse":80}],
-             "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%s","dose":"%s","unit":"mg","route":"PO","scheduleTimes":["08:00"]}]}
-            """.formatted(drug, dose);
+             "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%s","dose":"%s","unit":"mg","route":"PO","scheduleTimes":["08:00"]}],
+             "answerKey":{"observationElements":["장소=데이룸"],
+                          "medicationElements":["약명=%s","용량=%s","단위=mg","경로=PO","시각=08:00"]}}
+            """.formatted(drug, dose, drug, dose);
     }
 
     private static CaseGenerator generator(AiConfig cfg, Fake f, AllowedDrugs allowed, int max) {
@@ -80,7 +82,7 @@ class CaseGeneratorTest {
         CaseGenerator.Result r = generator(ON, f, ALLOWED, 3).generate();
         assertTrue(r.generated());
         assertEquals(CaseSource.AI_GENERATED, r.patientCase().source()); // 응답이 FIXED라 해도 고정
-        assertNull(r.patientCase().answerKey());
+        assertNotNull(r.patientCase().answerKey()); // 같은 규칙으로 채점하기 위해 정답 키를 유지
         assertEquals(1, f.calls);
         assertTrue(f.prompts.get(0).contains("테스트약A")); // 허용 약물을 요청에 보냄
     }
@@ -178,5 +180,29 @@ class CaseGeneratorTest {
         assertNotNull(notice);
         assertEquals("PC-01", state.currentCase().id());
         assertEquals(Screen.PATIENT, state.current());
+    }
+
+    @Test
+    void 정답_키가_없거나_처방과_다르면_버린다() {
+        Fake f = new Fake();
+        f.contents.add(caseJson("테스트약A", "3").replaceAll(",\\s*\"answerKey\"[\\s\\S]*\\}\\}\\s*$", "}"));
+        f.contents.add(caseJson("테스트약A", "3").replace("\"용량=3\"", "\"용량=4\""));
+        CaseGenerator.Result r = generator(ON, f, ALLOWED, 2).generate();
+        assertFalse(r.generated());
+        assertTrue(f.prompts.get(1).contains("answerKey(정답 키) 누락"), f.prompts.get(1));
+        assertTrue(String.join(" ", r.problems()).contains("처방(정규·PRN)의 약·용량과 다름"), r.problems().toString());
+    }
+
+    @Test
+    void 생성_케이스도_PC01과_같은_규칙으로_채점한다() {
+        Fake f = new Fake();
+        f.contents.add(caseJson("테스트약A", "3"));
+        CaseGenerator.Result r = generator(ON, f, ALLOWED, 1).generate();
+        assertTrue(r.generated());
+        var med = new app.domain.MedicationRecord("O1", "테스트약A", "3", "mg", "PO", "08:00",
+                app.domain.MedicationResult.GIVEN, null, "합성 근거", true, "합성 재평가");
+        var scored = app.scoring.Scorer.evaluate(r.patientCase(), List.of(), List.of(med), null);
+        assertEquals(25.0, scored.ruleScores().get("R7")); // 정답 키의 약명·용량·단위·경로·시각 모두 일치
+        assertTrue(scored.ruleScores().containsKey("R2"));
     }
 }
