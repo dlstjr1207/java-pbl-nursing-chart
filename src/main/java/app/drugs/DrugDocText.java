@@ -27,7 +27,15 @@ public final class DrugDocText {
             f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             f.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             f.setExpandEntityReferences(false);
-            Element root = f.newDocumentBuilder().parse(new InputSource(new StringReader(xml))).getDocumentElement();
+            var builder = f.newDocumentBuilder();
+            // 형식 오류를 표준 오류에 찍지 않고 예외로만 받는다
+            builder.setErrorHandler(new org.xml.sax.helpers.DefaultHandler() {
+                @Override
+                public void fatalError(org.xml.sax.SAXParseException e) throws org.xml.sax.SAXException {
+                    throw e;
+                }
+            });
+            Element root = builder.parse(new InputSource(new StringReader(xml))).getDocumentElement();
             List<String> lines = new ArrayList<>();
             walk(root, lines);
             return String.join("\n", lines);

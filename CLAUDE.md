@@ -14,10 +14,11 @@
 
 ## 핵심 설계 원칙
 
-- 채점은 케이스의 **사실 데이터**와 학생 기록을 규칙(R1·R2·R4~R9)으로 비교한다. AI는 해설(과 12월의 케이스 생성)만 하고 점수에 반영하지 않는다.
+- 채점은 케이스의 **사실 데이터**와 학생 기록을 규칙(R1·R2·R4~R9)으로 비교한다. AI는 해설과 가상 환자 케이스 생성(D24)만 하고 점수에 반영하지 않는다. 배점은 D30(R7 25, R2 20, R8 20, R6 15, R1 10, R4 10, R9 피드백만).
 - AI 키가 없어도 PC-01과 규칙 점검으로 전부 동작해야 한다. 테스트는 실제 AI를 호출하지 않고 가짜 응답을 쓴다.
 - 저장은 MySQL 8 이상(JDBC)이다(D21). 계정·실습 기록·점검 결과는 DB, 환자 케이스 원본은 `src/main/resources/cases/`의 JSON. 저장소는 인터페이스(`UserRepository`, `AttemptRepository`) 뒤에 두고, 단위 테스트는 메모리 구현, 저장 통합 테스트는 실제 MySQL을 쓴다. DB 접속 정보는 `config/db.properties`.
-- 11/30은 고정 케이스 PC-01로 실습 한 바퀴를 완성한다. AI 가상 환자·사건 생성(D20, F-14)은 12월에 추가한다.
+- DB 설정이 없거나 연결에 실패하면 **파일 저장 모드**(D27)로 실행한다. 기록은 `~/.nursing-chart-trainer/`(users.json, attempts.json)에 저장하고 화면에 "DB 없이 파일 저장 모드"를 표시한다.
+- 기본 케이스는 PC-01(D28)이다. AI 키가 있으면 개인 메인에서 AI 케이스 생성(D24, 허용 약물 D29 안에서만, `CaseValidator` 통과분만)을 쓸 수 있고, 실패하면 PC-01로 돌아간다.
 - 약물 공공데이터 API(식약처 허가정보)는 별도 명령 `app.drugs.DrugInfoUpdater`로 `drugs/drug-info.json`을 갱신할 때만 쓴다. 실행 중에는 파일만 읽어 투약 화면에 참고로 보이고, 채점 값은 근거표 확인 값을 쓴다(D31).
 
 ## 구현 규칙 (수업 요구사항, D22)
@@ -47,7 +48,8 @@ JDK 21이 필요하다. Maven을 따로 설치하지 않아도 Wrapper(`./mvnw`)
 ```bash
 ./mvnw test                 # 테스트 (CI와 동일, 키 불필요)
 ./mvnw compile exec:java    # 프로그램 실행 (app.Main)
-./mvnw package              # target/ 에 JAR 생성 (실행용 JAR 구성은 T-00 남은 작업)
+./mvnw package              # target/nursing-chart-trainer.jar (의존성 포함 실행 JAR, shade)
+java -jar target/nursing-chart-trainer.jar   # JAR 실행. config/ 가 있는 폴더에서 실행해야 키·DB 설정을 읽는다
 ```
 
 macOS에서 JDK가 여러 개면 `export JAVA_HOME=$(/usr/libexec/java_home -v 21)`로 21을 지정한다. CI는 `.github/workflows/ci.yml`에서 키 없이 `./mvnw -B test`를 실행한다.
