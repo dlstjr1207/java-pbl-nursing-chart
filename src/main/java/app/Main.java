@@ -1,19 +1,95 @@
 package app;
 
-import javax.swing.JFrame;
+import app.auth.AuthService;
+import app.cases.CaseLoader;
+import app.storage.AttemptRepository;
+import app.storage.DbConfig;
+import app.storage.MySqlAttemptRepository;
+import app.storage.MySqlUserRepository;
+import app.storage.UserRepository;
+import app.ui.AppState;
+import app.ui.AuthFormController;
+import app.ui.HomeController;
+import app.ui.HomePanel;
+import app.ui.LoginPanel;
+import app.ui.MainFrame;
+import app.ui.MedicationPanel;
+import app.ui.ObservationPanel;
+import app.ui.PatientInfoPanel;
+import app.ui.SbarController;
+import app.ui.SbarPanel;
+import app.ui.ResultView;
+import app.ui.Screen;
+import app.ui.SignupPanel;
+import app.ui.StartupCheck;
+import java.awt.BorderLayout;
 import javax.swing.JLabel;
-import javax.swing.SwingConstants;
+import javax.swing.JPanel;
+import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 
+/** 프로그램 시작점. DB를 확인하고, 테마를 적용한 뒤 로그인 화면이 있는 메인 창을 띄운다. */
 public class Main {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("간호 차팅 연습 프로그램");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.add(new JLabel("Nursing Charting Trainer", SwingConstants.CENTER));
-            frame.setSize(960, 640);
-            frame.setLocationRelativeTo(null);
+            MainFrame.installTheme();
+            AppState state = new AppState();
+            // DB가 준비되면 로그인한 사용자의 기록 조회기를 만드는 함수가 들어간다.
+            java.util.concurrent.atomic.AtomicReference<java.util.function.Supplier<ResultView>> resultViewHolder =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            MainFrame frame = new MainFrame(state);
+            StartupCheck.Result startup = StartupCheck.check(DbConfig.DEFAULT_PATH);
+            if (!startup.ok()) {
+                // DB를 쓸 수 없으면 로그인 화면 대신 원인 안내를 보여 준다 (비밀번호는 포함되지 않음).
+                frame.register(Screen.LOGIN, problemPanel(startup.problem()));
+            } else {
+                UserRepository users = new MySqlUserRepository(startup.database());
+                AuthService auth = new AuthService(users, state);
+                AuthFormController form = new AuthFormController(auth, state);
+                LoginPanel login = new LoginPanel(form, frame::refresh);
+                frame.register(Screen.LOGIN, login);
+                frame.register(Screen.SIGNUP, new SignupPanel(form, frame::refresh, login::showInfo));
+                frame.setLogoutAction(auth::logout);
+                // SBAR 제출 시 로그인한 사용자의 실습 기록으로 MySQL에 저장한다.
+                AttemptRepository attempts = new MySqlAttemptRepository(startup.database());
+                // 개인 메인의 평가지표·과거 기록은 로그인한 사용자의 기록만 조회한다.
+                resultViewHolder.set(() -> auth.currentUser()
+                        .map(u -> new ResultView(attempts, u.id())).orElse(null));
+                frame.register(Screen.SBAR, new SbarPanel(new SbarController(state, attempts,
+                        () -> auth.currentUser().orElseThrow().id(), aiClient()), frame::show));
+            }
+            frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader(), caseGenerator()), frame::refresh,
+                    () -> resultViewHolder.get() == null ? null : resultViewHolder.get().get()));
+            frame.register(Screen.PATIENT, new PatientInfoPanel(state, frame::show));
+            frame.register(Screen.OBSERVATION, new ObservationPanel(state, frame::show));
+            frame.register(Screen.MEDICATION, new MedicationPanel(state, frame::show));
+            frame.refresh();
             frame.setVisible(true);
         });
+    }
+
+    /** AI 해설용 클라이언트. 키가 없으면 해설만 꺼진다. */
+    private static app.ai.AiClient aiClient() {
+        return new app.ai.AiClient(app.ai.AiConfig.load(app.ai.AiConfig.DEFAULT_PATH), new app.ai.JdkHttpTransport());
+    }
+
+    /** AI 케이스 생성기. 키(config/ai.properties)나 허용 약물 목록이 없으면 생성만 꺼진다. */
+    private static app.cases.CaseGenerator caseGenerator() {
+        app.ai.AiClient ai = new app.ai.AiClient(app.ai.AiConfig.load(app.ai.AiConfig.DEFAULT_PATH),
+                new app.ai.JdkHttpTransport());
+        return new app.cases.CaseGenerator(ai, new app.cases.CaseValidator(app.cases.AllowedDrugs.load()),
+                new CaseLoader(), app.cases.CaseGenerator.DEFAULT_MAX_ATTEMPTS);
+    }
+
+    /** DB 설정·연결 실패 안내 패널. */
+    private static JPanel problemPanel(String problem) {
+        JPanel p = new JPanel(new BorderLayout(8, 8));
+        p.add(new JLabel("DB를 사용할 수 없어 로그인할 수 없습니다."), BorderLayout.NORTH);
+        JTextArea text = new JTextArea(problem);
+        text.setEditable(false);
+        text.setLineWrap(true);
+        text.setWrapStyleWord(true);
+        p.add(text, BorderLayout.CENTER);
+        return p;
     }
 }

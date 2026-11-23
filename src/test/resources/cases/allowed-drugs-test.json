@@ -1,0 +1,6 @@
+{
+  "drugs": [
+    { "name": "테스트약A", "unit": "mg", "route": "PO", "minDose": 1, "maxDose": 5, "evidenceId": "TEST-E1" },
+    { "name": "테스트약B", "unit": "mg", "route": "PO", "minDose": 0.5, "maxDose": 2, "evidenceId": "TEST-E2" }
+  ]
+}

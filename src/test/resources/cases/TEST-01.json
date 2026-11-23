@@ -1,0 +1,12 @@
+{
+  "id": "TEST-01",
+  "title": "합성 케이스",
+  "difficulty": "기본",
+  "reviewStatus": "DRAFT",
+  "source": "FIXED",
+  "patient": { "name": "테스트환자", "age": 30, "sex": "F", "patientNo": "TEST-P01", "room": "000호", "diagnosis": "테스트 진단" },
+  "orders": [
+    { "orderId": "ORD-T1", "type": "REGULAR", "drugName": "테스트약A", "dose": "1", "unit": "mg", "route": "PO", "scheduleTimes": ["08:00"] },
+    { "orderId": "ORD-T2", "type": "PRN", "drugName": "테스트약B", "prnIndication": "테스트 상황" }
+  ]
+}

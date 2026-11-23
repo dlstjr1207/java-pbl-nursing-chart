@@ -1,0 +1,34 @@
+{
+  "id": "demo",
+  "title": "DEMO · 화면 개발용 예시 (실제 케이스 아님)",
+  "difficulty": "[확인필요]",
+  "objectives": [],
+  "reviewStatus": "DEMO",
+  "source": "DEMO",
+  "patient": {
+    "name": "김하늘",
+    "age": 28,
+    "sex": "F",
+    "patientNo": "SIM-P01",
+    "room": "501-1호",
+    "diagnosis": "조현정동장애",
+    "admissionType": "[확인필요]",
+    "admissionDate": "[확인필요]"
+  },
+  "adr": {
+    "allergies": ["Penicillin"],
+    "adverseReactions": ["Haloperidol 부작용 [확인필요]"]
+  },
+  "riskTier": "[확인필요]",
+  "orders": [
+    { "orderId": "DEMO-O1", "type": "REGULAR", "drugName": "Olanzapine", "dose": "15", "unit": "mg", "route": "[확인필요]", "frequency": "[확인필요]", "note": "화면 간 처방이 달라 확정 전 (C-03)" },
+    { "orderId": "DEMO-O2", "type": "REGULAR", "drugName": "Aripiprazole", "dose": "10", "unit": "mg", "route": "[확인필요]", "frequency": "[확인필요]", "note": "화면 간 처방이 달라 확정 전 (C-03)" },
+    { "orderId": "DEMO-O3", "type": "REGULAR", "drugName": "Lithium", "dose": "300", "unit": "mg", "route": "[확인필요]", "frequency": "[확인필요]", "note": "횟수·총량 확정 전 (C-04)" },
+    { "orderId": "DEMO-O4", "type": "REGULAR", "drugName": "Lorazepam", "dose": "0.5", "unit": "mg", "route": "[확인필요]", "frequency": "[확인필요]", "note": "정규 처방 (C-05)" },
+    { "orderId": "DEMO-O5", "type": "PRN", "drugName": "Lorazepam", "dose": "0.5", "unit": "mg", "route": "[확인필요]", "prnIndication": "[확인필요]", "note": "PRN 처방 (C-05)" }
+  ],
+  "vitals": [],
+  "observationLog": [],
+  "safetyRounds": [],
+  "briefing": "DEMO · 실제 케이스 아님. 화면 개발용 예시이며 채점 정답으로 쓰지 않는다."
+}
