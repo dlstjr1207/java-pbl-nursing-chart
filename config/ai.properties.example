@@ -13,5 +13,6 @@ ai.apiKey=
 ai.model=
 ai.baseUrl=
 
-# 약물 공공데이터 API (공공데이터포털 일반 인증키 Decoding). 사용 방식은 미정
+# 약물 공공데이터 API (공공데이터포털 일반 인증키 Decoding). '식품의약품안전처_의약품 제품 허가정보'(15095677) 활용신청 필요.
+# 약 정보 파일 갱신 때만 쓴다: ./mvnw -q compile exec:java -Dmain.class=app.drugs.DrugInfoUpdater (프로그램 실행 중에는 쓰지 않음)
 drug.apiKey=
