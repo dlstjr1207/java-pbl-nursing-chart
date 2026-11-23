@@ -170,10 +170,12 @@ public class MedicationPanel extends JPanel implements Reloadable {
             basisField.setText("");
             oralBox.setSelected(false);
             planArea.setText("");
+            errorLabel.setForeground(Theme.GREEN);
             errorLabel.setText("저장했습니다.");
             updateReasonHint();
             refreshList();
         } else {
+            errorLabel.setForeground(Theme.RED);
             errorLabel.setText("<html>" + String.join("<br>", r.errors().byField().values()) + "</html>");
         }
     }

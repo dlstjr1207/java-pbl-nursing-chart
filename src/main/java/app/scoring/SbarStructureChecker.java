@@ -43,12 +43,12 @@ public final class SbarStructureChecker {
             return out;
         }
         for (int i = 0; i < required.size(); i++) {
-            String el = required.get(i);
-            boolean ok = contains(text, el);
+            ElementPattern el = ElementPattern.parse(required.get(i));
+            boolean ok = el.foundIn(text);
             out.add(new CheckResult(RULE, CheckTarget.SBAR, ref + ".element[" + (i + 1) + "]",
                     ok ? CheckStatus.PASS : CheckStatus.MISSING,
-                    ok ? "SBAR " + label + ": '" + el + "' 요소가 있습니다."
-                       : "SBAR " + label + "에 '" + el + "' 요소를 포함하세요.", null));
+                    ok ? "SBAR " + label + ": '" + el.label() + "' 요소가 있습니다."
+                       : "SBAR " + label + "에 '" + el.label() + "' 요소를 포함하세요. (예: " + el.example() + ")", null));
         }
         return out;
     }
@@ -73,18 +73,19 @@ public final class SbarStructureChecker {
             out.add(new CheckResult(RULE, CheckTarget.SBAR, "rec" + n + ".intervention",
                     actOk ? CheckStatus.PASS : CheckStatus.MISSING,
                     actOk ? "R " + n + "행: 중재가 있습니다." : "R " + n + "행: 중재를 입력하세요.", null));
-            if (actOk) all.append(r.intervention()).append('\n');
+            if (actOk) all.append(r.time() == null ? "" : r.time()).append(' ').append(r.intervention()).append('\n');
         }
         if (required == null || required.isEmpty()) {
             out.add(new CheckResult(RULE, CheckTarget.SBAR, "rec.element", CheckStatus.NOT_SCORED,
                     "SBAR R(권고) 필수 요소 기준이 없어 미산출입니다.", null));
         } else {
             for (int i = 0; i < required.size(); i++) {
-                boolean ok = contains(all.toString(), required.get(i));
+                ElementPattern el = ElementPattern.parse(required.get(i));
+                boolean ok = el.foundIn(all.toString());
                 out.add(new CheckResult(RULE, CheckTarget.SBAR, "rec.element[" + (i + 1) + "]",
                         ok ? CheckStatus.PASS : CheckStatus.MISSING,
-                        ok ? "SBAR R(권고): '" + required.get(i) + "' 요소가 있습니다."
-                           : "SBAR R(권고)에 '" + required.get(i) + "' 요소를 포함하세요.", null));
+                        ok ? "SBAR R(권고): '" + el.label() + "' 요소가 있습니다."
+                           : "SBAR R(권고)에 '" + el.label() + "' 요소를 포함하세요. (예: " + el.example() + ")", null));
             }
         }
         return out;

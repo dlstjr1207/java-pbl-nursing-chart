@@ -66,7 +66,8 @@ class PracticeFlowTest {
     }
 
     private void startDemo() {
-        assertNull(new HomeController(state, new CaseLoader()).startDefaultPractice());
+        // 화면 흐름 확인용으로 DEMO로 시작한다 (PC-01 채점은 PC01ScoringTest에서 확인)
+        assertNull(new HomeController(state, app.cases.WithoutPc01.loader()).startDefaultPractice());
     }
 
     /** 관찰 1건·투약 1건을 저장한다. */
@@ -106,7 +107,8 @@ class PracticeFlowTest {
         assertTrue(r.submitted());
         assertEquals(Screen.HOME, state.current());
         assertEquals("SUCCESS", r.attempt().aiFeedback().status());
-        assertNull(r.attempt().score(), "AI 해설과 무관하게 점수는 미산출");
+        // 점수는 규칙 점검 결과로만 계산한다 (AI 해설은 반영하지 않음, D4)
+        assertEquals(app.scoring.Scorer.score(r.attempt().checks()).score(), r.attempt().score());
         assertFalse(r.attempt().checks().isEmpty());
 
         ResultView view = new ResultView(attempts, auth.currentUser().orElseThrow().id());
@@ -164,7 +166,7 @@ class PracticeFlowTest {
             assertTrue(r.submitted());
             assertEquals("FAILED", r.attempt().aiFeedback().status());
             assertFalse(r.attempt().checks().isEmpty());
-            assertNull(r.attempt().score());
+            assertEquals(app.scoring.Scorer.score(r.attempt().checks()).score(), r.attempt().score());
             assertTrue(ResultView.aiText(r.attempt().aiFeedback()).contains("불러오지 못했습니다"));
             auth.logout();
         }

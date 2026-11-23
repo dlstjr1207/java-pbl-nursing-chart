@@ -1,5 +1,6 @@
 package app.ui;
 
+import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -36,22 +37,55 @@ public class SignupPanel extends JPanel {
             controller.openLogin();
             onChange.run();
         });
+        // 모양: 가운데 흰 카드(제목·안내 + 입력 양식) + 오른쪽 안내 카드 (Figma 로그인 화면 기준)
+        JPanel form = new JPanel(new GridBagLayout());
+        form.setOpaque(false);
         int y = 0;
-        add(new JLabel("회원가입"), LoginPanel.at(0, y++, 2));
-        add(new JLabel("이름"), LoginPanel.at(0, y, 1));
-        add(nameField, LoginPanel.at(1, y++, 1));
-        add(nameError, LoginPanel.at(1, y++, 1));
-        add(new JLabel("아이디 (영문·숫자 4~20자)"), LoginPanel.at(0, y, 1));
-        add(idField, LoginPanel.at(1, y++, 1));
-        add(idError, LoginPanel.at(1, y++, 1));
-        add(new JLabel("비밀번호 (8자 이상)"), LoginPanel.at(0, y, 1));
-        add(pwField, LoginPanel.at(1, y++, 1));
-        add(pwError, LoginPanel.at(1, y++, 1));
-        add(new JLabel("비밀번호 확인"), LoginPanel.at(0, y, 1));
-        add(confirmField, LoginPanel.at(1, y++, 1));
-        add(confirmError, LoginPanel.at(1, y++, 1));
-        add(submit, LoginPanel.at(0, y, 1));
-        add(back, LoginPanel.at(1, y, 1));
+        form.add(new JLabel("이름"), LoginPanel.at(0, y, 1));
+        form.add(nameField, LoginPanel.at(1, y++, 1));
+        form.add(nameError, LoginPanel.at(1, y++, 1));
+        form.add(new JLabel("아이디 (영문·숫자 4~20자)"), LoginPanel.at(0, y, 1));
+        form.add(idField, LoginPanel.at(1, y++, 1));
+        form.add(idError, LoginPanel.at(1, y++, 1));
+        form.add(new JLabel("비밀번호 (8자 이상)"), LoginPanel.at(0, y, 1));
+        form.add(pwField, LoginPanel.at(1, y++, 1));
+        form.add(pwError, LoginPanel.at(1, y++, 1));
+        form.add(new JLabel("비밀번호 확인"), LoginPanel.at(0, y, 1));
+        form.add(confirmField, LoginPanel.at(1, y++, 1));
+        form.add(confirmError, LoginPanel.at(1, y++, 1));
+        form.add(submit, LoginPanel.at(0, y, 1));
+        form.add(back, LoginPanel.at(1, y, 1));
+        JPanel card = Theme.cardPanel(null, new java.awt.BorderLayout(0, 10));
+        JLabel heading = new JLabel("회원가입");
+        heading.setFont(Theme.font(java.awt.Font.BOLD, 20f));
+        heading.setForeground(Theme.NAVY);
+        JLabel sub = new JLabel("아이디·비밀번호·이름만 받습니다 (D23)");
+        sub.setForeground(Theme.MUTED);
+        JPanel head = new JPanel(new java.awt.GridLayout(2, 1, 0, 2));
+        head.setOpaque(false);
+        head.add(heading);
+        head.add(sub);
+        card.add(head, java.awt.BorderLayout.NORTH);
+        card.add(form, java.awt.BorderLayout.CENTER);
+        JPanel infoCard = Theme.cardPanel("가입 안내", new java.awt.BorderLayout());
+        infoCard.setBackground(Theme.NAVY_LIGHT);
+        javax.swing.JTextArea infoText = new javax.swing.JTextArea("아이디: 영문·숫자 4~20자, 중복 불가\n비밀번호: 8자 이상\n비밀번호는 해시로만 저장되며 평문으로 저장하지 않습니다.");
+        infoText.setEditable(false);
+        infoText.setOpaque(false);
+        infoText.setLineWrap(true);
+        infoText.setWrapStyleWord(true);
+        infoText.setColumns(22);
+        infoCard.add(infoText, java.awt.BorderLayout.CENTER);
+        JPanel row = new JPanel(new java.awt.GridBagLayout());
+        row.setOpaque(false);
+        GridBagConstraints c1 = LoginPanel.at(0, 0, 1);
+        c1.anchor = GridBagConstraints.NORTH;
+        row.add(card, c1);
+        GridBagConstraints c2 = LoginPanel.at(1, 0, 1);
+        c2.anchor = GridBagConstraints.NORTH;
+        c2.fill = GridBagConstraints.VERTICAL;
+        row.add(infoCard, c2);
+        add(row);
     }
 
     /** 검증 실패면 입력은 유지하고 오류만 표시한다. 성공하면 칸을 비우고 로그인 화면으로 이동한다. */

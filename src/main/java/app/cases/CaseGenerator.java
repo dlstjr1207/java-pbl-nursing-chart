@@ -102,11 +102,12 @@ public class CaseGenerator {
         }
         PatientCase c = DomainJson.fromJson(json, PatientCase.class);
         if (c == null) throw new IllegalArgumentException("빈 응답");
-        // 모델이 정답 키·모범 기록을 만들어도 쓰지 않는다. 출처·검토 상태는 프로그램이 정한다.
+        // 정답 키는 PC-01과 같은 규칙으로 채점하기 위해 쓴다(검사기가 처방과 맞는지 확인). 모범 기록은 제출 후 참고용.
+        // 출처·검토 상태는 프로그램이 정한다.
         return new PatientCase(c.id(), c.title(), c.difficulty(), c.objectives(), "AI_GENERATED",
                 CaseSource.AI_GENERATED, c.patient(), c.adr(), c.riskTier(), c.orders(), c.regimenHistory(),
                 c.lithiumLevel(), c.vitals(), c.observationLog(), c.safetyRounds(), c.briefing(),
-                c.sbarReference(), null, null);
+                c.sbarReference(), c.answerKey(), c.modelAnswer());
     }
 
     private Result fallback(String message, List<String> problems) {
@@ -128,8 +129,13 @@ public class CaseGenerator {
     private String systemPrompt() {
         return "너는 간호학생 정신과 실습용 가상 환자 케이스를 만든다. 실제 환자 정보를 쓰지 않는다. "
                 + "반드시 JSON 객체 하나만 답한다. 키: id, title, patient(name 등), orders(orderId, type=REGULAR|PRN|PAST, "
-                + "drugName, dose, unit, route, scheduleTimes[HH:mm]), vitals(time HH:mm 등), observationLog, briefing. "
-                + "약물·용량은 아래 허용 목록 안에서만 고른다.";
+                + "drugName, dose, unit, route, frequency('1일 N회'), scheduleTimes[HH:mm], prnIndication), "
+                + "vitals(time HH:mm 등), observationLog, briefing(학생이 기록할 사건의 시각·장소·행동·환자 발언·간호·PRN 투약), "
+                + "answerKey, modelAnswer(observation, medication, sbar 문장). "
+                + "answerKey 형식: observationElements는 '이름=동의어1|동의어2' 문자열 배열(장소, 행동, 발언 인용, 간호, 투약, 재평가), "
+                + "medicationElements는 ['약명=…', '용량=숫자', '단위=mg', '경로=PO', '시각=HH:mm']이며 PRN 처방과 같은 약·용량이어야 한다. "
+                + "sbarElements는 situation·background·assessment·recommendation 배열. "
+                + "약물·용량은 아래 허용 목록 안에서만 고르고, 정규 처방은 1일 총량이 허용 범위 안이어야 한다.";
     }
 
     private String userPrompt(List<String> problems) {

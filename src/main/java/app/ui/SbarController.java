@@ -4,9 +4,6 @@ import app.domain.Attempt;
 import app.domain.CheckResult;
 import app.domain.SbarRecommendation;
 import app.domain.SbarReport;
-import app.scoring.MedicationCompletenessChecker;
-import app.scoring.RequiredInputChecker;
-import app.scoring.SbarStructureChecker;
 import app.storage.AttemptRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -19,7 +16,7 @@ import java.util.regex.Pattern;
 /**
  * SBAR 인계 화면의 로직(Swing 없음). S·B·A 텍스트와 R(시각·중재) 행의 필수값을 검증하고,
  * 통과하면 이번 실습 전체(관찰·투약·SBAR)를 저장한 뒤 개인 메인으로 이동한다 (S5, V5, V7).
- * 점수·점검 결과는 후속 작업(R 점검) 전이라 비워 둔다.
+ * 제출 당시 규칙 점검 결과와 점수(D30)를 함께 저장한다. AI 해설은 점수에 반영하지 않는다.
  */
 public class SbarController {
     private static final Pattern TIME = Pattern.compile("([01]\\d|2[0-3]):[0-5]\\d");
@@ -97,18 +94,17 @@ public class SbarController {
         List<SbarRecommendation> kept = new ArrayList<>();
         for (SbarRecommendation r : rows) kept.add(new SbarRecommendation(r.time().trim(), r.intervention()));
         SbarReport report = new SbarReport(s, b, a, kept);
-        // 제출 당시 규칙 점검(R8·R6·R9)을 함께 저장한다. 점수는 가중치 미정이라 null(미산출).
-        List<CheckResult> checks = new ArrayList<>(RequiredInputChecker.check(
-                state.studentObservations(), state.studentMedications(), report));
-        checks.addAll(MedicationCompletenessChecker.check(state.studentMedications(), state.currentCase().orders()));
-        checks.addAll(SbarStructureChecker.check(report, null)); // 케이스에 SBAR 필수 요소 목록이 없어 미산출
+        // 제출 당시 규칙 점검(R1·R2·R4·R6·R7·R8·R9)과 점수(D30)를 함께 저장한다.
+        app.scoring.Scorer.Result scored = app.scoring.Scorer.evaluate(state.currentCase(),
+                state.studentObservations(), state.studentMedications(), report);
+        List<CheckResult> checks = scored.checks();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime started = state.practiceStartedAt() == null ? now : state.practiceStartedAt();
         app.domain.PatientCase c = state.currentCase();
         Attempt draft = new Attempt(null, userId.getAsLong(), c.id(), c.source(),
                 c.source() == app.domain.CaseSource.AI_GENERATED ? app.domain.DomainJson.toJson(c) : null,
                 started, now, List.copyOf(state.studentObservations()), List.copyOf(state.studentMedications()),
-                report, checks, null, null);
+                report, checks, scored.score(), null);
         return new Prepared(Map.of(), null, draft);
     }
 

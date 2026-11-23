@@ -5,5 +5,7 @@ public enum CheckStatus {
     PASS,
     MISSING,
     MISMATCH,
-    NOT_SCORED
+    NOT_SCORED,
+    /** 배점 없이 보여 주는 피드백 (예: R1 판단 표현, D30) */
+    FEEDBACK
 }

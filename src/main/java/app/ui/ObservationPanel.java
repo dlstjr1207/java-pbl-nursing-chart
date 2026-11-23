@@ -58,6 +58,13 @@ public class ObservationPanel extends JPanel implements Reloadable {
         add(buildTop(), BorderLayout.CENTER);
         add(buildForm(onNavigate), BorderLayout.SOUTH);
         metricBox.addActionListener(e -> refreshChart());
+        // 차트 항목을 한글 이름으로 보여 준다 (모양만)
+        metricBox.setRenderer(new javax.swing.DefaultListCellRenderer() {
+            @Override
+            public java.awt.Component getListCellRendererComponent(javax.swing.JList<?> l, Object v, int i, boolean s, boolean f) {
+                return super.getListCellRendererComponent(l, v instanceof Metric m ? m.label() : v, i, s, f);
+            }
+        });
         reload();
     }
 
@@ -158,9 +165,11 @@ public class ObservationPanel extends JPanel implements Reloadable {
                 interventionField.getText(), vitals);
         if (r.saved()) {
             clearForm();
+            errorLabel.setForeground(Theme.GREEN);
             errorLabel.setText("저장했습니다.");
             refreshLists();
         } else {
+            errorLabel.setForeground(Theme.RED);
             errorLabel.setText("<html>" + String.join("<br>", r.errors().byField().values()) + "</html>");
         }
     }

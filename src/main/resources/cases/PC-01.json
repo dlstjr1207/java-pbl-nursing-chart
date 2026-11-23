@@ -1,0 +1,122 @@
+{
+  "id": "PC-01",
+  "title": "PC-01 불안 증가 → PRN 투약 → 재평가",
+  "difficulty": "기본",
+  "objectives": [
+    "환자 발언과 관찰 사실을 구분해 기록한다",
+    "PRN 투약 정보를 정확히 기록한다",
+    "재평가를 관찰·투약 기록과 SBAR 인계에 연결한다"
+  ],
+  "reviewStatus": "팀 확정 초안(용량 원문 확인, 적응증 검토 대기)",
+  "source": "FIXED",
+  "patient": {
+    "name": "김하늘",
+    "age": 28,
+    "sex": "F",
+    "patientNo": "SIM-P01",
+    "room": "501-1호",
+    "diagnosis": "조현정동장애(양극형)",
+    "admissionType": "동의입원",
+    "admissionDate": "2026-10-03",
+    "hospitalDay": 14
+  },
+  "adr": {
+    "allergies": ["Penicillin"],
+    "adverseReactions": ["Haloperidol → 급성 근긴장이상"]
+  },
+  "orders": [
+    {
+      "orderId": "PC01-ARI", "type": "REGULAR", "drugName": "Aripiprazole", "dose": "10", "unit": "mg", "route": "PO",
+      "frequency": "1일 1회", "scheduleTimes": ["08:30"], "note": "E-20. 적응증(정신분열병) [검증필요]"
+    },
+    {
+      "orderId": "PC01-LI", "type": "REGULAR", "drugName": "Lithium carbonate (탄산리튬)", "dose": "300", "unit": "mg", "route": "PO",
+      "frequency": "1일 3회 (1일 900mg)", "scheduleTimes": ["08:30", "12:30", "18:30"], "note": "E-21"
+    },
+    {
+      "orderId": "PC01-LZP-PRN", "type": "PRN", "drugName": "Lorazepam", "dose": "1", "unit": "mg", "route": "PO",
+      "frequency": "필요 시", "prnIndication": "불안·초조 시", "note": "1일 최대 4mg. E-29. PRN 불안·초조 적응증 [검증필요]"
+    },
+    {
+      "orderId": "PC01-OLZ-PAST", "type": "PAST", "drugName": "Olanzapine", "dose": "15", "unit": "mg", "route": "[확인필요]",
+      "frequency": "[확인필요]", "note": "2024-11 Aripiprazole로 교체 (E-28)"
+    }
+  ],
+  "regimenHistory": [
+    { "date": "2024-11", "description": "Olanzapine 15mg → Aripiprazole로 교체", "reason": "[확인필요]" }
+  ],
+  "lithiumLevel": [
+    { "time": "[확인필요]", "value": "0.78", "unit": "mEq/L" }
+  ],
+  "vitals": [
+    { "measurementId": "PC01-V1130", "time": "11:30", "systolic": 118, "diastolic": 76, "pulse": 82, "respiration": 18, "temperature": 36.6, "spo2": 99 },
+    { "measurementId": "PC01-V1400", "time": "14:00", "systolic": 118, "diastolic": 74, "pulse": 76, "respiration": 18, "temperature": 36.6 }
+  ],
+  "observationLog": [
+    {
+      "time": "10:00", "shift": "DAY", "tags": ["안정 회복"],
+      "narrative": "PRN 투여 30분 후 재평가: 불안 VAS 8→2, RASS 0. 자리에 앉아 휴식함."
+    },
+    {
+      "time": "11:30", "shift": "DAY", "tags": ["기타"], "narrative": "활력징후 측정.",
+      "vitals": { "measurementId": "PC01-V1130", "time": "11:30", "systolic": 118, "diastolic": 76, "pulse": 82, "respiration": 18, "temperature": 36.6, "spo2": 99 }
+    },
+    {
+      "time": "14:00", "shift": "DAY", "tags": ["기타"], "narrative": "활력징후 측정.",
+      "vitals": { "measurementId": "PC01-V1400", "time": "14:00", "systolic": 118, "diastolic": 74, "pulse": 76, "respiration": 18, "temperature": 36.6 }
+    }
+  ],
+  "safetyRounds": [],
+  "briefing": "2026-10-17 Day 근무(07:00~15:30). 09:25 데이룸에서 환자가 서성이며 손톱을 물어뜯는 모습이 보였고, \"누가 나를 감시하는 것 같아요\"라고 말했다. 간호사가 조용한 곳으로 이동해 1:1로 지지했다. 09:30 PRN 처방에 따라 Lorazepam 1mg PO를 투여했다.\n과제: (1) 09:25 사건의 관찰 기록 1건 (2) 09:30 PRN 투약 기록 1건 (3) 15:30 Evening 근무자에게 SBAR 인계.",
+  "sbarReference": "15:30 Day → Evening 인계. 환자 정보, 처방, 기존 관찰 로그(10:00 재평가, 11:30·14:00 활력징후)를 참고한다.",
+  "answerKey": {
+    "observationElements": [
+      "장소=데이룸|데이 룸|휴게실|공용 공간",
+      "행동=서성|왔다 갔다|배회|손톱|물어뜯",
+      "발언 인용=감시|지켜보",
+      "간호=1:1|일대일|지지|조용한 곳|안정",
+      "투약=로라제팜|lorazepam&1mg|1 mg&po|경구",
+      "재평가=10:00|30분|재평가"
+    ],
+    "medicationElements": [
+      "약명=Lorazepam|로라제팜",
+      "용량=1|1.0",
+      "단위=mg|밀리그램",
+      "경로=PO|경구",
+      "시각=09:30"
+    ],
+    "sbarElements": {
+      "situation": ["불안 사건=불안|초조", "PRN 투여=prn|로라제팜|lorazepam"],
+      "background": ["진단=조현정동장애", "입원 14일=14일", "현재 처방=아리피프라졸|aripiprazole|리튬|lithium"],
+      "assessment": ["재평가 결과=vas 2|vas 8→2|vas 8->2|vas 2점|→2|->2", "RASS 0=rass 0"],
+      "recommendation": ["18:30 리튬 투약=18:30&리튬|lithium", "다음 근무 관찰=관찰"]
+    }
+  },
+  "modelAnswer": {
+    "observation": "09:25 Day [불안 급증, PRN 투여] 데이룸에서 서성이며 손톱을 물어뜯는 모습이 관찰됨. 환자는 \"누가 나를 감시하는 것 같아요\"라고 말함. 조용한 곳으로 이동해 1:1로 지지적 대화를 함. 09:30 PRN 처방에 따라 로라제팜 1mg PO 투여함. 10:00(투여 30분 후) 불안 정도 재평가 예정. / 처치: 조용한 곳으로 이동, 1:1 지지, 로라제팜 1mg PO 투여(09:30)",
+    "medication": "PRN Lorazepam 1 mg PO 09:30 투여. 사유: 불안·초조(데이룸에서 서성임, 손톱 물어뜯기, \"누가 나를 감시하는 것 같아요\" 발언). 처방 근거: PRN 처방(불안·초조 시 Lorazepam 1mg PO, 1일 최대 4mg). 구강 확인: 예. 재평가 계획: 10:00 불안 VAS·RASS 재평가",
+    "sbar": "S: 09:25 데이룸에서 불안·초조(서성임, 손톱 물어뜯기, \"누가 나를 감시하는 것 같아요\" 발언)가 있어 1:1 지지 후 09:30 PRN 로라제팜 1mg PO 투여함.\nB: 28세 여성, 조현정동장애(양극형)로 동의입원 14일차. 현재 처방 아리피프라졸 10mg PO 1일 1회(08:30), 탄산리튬 300mg PO 1일 3회(08:30·12:30·18:30), PRN 로라제팜 1mg PO(불안·초조 시, 1일 최대 4mg). Penicillin 알레르기, Haloperidol 급성 근긴장이상 이력.\nA: 10:00 재평가에서 불안 VAS 8→2, RASS 0, 자리에 앉아 휴식함. 14:00 BP 118/74, HR 76, RR 18, BT 36.6.\nR: 18:30 탄산리튬 300mg PO 투약 / 16:00 불안·초조 재발 여부 관찰",
+    "observationRecord": {
+      "time": "09:25", "shift": "DAY", "tags": ["불안 급증", "PRN 투여"],
+      "narrative": "데이룸에서 서성이며 손톱을 물어뜯는 모습이 관찰됨. 환자는 \"누가 나를 감시하는 것 같아요\"라고 말함. 조용한 곳으로 이동해 1:1로 지지적 대화를 함. 09:30 PRN 처방에 따라 로라제팜 1mg PO 투여함. 10:00(투여 30분 후) 불안 정도 재평가 예정.",
+      "intervention": "조용한 곳으로 이동, 1:1 지지, 로라제팜 1mg PO 투여(09:30)"
+    },
+    "medicationRecord": {
+      "orderId": "PC01-LZP-PRN", "drugName": "Lorazepam", "dose": "1", "unit": "mg", "route": "PO", "administeredTime": "09:30",
+      "result": "GIVEN",
+      "reason": "불안·초조: 데이룸에서 서성임, 손톱 물어뜯기, \"누가 나를 감시하는 것 같아요\" 발언",
+      "orderBasis": "PRN 처방(불안·초조 시 Lorazepam 1mg PO, 1일 최대 4mg)",
+      "oralCheck": true,
+      "reassessmentPlan": "10:00 불안 VAS·RASS 재평가"
+    },
+    "sbarReport": {
+      "situation": "09:25 데이룸에서 불안·초조(서성임, 손톱 물어뜯기, \"누가 나를 감시하는 것 같아요\" 발언)가 있어 1:1 지지 후 09:30 PRN 로라제팜 1mg PO 투여함.",
+      "background": "28세 여성, 조현정동장애(양극형)로 동의입원 14일차. 현재 처방 아리피프라졸 10mg PO 1일 1회(08:30), 탄산리튬 300mg PO 1일 3회(08:30·12:30·18:30), PRN 로라제팜 1mg PO(불안·초조 시, 1일 최대 4mg). Penicillin 알레르기, Haloperidol 급성 근긴장이상 이력.",
+      "assessment": "10:00 재평가에서 불안 VAS 8→2, RASS 0, 자리에 앉아 휴식함. 14:00 BP 118/74, HR 76, RR 18, BT 36.6.",
+      "recommendations": [
+        { "time": "18:30", "intervention": "탄산리튬 300mg PO 투약" },
+        { "time": "16:00", "intervention": "불안·초조 재발 여부 관찰" }
+      ]
+    }
+  }
+}

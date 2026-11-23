@@ -52,12 +52,12 @@ class ResultViewTest {
         String detail = view.detail(a.attemptId()).orElseThrow();
         assertTrue(detail.contains("S: 상황 문장"));
         assertTrue(detail.contains("R: 09:00 재측정"));
-        assertTrue(detail.contains("점수 미산출"));
-        assertTrue(detail.contains("준비 중"));
+        assertTrue(detail.contains("점수 " + ResultView.scoreText(a)));
+        assertTrue(detail.contains("준비 중")); // DEMO에는 모범 기록이 없다
     }
 
     @Test
-    void 평가지표는_횟수와_미산출_점수를_보여_준다() {
+    void 평가지표는_횟수와_점수를_보여_준다() {
         ResultView view = new ResultView(repo, 1L);
         assertTrue(view.metrics().get(0).contains("0회"));
         submitAs(1L, "a");
@@ -65,7 +65,7 @@ class ResultViewTest {
         submitAs(1L, "b");
         List<String> m = view.metrics();
         assertEquals("총 실습 횟수: 2회", m.get(0));
-        assertTrue(m.get(1).contains("미산출"));
+        assertTrue(m.get(1).startsWith("최근 점수: ") && m.get(1).endsWith("점"), m.get(1));
         assertTrue(m.stream().anyMatch(s -> s.startsWith("항목별 R8")));
         assertTrue(m.stream().anyMatch(s -> s.startsWith("최근 2회")));
     }

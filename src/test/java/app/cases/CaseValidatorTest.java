@@ -23,8 +23,9 @@ class CaseValidatorTest {
              "patient":{"name":"가상환자"},
              "briefing":"%s",
              "vitals":[{"time":"%s","pulse":80}],
-             "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%s","dose":"%s","unit":"%s","route":"%s","scheduleTimes":["08:00"]}]}
-            """.formatted(briefing, time, drug, dose, unit, route);
+             "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%s","dose":"%s","unit":"%s","route":"%s","scheduleTimes":["08:00"]}],
+             "answerKey":{"observationElements":["장소=데이룸"],"medicationElements":["약명=%s","용량=%s"]}}
+            """.formatted(briefing, time, drug, dose, unit, route, drug, dose);
     }
 
     private List<String> check(String drug, String dose, String unit, String route, String time, String briefing) {
