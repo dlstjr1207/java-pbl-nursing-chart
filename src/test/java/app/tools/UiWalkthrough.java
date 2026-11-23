@@ -54,7 +54,11 @@ public final class UiWalkthrough {
         try {
             // 네 번째 인자 ai3: 실제 AI로 케이스를 3번 만들어 모범 기록 100점·다양성·학생 입장 브리핑을 확인한다
             if (args.length > 3 && args[3].equals("ai3")) runAiTrial(3);
-            else if (args.length > 4 && args[3].equals("demo5")) runDemo(Files.readString(Path.of(args[4])).strip());
+            else if (args.length > 6 && args[3].equals("demo5")) {
+                caseDump = Path.of(args[5]);
+                inputFile = Path.of(args[6]);
+                runDemo(Files.readString(Path.of(args[4])).strip());
+            }
             else if (args.length > 6 && args[3].equals("demo5only")) {
                 caseDump = Path.of(args[5]);
                 inputFile = Path.of(args[6]);

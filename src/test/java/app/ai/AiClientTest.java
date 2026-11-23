@@ -126,4 +126,56 @@ class AiClientTest {
         Files.writeString(file, "ai.provider=p\nai.apiKey=\nai.model=m\nai.baseUrl=http://x\n");
         assertFalse(AiConfig.load(file).isEnabled());
     }
+
+    /** 응답을 차례로 돌려주는 가짜 전송 (해설 재요청 확인용) */
+    private static final class SeqTransport implements AiTransport {
+        final List<String> responses = new ArrayList<>();
+        int calls;
+
+        @Override
+        public String post(String url, String apiKey, String jsonBody) {
+            return responses.get(Math.min(calls++, responses.size() - 1));
+        }
+    }
+
+    /** 시연 3회차에서 실제로 온 형태: 문자열 안에 이스케이프하지 않은 큰따옴표로 환자 발언을 인용함 */
+    private static final String QUOTED = "{\"strengths\":[\"SBAR 구분\"],"
+            + "\"improvements\":[\"S에 환자가 직접 한 말(\"누가 나를 감시하는 것 같아요\")을 포함할 것\"],"
+            + "\"example_rewrite\":\"S: \"누가 나를 감시하는 것 같아요\"라고 말해 09:30 PRN 투여함.\"}";
+
+    @Test
+    void 따옴표가_섞인_해설_응답도_읽는다() {
+        SeqTransport t = new SeqTransport();
+        t.responses.add(wrap(QUOTED));
+        AiFeedback fb = new AiClient(ON, t).explain("합성 기록");
+        assertEquals("SUCCESS", fb.status());
+        assertEquals(1, t.calls);
+        assertTrue(fb.improvements().get(0).contains("(\"누가 나를 감시하는 것 같아요\")"), fb.improvements().toString());
+        assertTrue(fb.exampleRewrite().startsWith("S: \"누가 나를"), fb.exampleRewrite());
+    }
+
+    @Test
+    void 해설을_읽지_못하면_한_번_더_요청하고_두_번째가_정상이면_저장한다() {
+        SeqTransport t = new SeqTransport();
+        t.responses.add(wrap("{\"strengths\":[\"끊긴 응답"));
+        t.responses.add(wrap("{\"strengths\":[\"좋음\"],\"improvements\":[],\"example_rewrite\":\"예시\"}"));
+        AiFeedback fb = new AiClient(ON, t).explain("합성 기록");
+        assertEquals("SUCCESS", fb.status());
+        assertEquals(2, t.calls);
+    }
+
+    @Test
+    void 두_번_모두_읽지_못할_때만_FAILED() {
+        SeqTransport t = new SeqTransport();
+        t.responses.add(wrap("해설을 드릴 수 없습니다"));
+        AiFeedback fb = new AiClient(ON, t).explain("합성 기록");
+        assertEquals(AiClient.STATUS_FAILED, fb.status());
+        assertEquals(2, t.calls);
+    }
+
+    @Test
+    void 정상_JSON의_이스케이프된_따옴표는_그대로_둔다() {
+        String ok = "{\"a\":[\"말(\\\"무서워요\\\")\"],\"b\":\"x\"}";
+        assertEquals(ok, AiClient.escapeInnerQuotes(ok));
+    }
 }
