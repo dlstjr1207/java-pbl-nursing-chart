@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * 정답 키 요소 한 개 (예: {@code 투약=로라제팜|lorazepam&1mg|1 mg&po|경구}).
  * '=' 앞은 이름, 뒤는 조건이다. '&'로 나뉜 묶음은 모두 있어야 하고, 묶음 안의 '|' 동의어는 하나만 있으면 된다.
- * 비교는 대소문자와 띄어쓰기를 무시한다(예: "1 mg"과 "1mg"은 같다).
+ * 비교는 대소문자와 띄어쓰기를 무시하고, 숫자 끝의 .0은 없앤다(예: "1 mg", "1mg", "1.0mg"은 모두 같다).
  */
 public final class ElementPattern {
     private final String label;
@@ -77,8 +77,14 @@ public final class ElementPattern {
     /** 첫 동의어 (기준값 안내용). */
     public String expected() { return groups.isEmpty() ? "" : groups.get(0).get(0); }
 
+    /** 비교용 정리: 띄어쓰기 제거, 소문자, 숫자 끝 .0 제거. 학생 기록과 정답 키에 똑같이 쓴다. */
     static String norm(String s) {
-        return s == null ? "" : s.replaceAll("\\s+", "").toLowerCase();
+        return s == null ? "" : trimZeroDecimal(s.replaceAll("\\s+", "").toLowerCase());
+    }
+
+    /** 같은 값을 다르게 쓴 숫자 표기를 맞춘다: "1.0" → "1", "10.00mg" → "10mg". "0.5"·"1.05"는 그대로. */
+    public static String trimZeroDecimal(String s) {
+        return s == null ? null : s.replaceAll("(?<![\\d.])(\\d+)\\.0+(?!\\.?\\d)", "$1");
     }
 
     private static boolean sameNumber(String a, String b) {

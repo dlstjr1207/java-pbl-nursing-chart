@@ -165,9 +165,44 @@ public class CaseGenerator {
         // 정답 키는 PC-01과 같은 규칙으로 채점하기 위해 쓴다(검사기가 처방과 맞는지 확인). 모범 기록은 제출 후 참고용.
         // 출처·검토 상태는 프로그램이 정한다.
         return new PatientCase("GEN-검사중", c.title(), c.difficulty(), c.objectives(), "AI_GENERATED",
-                CaseSource.AI_GENERATED, c.patient(), c.adr(), c.riskTier(), c.orders(), c.regimenHistory(),
+                CaseSource.AI_GENERATED, c.patient(), c.adr(), c.riskTier(), tidyOrders(c.orders()), c.regimenHistory(),
                 c.lithiumLevel(), c.vitals(), c.observationLog(), c.safetyRounds(), c.briefing(),
-                c.sbarReference(), c.answerKey(), c.modelAnswer());
+                c.sbarReference(), tidyKey(c.answerKey()), tidyModel(c.modelAnswer()));
+    }
+
+    // ---- 용량 표기 정리: AI가 "1.0"으로 준 값을 "1"로 저장해 화면·정답 키·모범 기록을 같은 표기로 맞춘다 ----
+
+    private static String tidy(String s) {
+        return app.scoring.ElementPattern.trimZeroDecimal(s);
+    }
+
+    private static List<String> tidyAll(List<String> list) {
+        return list == null ? null : list.stream().map(CaseGenerator::tidy).toList();
+    }
+
+    /** 처방의 용량 "1.0" → "1". */
+    static List<app.domain.Medication> tidyOrders(List<app.domain.Medication> orders) {
+        if (orders == null) return null;
+        return orders.stream().map(m -> new app.domain.Medication(m.orderId(), m.type(), m.drugName(), tidy(m.dose()),
+                m.unit(), m.route(), m.frequency(), m.scheduleTimes(), m.prnIndication(), m.note())).toList();
+    }
+
+    /** 정답 키 요소의 숫자 표기 정리 (예: "투약=…&1.0mg|1.0 mg&…" → "1mg|1 mg"). 시각(09:30)은 바뀌지 않는다. */
+    static app.domain.AnswerKey tidyKey(app.domain.AnswerKey k) {
+        if (k == null) return null;
+        app.domain.SbarElements s = k.sbarElements();
+        app.domain.SbarElements s2 = s == null ? null : new app.domain.SbarElements(tidyAll(s.situation()),
+                tidyAll(s.background()), tidyAll(s.assessment()), tidyAll(s.recommendation()));
+        return new app.domain.AnswerKey(tidyAll(k.observationElements()), tidyAll(k.medicationElements()), s2);
+    }
+
+    /** 모범 투약 기록의 용량 "1.0" → "1". */
+    static app.domain.ModelAnswer tidyModel(app.domain.ModelAnswer m) {
+        if (m == null || m.medicationRecord() == null) return m;
+        app.domain.MedicationRecord r = m.medicationRecord();
+        app.domain.MedicationRecord r2 = new app.domain.MedicationRecord(r.orderId(), r.drugName(), tidy(r.dose()), r.unit(),
+                r.route(), r.administeredTime(), r.result(), r.reason(), r.orderBasis(), r.oralCheck(), r.reassessmentPlan());
+        return new app.domain.ModelAnswer(m.observation(), m.medication(), m.sbar(), m.observationRecord(), r2, m.sbarReport());
     }
 
     /** 케이스 ID만 바꾼 사본. */

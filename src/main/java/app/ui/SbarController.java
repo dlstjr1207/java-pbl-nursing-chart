@@ -41,9 +41,38 @@ public class SbarController {
     }
 
     /** 제출 당시 입력과 점검 결과를 요약해 AI 해설을 받는다. 실패해도 점검 결과는 유지된다 (S7). */
-    private app.domain.AiFeedback explain(SbarReport report, List<CheckResult> checks) {
+    private app.domain.AiFeedback explain(app.domain.PatientCase c, Attempt draft, SbarReport report, List<CheckResult> checks) {
         if (ai == null) return new app.domain.AiFeedback(app.ai.AiClient.STATUS_NONE, null, null, null);
+        return ai.explain(explainPrompt(c, draft, report, checks));
+    }
+
+    /**
+     * AI 해설 요청 글. 케이스의 실제 사실(브리핑)과 학생의 관찰 기록을 함께 보내, 예시 문장이 실제 발언만 인용하게 한다.
+     * 정답 키·모범 기록은 보내지 않는다.
+     */
+    static String explainPrompt(app.domain.PatientCase pc, Attempt draft, SbarReport report, List<CheckResult> checks) {
         StringBuilder p = new StringBuilder("학생의 SBAR 인계 기록과 규칙 점검 결과입니다. 점수 없이 해설만 해 주세요.\n");
+        p.append(app.ai.AiClient.NO_FABRICATION).append('\n');
+        if (pc != null && pc.briefing() != null) {
+            p.append("[케이스 사실(이 안의 발언·수치·사건만 사실로 쓸 것)]\n").append(pc.briefing()).append('\n');
+        }
+        // 학생이 환자 정보 화면에서 본 활력징후·관찰 로그도 사실이다. 빠지면 AI가 실제 수치를 "지어냈다"고 잘못 지적한다.
+        if (pc != null) {
+            for (app.domain.VitalSign v : pc.vitals()) {
+                p.append("[케이스 활력징후] ").append(v.time()).append(" BP ").append(v.systolic()).append('/').append(v.diastolic())
+                        .append(", HR ").append(v.pulse()).append(", RR ").append(v.respiration())
+                        .append(", BT ").append(v.temperature()).append(", SpO2 ").append(v.spo2()).append('\n');
+            }
+            for (app.domain.ObservationEntry o : pc.observationLog()) {
+                p.append("[케이스 관찰 로그] ").append(o.time()).append(' ').append(o.narrative()).append('\n');
+            }
+        }
+        if (draft != null) {
+            for (app.domain.ObservationEntry o : draft.observationEntries()) {
+                p.append("[학생 관찰 기록] ").append(o.time()).append(' ').append(o.narrative()).append('\n');
+            }
+        }
+        p.append("[학생 SBAR]\n");
         p.append("S: ").append(report.situation()).append("\nB: ").append(report.background())
                 .append("\nA: ").append(report.assessment()).append('\n');
         for (SbarRecommendation r : report.recommendations()) {
@@ -56,7 +85,7 @@ public class SbarController {
             if (c.status() == app.domain.CheckStatus.PASS || c.status() == app.domain.CheckStatus.NOT_SCORED) continue;
             p.append('[').append(c.ruleId()).append("] ").append(c.status()).append(' ').append(c.message()).append('\n');
         }
-        return ai.explain(p.toString());
+        return p.toString();
     }
 
     /** 제출 결과. 성공이면 errors가 비어 있고 attempt에 저장된 기록이 들어 있다. */
@@ -120,7 +149,7 @@ public class SbarController {
         Attempt draft = prepared.draft();
         app.domain.AiFeedback feedback;
         try {
-            feedback = explain(draft.sbar(), draft.checks());
+            feedback = explain(ResultView.caseOf(draft), draft, draft.sbar(), draft.checks());
         } catch (RuntimeException e) {
             feedback = new app.domain.AiFeedback(app.ai.AiClient.STATUS_FAILED, null, null, null);
         }

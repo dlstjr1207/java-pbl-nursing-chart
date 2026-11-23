@@ -211,6 +211,28 @@ class CaseGeneratorTest {
     }
 
     @Test
+    void AI가_용량을_1점0으로_줘도_1로_정리해_저장하고_화면에도_정리된_값을_보인다() {
+        Fake f = new Fake();
+        f.contents.add(caseJson("테스트약A", "3.0"));
+        CaseGenerator.Result r = generator(ON, f, ALLOWED, 1).generate();
+        assertTrue(r.generated(), r.problems().toString());
+        var c = r.patientCase();
+        assertEquals("3", c.orders().get(0).dose());
+        assertTrue(c.answerKey().medicationElements().contains("용량=3"), c.answerKey().medicationElements().toString());
+        assertTrue(c.answerKey().observationElements().stream().anyMatch(e -> e.contains("&3mg|3 mg&")),
+                c.answerKey().observationElements().toString());
+        assertEquals("3", c.modelAnswer().medicationRecord().dose());
+        String shown = app.ui.MedicationController.orderSummary(c.orders().get(0));
+        assertTrue(shown.contains("3mg") && !shown.contains("3.0"), shown);
+        // 학생이 처방 표시와 다르게 "3.0mg"이라고 써도 감점되지 않는다
+        var obs = new app.domain.ObservationEntry("08:00", app.domain.Shift.DAY, List.of("불안 급증"),
+                "데이룸에서 서성이며 \"무서워요\"라고 말함. 08:00 테스트약A 3.0mg 경구 투여함.", null, null);
+        var scored = app.scoring.Scorer.evaluate(c, List.of(obs), List.of(), null);
+        assertTrue(scored.checks().stream().anyMatch(x -> x.targetRef().equals("observation.fact[투약]")
+                && x.status() == app.domain.CheckStatus.PASS));
+    }
+
+    @Test
     void 생성_케이스도_PC01과_같은_규칙으로_채점한다() {
         Fake f = new Fake();
         f.contents.add(caseJson("테스트약A", "3"));

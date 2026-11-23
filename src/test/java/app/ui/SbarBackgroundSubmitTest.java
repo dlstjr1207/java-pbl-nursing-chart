@@ -65,6 +65,33 @@ class SbarBackgroundSubmitTest {
     }
 
     @Test
+    void AI_해설_요청에_지어내기_금지와_케이스의_실제_사실을_넣는다() {
+        List<String> bodies = new java.util.ArrayList<>();
+        AiClient fake = new AiClient(ON, (url, key, body) -> {
+            bodies.add(body);
+            throw new java.io.IOException("가짜 응답 없음");
+        });
+        SbarController c = new SbarController(state, repo, () -> 7L, fake);
+        String briefing = state.currentCase().briefing();
+        var p = c.prepare("상황", "배경", "평가", ROWS);
+        c.complete(p);
+        assertEquals(1, bodies.size());
+        String body = com.google.gson.JsonParser.parseString(bodies.get(0)).toString();
+        // 시스템 지시와 사용자 요청 모두에 지어내기 금지 문구
+        assertTrue(body.contains("케이스와 학생 기록에 없는 환자 발언·수치·사건을 만들지 말 것"), body);
+        assertTrue(body.contains("예시 문장(example_rewrite)에는 케이스의 실제 발언만 인용할 것"), body);
+        String prompt = SbarController.explainPrompt(state.currentCase(), p.draft(), p.draft().sbar(), p.draft().checks());
+        assertTrue(prompt.contains(briefing), "케이스 브리핑을 사실 자료로 보냄");
+        assertTrue(prompt.indexOf(app.ai.AiClient.NO_FABRICATION) >= 0);
+        // 환자 정보 화면의 활력징후·관찰 로그도 사실로 보낸다 (실제 수치를 지어냈다고 잘못 지적하지 않게)
+        var pc01 = new CaseLoader().load("PC-01");
+        String p01 = SbarController.explainPrompt(pc01, p.draft(), p.draft().sbar(), p.draft().checks());
+        var v = pc01.vitals().get(0);
+        assertTrue(p01.contains("[케이스 활력징후] " + v.time() + " BP " + v.systolic() + "/" + v.diastolic()), p01);
+        assertTrue(p01.contains(pc01.observationLog().get(0).narrative()), p01);
+    }
+
+    @Test
     void 작성한_관찰이나_투약이_있으면_작성_중으로_본다() {
         assertFalse(state.hasStudentRecords());
         state.addMedication(new MedicationRecord("ORD", "합성약", "1", "정", "PO", "09:00",
