@@ -105,7 +105,7 @@ class CaseGeneratorTest {
         CaseGenerator.Result r = generator(ON, f, ALLOWED, 2).generate();
         assertFalse(r.generated());
         assertEquals(2, f.calls);
-        assertEquals("demo", r.patientCase().id()); // PC-01이 없으면 DEMO (테스트 클래스패스에 PC-01 없음)
+        assertEquals("PC-01", r.patientCase().id()); // 기본 케이스(PC-01)로 돌아감
         assertTrue(r.message().contains("기본 케이스"));
         assertFalse(r.problems().isEmpty());
     }
@@ -176,7 +176,7 @@ class CaseGeneratorTest {
                 generator(ON, f, ALLOWED, 2));
         String notice = home.startGeneratedPractice();
         assertNotNull(notice);
-        assertEquals("demo", state.currentCase().id());
+        assertEquals("PC-01", state.currentCase().id());
         assertEquals(Screen.PATIENT, state.current());
     }
 }

@@ -78,6 +78,9 @@ public class CaseValidator {
             return;
         }
         AllowedDrug d = found.get();
+        if (m.type() == OrderType.PAST) {
+            return; // 과거 처방은 약 이름만 검사한다 (경로·용량은 현재 처방이 아님)
+        }
         if (!blank(d.route()) && !d.route().trim().equalsIgnoreCase(nz(m.route()).trim())) {
             p.add(at + ".route 허용 경로(" + d.route() + ")와 다름: " + nz(m.route()));
         }
@@ -99,6 +102,40 @@ public class CaseValidator {
         if (d.maxDose() != null && dose > d.maxDose()) {
             p.add(at + ".dose " + m.dose() + "이(가) 허용 상한 " + d.maxDose() + " 초과");
         }
+        if (m.type() == OrderType.PRN) {
+            if (!d.prnDoses().isEmpty() && d.prnDoses().stream().noneMatch(v -> Math.abs(v - dose) < 1e-9)) {
+                p.add(at + ".dose PRN 1회 용량 " + m.dose() + "이(가) 허용 값 " + d.prnDoses() + "에 없음");
+            }
+            if (d.maxDailyDose() != null && dose > d.maxDailyDose()) {
+                p.add(at + ".dose PRN 1회 용량 " + m.dose() + "이(가) 1일 상한 " + d.maxDailyDose() + " 초과");
+            }
+            return;
+        }
+        Integer times = timesPerDay(m);
+        if (times == null) {
+            if (d.minDailyDose() != null || d.maxDailyDose() != null || d.timesPerDay() != null) {
+                p.add(at + " 1일 투여 횟수를 알 수 없음 (scheduleTimes 또는 frequency '1일 N회' 필요)");
+            }
+            return;
+        }
+        if (d.timesPerDay() != null && !d.timesPerDay().equals(times)) {
+            p.add(at + " 1일 " + times + "회가 허용 분할 횟수(" + d.timesPerDay() + "회)와 다름");
+        }
+        double daily = dose * times;
+        if (d.minDailyDose() != null && daily < d.minDailyDose()) {
+            p.add(at + " 1일 총량 " + daily + "이(가) 허용 하한 " + d.minDailyDose() + " 미만");
+        }
+        if (d.maxDailyDose() != null && daily > d.maxDailyDose()) {
+            p.add(at + " 1일 총량 " + daily + "이(가) 허용 상한 " + d.maxDailyDose() + " 초과");
+        }
+    }
+
+    /** 정규 처방의 1일 횟수: 투여 시각 수, 없으면 frequency의 '1일 N회'. 알 수 없으면 null. */
+    static Integer timesPerDay(Medication m) {
+        if (!m.scheduleTimes().isEmpty()) return m.scheduleTimes().size();
+        if (m.frequency() == null) return null;
+        java.util.regex.Matcher x = java.util.regex.Pattern.compile("1\\s*일\\s*(\\d+)\\s*회").matcher(m.frequency());
+        return x.find() ? Integer.valueOf(x.group(1)) : null;
     }
 
     private static Double parseDose(String s) {

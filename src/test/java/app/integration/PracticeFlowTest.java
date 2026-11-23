@@ -66,7 +66,8 @@ class PracticeFlowTest {
     }
 
     private void startDemo() {
-        assertNull(new HomeController(state, new CaseLoader()).startDefaultPractice());
+        // 화면 흐름 확인용으로 DEMO로 시작한다 (PC-01 채점은 PC01ScoringTest에서 확인)
+        assertNull(new HomeController(state, app.cases.WithoutPc01.loader()).startDefaultPractice());
     }
 
     /** 관찰 1건·투약 1건을 저장한다. */

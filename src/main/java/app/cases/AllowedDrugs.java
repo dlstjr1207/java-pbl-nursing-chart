@@ -71,12 +71,11 @@ public class AllowedDrugs {
         return drugs;
     }
 
-    /** 약명(대소문자·앞뒤 공백 무시)으로 찾는다. */
+    /** 약명으로 찾는다. 이름이나 별칭이 처방 약명에 들어 있으면 같은 약으로 본다(대소문자·띄어쓰기 무시). */
     public Optional<AllowedDrug> find(String drugName) {
         if (drugName == null) {
             return Optional.empty();
         }
-        String key = drugName.trim();
-        return drugs.stream().filter(d -> d.name().trim().equalsIgnoreCase(key)).findFirst();
+        return drugs.stream().filter(d -> d.matches(drugName)).findFirst();
     }
 }

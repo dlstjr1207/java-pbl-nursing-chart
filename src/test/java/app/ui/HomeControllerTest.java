@@ -15,15 +15,25 @@ class HomeControllerTest {
 
     @Test
     void PC01이_없으면_DEMO가_기본_케이스다() {
-        HomeController c = new HomeController(loggedIn(), new CaseLoader());
+        HomeController c = new HomeController(loggedIn(), app.cases.WithoutPc01.loader());
         assertEquals("demo", c.defaultCaseId());
         assertTrue(c.defaultCaseDescription().contains("DEMO"));
     }
 
     @Test
-    void 실습을_시작하면_환자_정보_화면으로_가고_DEMO_문구가_붙는다() {
+    void PC01이_있으면_PC01이_기본_케이스이고_DEMO_문구가_없다() {
         AppState s = loggedIn();
         HomeController c = new HomeController(s, new CaseLoader());
+        assertEquals("PC-01", c.defaultCaseId());
+        assertNull(c.startDefaultPractice());
+        assertEquals(CaseSource.FIXED, s.currentCase().source());
+        assertTrue(!s.notices().contains(AppState.DEMO_NOTICE));
+    }
+
+    @Test
+    void 실습을_시작하면_환자_정보_화면으로_가고_DEMO_문구가_붙는다() {
+        AppState s = loggedIn();
+        HomeController c = new HomeController(s, app.cases.WithoutPc01.loader());
         assertNull(c.startDefaultPractice());
         assertEquals(Screen.PATIENT, s.current());
         assertEquals(CaseSource.DEMO, s.currentCase().source());

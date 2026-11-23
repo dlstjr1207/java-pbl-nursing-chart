@@ -1,3 +1,25 @@
 {
-  "drugs": []
+  "_설명": "AI 생성 케이스의 허용 약물·용량 범위 (D29). 근거표에서 원문을 확인한 허가 용법만 넣는다. 그 외 약은 생성 금지.",
+  "drugs": [
+    {
+      "name": "Aripiprazole", "aliases": ["아리피프라졸"], "unit": "mg", "route": "PO",
+      "minDailyDose": 10, "maxDailyDose": 30,
+      "evidenceId": "E-20", "note": "1일 10~30mg. 효능효과 정신분열병 — 조현정동장애 적응증 [검증필요]"
+    },
+    {
+      "name": "Olanzapine", "aliases": ["올란자핀"], "unit": "mg", "route": "PO",
+      "minDailyDose": 5, "maxDailyDose": 20,
+      "evidenceId": "E-28", "note": "1일 5~20mg"
+    },
+    {
+      "name": "Lithium", "aliases": ["탄산리튬", "리튬", "Lithium carbonate"], "unit": "mg", "route": "PO",
+      "minDailyDose": 600, "maxDailyDose": 1800, "timesPerDay": 3,
+      "evidenceId": "E-21", "note": "1일 0.6~1.8g 3회 분할"
+    },
+    {
+      "name": "Lorazepam", "aliases": ["로라제팜"], "unit": "mg", "route": "PO",
+      "minDailyDose": 1, "maxDailyDose": 4, "prnDoses": [0.5, 1],
+      "evidenceId": "E-29", "note": "1일 1~4mg. PRN 1회 0.5 또는 1mg [검증필요] (효능효과 신경증의 불안·긴장)"
+    }
+  ]
 }
