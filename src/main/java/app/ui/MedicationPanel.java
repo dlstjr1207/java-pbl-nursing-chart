@@ -7,8 +7,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.awt.event.ItemEvent;
 import java.util.EnumMap;
 import java.util.Map;
@@ -31,7 +29,7 @@ import javax.swing.JTextField;
  * 투약 점검 화면 (S4). 처방 선택(JComboBox), 투약 결과(JRadioButton), 구강 확인(JCheckBox)을 입력받는다.
  * 사유가 필요한 조건(PRN·거부·보류)이 되면 ItemListener로 사유 라벨을 강조한다. 검증·저장은 MedicationController.
  */
-public class MedicationPanel extends JPanel {
+public class MedicationPanel extends JPanel implements Reloadable {
     private final AppState state;
     private final MedicationController controller;
 
@@ -67,12 +65,6 @@ public class MedicationPanel extends JPanel {
         orderBox.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) fillFromOrder();
             updateReasonHint();
-        });
-        addComponentListener(new ComponentAdapter() {
-            @Override
-            public void componentShown(ComponentEvent e) {
-                reload();
-            }
         });
         reload();
     }
@@ -187,6 +179,7 @@ public class MedicationPanel extends JPanel {
     }
 
     /** 현재 케이스의 처방 목록으로 선택지를 다시 채운다. */
+    @Override
     public void reload() {
         orderBox.removeAllItems();
         PatientCase c = state.currentCase();

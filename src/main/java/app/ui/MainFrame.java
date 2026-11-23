@@ -32,6 +32,9 @@ public class MainFrame extends JFrame {
     private final CardLayout cards = new CardLayout();
     private final JPanel content = new JPanel(cards);
     private final Map<Screen, JScrollPane> scrolls = new EnumMap<>(Screen.class);
+    private final Map<Screen, JPanel> panels = new EnumMap<>(Screen.class);
+    /** 마지막으로 보여 준 화면. 화면이 바뀔 때만 패널을 다시 채운다(입력 중인 내용 보호). */
+    private Screen shownScreen;
     private final Map<Screen, JButton> menuButtons = new EnumMap<>(Screen.class);
     private final JLabel screenLabel = new JLabel();
     private final JLabel patientLabel = new JLabel();
@@ -39,6 +42,12 @@ public class MainFrame extends JFrame {
     private final JLabel noticeLabel = new JLabel();
     /** 로그아웃 버튼 동작. 기본은 상태만 지우며, 앱 시작 시 AuthService.logout으로 바꾼다. */
     private Runnable logoutAction;
+    /** 화면에만 있고 아직 AppState에 없는 작성 중 내용(예: SBAR 입력칸)을 알려 주는 함수들. */
+    private final java.util.List<java.util.function.BooleanSupplier> draftChecks = new java.util.ArrayList<>();
+    /** 떠나기 확인 대화상자. 테스트에서 바꿀 수 있게 함수로 둔다. 메시지를 받아 '예'면 true. */
+    private java.util.function.Predicate<String> confirmLeave = message -> javax.swing.JOptionPane.showConfirmDialog(
+            this, message, "작성 중인 기록", javax.swing.JOptionPane.YES_NO_OPTION,
+            javax.swing.JOptionPane.WARNING_MESSAGE) == javax.swing.JOptionPane.YES_OPTION;
 
     public MainFrame(AppState state) {
         super("간호 차팅 연습 프로그램");
@@ -62,8 +71,30 @@ public class MainFrame extends JFrame {
     /** 로그아웃 버튼의 동작을 정한다. */
     public void setLogoutAction(Runnable action) { this.logoutAction = action; }
 
+    /** 화면에만 있는 작성 중 내용을 확인하는 함수를 추가한다 (예: SbarPanel::hasDraft). */
+    public void addDraftCheck(java.util.function.BooleanSupplier check) { draftChecks.add(check); }
+
+    /** 떠나기 확인 방식을 바꾼다 (테스트용). */
+    void setConfirmLeave(java.util.function.Predicate<String> confirm) { this.confirmLeave = confirm; }
+
+    /** 실습 중 작성한 기록(관찰·투약·SBAR 입력)이 있는지. */
+    boolean hasUnsavedWork() {
+        if (state.currentCase() == null) return false;
+        if (state.hasStudentRecords()) return true;
+        for (java.util.function.BooleanSupplier c : draftChecks) if (c.getAsBoolean()) return true;
+        return false;
+    }
+
+    /** 작성 중인 기록이 있으면 확인을 받는다. 계속해도 되면 true. */
+    private boolean okToLeave(String action) {
+        return !hasUnsavedWork() || confirmLeave.test("제출하지 않은 기록이 있습니다. " + action
+                + " 작성한 관찰·투약·SBAR 기록이 저장되지 않고 사라집니다. 계속할까요?");
+    }
+
     /** 화면 패널을 등록한다. 같은 화면을 다시 등록하면 교체한다. */
     public void register(Screen screen, JPanel panel) {
+        panels.put(screen, panel);
+        if (screen == shownScreen) shownScreen = null; // 교체된 화면은 다음 refresh에서 다시 채운다
         JScrollPane old = scrolls.put(screen, new JScrollPane(panel));
         if (old != null) content.remove(old);
         content.add(scrolls.get(screen), screen.name());
@@ -71,6 +102,7 @@ public class MainFrame extends JFrame {
 
     /** 화면을 전환한다. 이동할 수 없으면 false. */
     public boolean show(Screen screen) {
+        if (screen == Screen.HOME && state.current() != Screen.HOME && !okToLeave("개인 메인으로 가면")) return false;
         if (!state.go(screen)) return false;
         refresh();
         return true;
@@ -78,7 +110,13 @@ public class MainFrame extends JFrame {
 
     /** 상태(AppState)에 맞춰 화면·상태줄·메뉴 활성 여부를 갱신한다. */
     public void refresh() {
-        cards.show(content, state.current().name());
+        Screen now = state.current();
+        cards.show(content, now.name());
+        if (now != shownScreen) {
+            shownScreen = now;
+            // 패널이 JScrollPane 안에 있어 componentShown이 오지 않으므로 여기서 다시 채운다.
+            if (panels.get(now) instanceof Reloadable r) r.reload();
+        }
         screenLabel.setText(state.screenLabel());
         patientLabel.setText(state.patientLabel());
         userLabel.setText(state.userLabel());
@@ -112,16 +150,21 @@ public class MainFrame extends JFrame {
             menu.add(b);
         }
         JButton logout = new JButton("로그아웃");
-        logout.addActionListener(e -> {
-            if (logoutAction != null) logoutAction.run();
-            else state.logout();
-            refresh();
-        });
+        logout.addActionListener(e -> logout());
         menu.add(logout);
         JPanel wrap = new JPanel(new BorderLayout());
         wrap.add(menu, BorderLayout.NORTH);
         wrap.setPreferredSize(new Dimension(160, 0));
         return wrap;
+    }
+
+    /** 로그아웃한다. 작성 중인 기록이 있으면 먼저 확인한다. 취소하면 false. */
+    public boolean logout() {
+        if (!okToLeave("로그아웃하면")) return false;
+        if (logoutAction != null) logoutAction.run();
+        else state.logout();
+        refresh();
+        return true;
     }
 
     private JMenuBar buildMenuBar() {

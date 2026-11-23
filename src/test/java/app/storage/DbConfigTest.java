@@ -47,7 +47,7 @@ class DbConfigTest {
                 db.password=
                 """);
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> DbConfig.load(file));
-        assertTrue(e.getMessage().contains("db.test.url"));
+        assertFalse(e.getMessage().contains("db.test.url"), "db.test.url은 앱 실행에 필수가 아니다");
         assertTrue(e.getMessage().contains("db.password"));
         assertFalse(e.getMessage().contains("db.url,"));
     }
@@ -68,5 +68,32 @@ class DbConfigTest {
     @Test
     void missingFileIsDetected() {
         assertFalse(DbConfig.exists(dir.resolve("none.properties")));
+    }
+
+    @Test
+    void testUrlIsOptionalAndPasswordKeepsSpaces() throws IOException {
+        Path file = write("""
+                db.url=jdbc:mysql://localhost:3306/app_db?useSSL=false
+                db.user=app_user
+                db.password=dummy pw\s\s
+                """);
+        DbConfig config = DbConfig.load(file);
+        assertEquals(null, config.testUrl());
+        assertEquals("dummy pw  ", config.password());
+    }
+
+    @Test
+    void messagesShowOnlyHostAndDatabase() throws IOException {
+        Path file = write("""
+                db.url=jdbc:mysql://localhost:3306/app_db?user=x&password=y
+                db.test.url=jdbc:mysql://localhost:3306/app_db_test
+                db.user=app_user
+                db.password=dummy-pw-for-test
+                """);
+        String text = DbConfig.load(file).toString();
+        assertTrue(text.contains("localhost:3306/app_db"));
+        assertFalse(text.contains("jdbc:"));
+        assertFalse(text.contains("password=y"));
+        assertEquals("localhost:3306/app_db", DbConfig.describe("jdbc:mysql://localhost:3306/app_db?a=b"));
     }
 }

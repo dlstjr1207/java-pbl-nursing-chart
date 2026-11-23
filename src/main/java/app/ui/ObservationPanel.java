@@ -8,8 +8,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -33,7 +31,7 @@ import javax.swing.JTextField;
  * 활력징후·관찰 화면 (S3). 위쪽에 추이 차트·상황 브리핑·시각순 관찰 목록, 아래쪽에 관찰 입력 양식을 둔다.
  * 검증과 저장은 ObservationController가 맡고, 이 클래스는 입력값을 모아 전달하고 결과를 보여 준다.
  */
-public class ObservationPanel extends JPanel {
+public class ObservationPanel extends JPanel implements Reloadable {
     private final AppState state;
     private final ObservationController controller;
 
@@ -60,13 +58,6 @@ public class ObservationPanel extends JPanel {
         add(buildTop(), BorderLayout.CENTER);
         add(buildForm(onNavigate), BorderLayout.SOUTH);
         metricBox.addActionListener(e -> refreshChart());
-        // 화면이 나타날 때마다 현재 케이스로 갱신한다.
-        addComponentListener(new ComponentAdapter() {
-            @Override
-            public void componentShown(ComponentEvent e) {
-                reload();
-            }
-        });
         reload();
     }
 
@@ -184,6 +175,7 @@ public class ObservationPanel extends JPanel {
     }
 
     /** 현재 케이스로 브리핑·목록·차트를 다시 채운다. */
+    @Override
     public void reload() {
         PatientCase c = state.currentCase();
         briefing.setText(c == null || c.briefing() == null ? "" : c.briefing());

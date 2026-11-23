@@ -18,7 +18,9 @@ class MySqlUserRepositoryTest extends app.auth.UserRepositoryContractBridge {
     @BeforeEach
     void setUp() throws SQLException {
         assumeTrue(DbConfig.exists(DbConfig.DEFAULT_PATH), "config/db.properties 없음: DB 테스트 건너뜀");
-        database = Database.forTest(DbConfig.load(DbConfig.DEFAULT_PATH));
+        DbConfig config = DbConfig.load(DbConfig.DEFAULT_PATH);
+        org.junit.jupiter.api.Assumptions.assumeTrue(config.testUrl() != null, "db.test.url 없음: DB 테스트 건너뜀");
+        database = Database.forTest(config);
         try (Connection conn = database.open()) {
             String dbName = conn.getCatalog();
             assumeTrue(dbName != null && dbName.toLowerCase().contains("test"),

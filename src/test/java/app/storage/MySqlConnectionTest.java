@@ -27,7 +27,9 @@ class MySqlConnectionTest {
     @BeforeEach
     void setUp() throws SQLException {
         assumeTrue(DbConfig.exists(DbConfig.DEFAULT_PATH), "config/db.properties 없음: DB 테스트 건너뜀");
-        database = Database.forTest(DbConfig.load(DbConfig.DEFAULT_PATH));
+        DbConfig config = DbConfig.load(DbConfig.DEFAULT_PATH);
+        assumeTrue(config.testUrl() != null, "db.test.url 없음: DB 테스트 건너뜀");
+        database = Database.forTest(config);
         try (Connection conn = database.open()) {
             String dbName = conn.getCatalog();
             // 실수로 실제 DB를 지우지 않도록, 이름에 test가 들어간 DB에서만 실행한다
@@ -87,20 +89,14 @@ class MySqlConnectionTest {
         return names;
     }
 
-    /** 테스트 DB의 모든 테이블을 지운다 (외래 키 검사 잠시 해제). */
+    /** 테스트 DB에서 schema.sql이 만드는 7개 테이블만 지운다 (다른 테이블은 건드리지 않음). */
     private static void dropAllTables(Connection conn) throws SQLException {
-        List<String> names = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()");
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                names.add(rs.getString(1));
-            }
-        }
+        List<String> names = new ArrayList<>(SchemaInitializerTest.EXPECTED_TABLES);
+        java.util.Collections.reverse(names); // 외래 키를 고려해 자식 테이블부터
         try (Statement st = conn.createStatement()) {
             st.execute("SET FOREIGN_KEY_CHECKS = 0");
             for (String name : names) {
-                st.execute("DROP TABLE IF EXISTS `" + name.replace("`", "``") + "`");
+                st.execute("DROP TABLE IF EXISTS `" + name + "`");
             }
             st.execute("SET FOREIGN_KEY_CHECKS = 1");
         }

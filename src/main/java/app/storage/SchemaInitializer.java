@@ -31,7 +31,7 @@ public final class SchemaInitializer {
                 stmt.execute(sql);
             }
         } catch (SQLException e) {
-            throw new DatabaseException("스키마 적용에 실패했습니다 (" + database.url() + "): " + e.getMessage(), e);
+            throw new DatabaseException("스키마 적용에 실패했습니다 (" + DbConfig.describe(database.url()) + "): " + e.getMessage(), e);
         }
     }
 

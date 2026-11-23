@@ -43,7 +43,9 @@ public final class DbConfig {
 
     /**
      * 설정 파일을 읽는다.
-     * 필수 항목(db.url, db.test.url, db.user, db.password)이 없거나 비어 있으면 항목 이름을 알려 주며 실패한다.
+     * 필수 항목(db.url, db.user, db.password)이 없거나 비어 있으면 항목 이름을 알려 주며 실패한다.
+     * db.test.url은 테스트에만 쓰므로 앱 실행에는 없어도 된다(없으면 testUrl()이 null).
+     * 비밀번호는 공백까지 그대로 쓴다(trim하지 않음).
      */
     public static DbConfig load(Path path) {
         Properties props = new Properties();
@@ -55,9 +57,10 @@ public final class DbConfig {
 
         List<String> missing = new ArrayList<>();
         String url = required(props, KEY_URL, missing);
-        String testUrl = required(props, KEY_TEST_URL, missing);
+        String testUrl = optional(props, KEY_TEST_URL);
         String user = required(props, KEY_USER, missing);
-        String password = required(props, KEY_PASSWORD, missing);
+        String password = props.getProperty(KEY_PASSWORD);
+        if (password == null || password.isEmpty()) missing.add(KEY_PASSWORD);
         if (!missing.isEmpty()) {
             throw new IllegalStateException(
                     "DB 설정 파일(" + path + ")에 값이 비어 있는 항목: " + String.join(", ", missing));
@@ -74,12 +77,31 @@ public final class DbConfig {
         return value.trim();
     }
 
+    private static String optional(Properties props, String key) {
+        String value = props.getProperty(key);
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    /**
+     * 안내 문구용으로 JDBC 주소에서 호스트·포트·DB 이름만 남긴다 (예: localhost:3306/nursing_chart).
+     * 주소 뒤의 옵션(?user=… 등)은 보여 주지 않는다.
+     */
+    public static String describe(String jdbcUrl) {
+        if (jdbcUrl == null) return "(없음)";
+        String rest = jdbcUrl.replaceFirst("^jdbc:[a-z]+://", "");
+        int q = rest.indexOf('?');
+        if (q >= 0) rest = rest.substring(0, q);
+        int at = rest.lastIndexOf('@');
+        if (at >= 0) rest = rest.substring(at + 1);
+        return rest.isEmpty() ? "(알 수 없음)" : rest;
+    }
+
     /** 실제 사용 DB 주소 */
     public String url() {
         return url;
     }
 
-    /** 테스트 전용 DB 주소 */
+    /** 테스트 전용 DB 주소 (설정에 없으면 null) */
     public String testUrl() {
         return testUrl;
     }
@@ -95,6 +117,7 @@ public final class DbConfig {
 
     @Override
     public String toString() {
-        return "DbConfig[url=" + url + ", testUrl=" + testUrl + ", user=" + user + ", password=****]";
+        return "DbConfig[db=" + describe(url) + ", testDb=" + (testUrl == null ? "(없음)" : describe(testUrl))
+                + ", user=" + user + ", password=****]";
     }
 }

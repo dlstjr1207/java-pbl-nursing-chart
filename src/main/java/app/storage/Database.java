@@ -28,6 +28,7 @@ public final class Database {
 
     /** 테스트 전용 DB(db.test.url)에 연결하는 객체를 만든다. */
     public static Database forTest(DbConfig config) {
+        if (config.testUrl() == null) throw new IllegalStateException("db.test.url이 설정되지 않았습니다.");
         return new Database(config.testUrl(), config.user(), config.password());
     }
 
@@ -46,7 +47,7 @@ public final class Database {
             return DriverManager.getConnection(url, user, password);
         } catch (SQLException e) {
             throw new DatabaseException(
-                    "DB에 연결할 수 없습니다 (주소: " + url + ", 계정: " + user + "). "
+                    "DB에 연결할 수 없습니다 (DB: " + DbConfig.describe(url) + ", 계정: " + user + "). "
                             + "MySQL 서버 실행 여부, 계정 권한, DB 이름을 확인하세요. 원인: "
                             + e.getMessage() + " [SQLState " + e.getSQLState() + "]",
                     e);

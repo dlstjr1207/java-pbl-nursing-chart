@@ -1,9 +1,17 @@
 package app;
 
+import app.ai.AiClient;
+import app.ai.AiConfig;
+import app.ai.JdkHttpTransport;
 import app.auth.AuthService;
+import app.cases.AllowedDrugs;
+import app.cases.CaseGenerator;
 import app.cases.CaseLoader;
+import app.cases.CaseValidator;
 import app.storage.AttemptRepository;
 import app.storage.DbConfig;
+import app.storage.FileAttemptRepository;
+import app.storage.FileUserRepository;
 import app.storage.MySqlAttemptRepository;
 import app.storage.MySqlUserRepository;
 import app.storage.UserRepository;
@@ -16,80 +24,83 @@ import app.ui.MainFrame;
 import app.ui.MedicationPanel;
 import app.ui.ObservationPanel;
 import app.ui.PatientInfoPanel;
+import app.ui.ResultView;
 import app.ui.SbarController;
 import app.ui.SbarPanel;
-import app.ui.ResultView;
 import app.ui.Screen;
 import app.ui.SignupPanel;
 import app.ui.StartupCheck;
-import java.awt.BorderLayout;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextArea;
+import java.nio.file.Path;
 import javax.swing.SwingUtilities;
 
-/** 프로그램 시작점. DB를 확인하고, 테마를 적용한 뒤 로그인 화면이 있는 메인 창을 띄운다. */
+/**
+ * 프로그램 시작점. 저장 방식을 정하고(MySQL, 안 되면 파일 저장 모드), 테마를 적용한 뒤 메인 창을 띄운다.
+ */
 public class Main {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             MainFrame.installTheme();
-            AppState state = new AppState();
-            // DB가 준비되면 로그인한 사용자의 기록 조회기를 만드는 함수가 들어간다.
-            java.util.concurrent.atomic.AtomicReference<java.util.function.Supplier<ResultView>> resultViewHolder =
-                    new java.util.concurrent.atomic.AtomicReference<>();
-            MainFrame frame = new MainFrame(state);
-            StartupCheck.Result startup = StartupCheck.check(DbConfig.DEFAULT_PATH);
-            if (!startup.ok()) {
-                // DB를 쓸 수 없으면 로그인 화면 대신 원인 안내를 보여 준다 (비밀번호는 포함되지 않음).
-                frame.register(Screen.LOGIN, problemPanel(startup.problem()));
-            } else {
-                UserRepository users = new MySqlUserRepository(startup.database());
-                AuthService auth = new AuthService(users, state);
-                AuthFormController form = new AuthFormController(auth, state);
-                LoginPanel login = new LoginPanel(form, frame::refresh);
-                frame.register(Screen.LOGIN, login);
-                frame.register(Screen.SIGNUP, new SignupPanel(form, frame::refresh, login::showInfo));
-                frame.setLogoutAction(auth::logout);
-                // SBAR 제출 시 로그인한 사용자의 실습 기록으로 MySQL에 저장한다.
-                AttemptRepository attempts = new MySqlAttemptRepository(startup.database());
-                // 개인 메인의 평가지표·과거 기록은 로그인한 사용자의 기록만 조회한다.
-                resultViewHolder.set(() -> auth.currentUser()
-                        .map(u -> new ResultView(attempts, u.id())).orElse(null));
-                frame.register(Screen.SBAR, new SbarPanel(new SbarController(state, attempts,
-                        () -> auth.currentUser().orElseThrow().id(), aiClient()), frame::show));
-            }
-            frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader(), caseGenerator()), frame::refresh,
-                    () -> resultViewHolder.get() == null ? null : resultViewHolder.get().get()));
-            frame.register(Screen.PATIENT, new PatientInfoPanel(state, frame::show));
-            frame.register(Screen.OBSERVATION, new ObservationPanel(state, frame::show));
-            frame.register(Screen.MEDICATION, new MedicationPanel(state, frame::show));
-            frame.refresh();
-            frame.setVisible(true);
+            createFrame(DbConfig.DEFAULT_PATH, defaultDataDir(), AiConfig.DEFAULT_PATH).setVisible(true);
         });
     }
 
-    /** AI 해설용 클라이언트. 키가 없으면 해설만 꺼진다. */
-    private static app.ai.AiClient aiClient() {
-        return new app.ai.AiClient(app.ai.AiConfig.load(app.ai.AiConfig.DEFAULT_PATH), new app.ai.JdkHttpTransport());
+    /** 파일 저장 모드의 저장 폴더: 사용자 홈 아래 .nursing-chart-trainer (D27). */
+    public static Path defaultDataDir() {
+        return Path.of(System.getProperty("user.home"), ".nursing-chart-trainer");
     }
 
-    /** AI 케이스 생성기. 키(config/ai.properties)나 허용 약물 목록이 없으면 생성만 꺼진다. */
-    private static app.cases.CaseGenerator caseGenerator() {
-        app.ai.AiClient ai = new app.ai.AiClient(app.ai.AiConfig.load(app.ai.AiConfig.DEFAULT_PATH),
-                new app.ai.JdkHttpTransport());
-        return new app.cases.CaseGenerator(ai, new app.cases.CaseValidator(app.cases.AllowedDrugs.load()),
-                new CaseLoader(), app.cases.CaseGenerator.DEFAULT_MAX_ATTEMPTS);
+    /** 저장소 묶음과 저장 방식 안내. */
+    record Storage(UserRepository users, AttemptRepository attempts, String fileModeReason) {}
+
+    /**
+     * 저장 방식을 고른다. DB 설정이 있고 연결되면 MySQL, 아니면 파일 저장 모드(D27).
+     * fileModeReason은 파일 저장 모드가 된 이유(비밀번호 없음), MySQL이면 null.
+     */
+    static Storage chooseStorage(Path dbConfig, Path dataDir) {
+        StartupCheck.Result startup = StartupCheck.check(dbConfig);
+        if (startup.ok()) {
+            return new Storage(new MySqlUserRepository(startup.database()),
+                    new MySqlAttemptRepository(startup.database()), null);
+        }
+        return new Storage(new FileUserRepository(dataDir.resolve("users.json")),
+                new FileAttemptRepository(dataDir.resolve("attempts.json")), startup.problem());
     }
 
-    /** DB 설정·연결 실패 안내 패널. */
-    private static JPanel problemPanel(String problem) {
-        JPanel p = new JPanel(new BorderLayout(8, 8));
-        p.add(new JLabel("DB를 사용할 수 없어 로그인할 수 없습니다."), BorderLayout.NORTH);
-        JTextArea text = new JTextArea(problem);
-        text.setEditable(false);
-        text.setLineWrap(true);
-        text.setWrapStyleWord(true);
-        p.add(text, BorderLayout.CENTER);
-        return p;
+    /**
+     * 메인 창을 만든다(화면에 띄우지는 않음). 화면 스레드에서 호출한다.
+     * 점검 도구가 실제 창을 띄워 확인할 때도 같은 구성을 쓴다.
+     */
+    public static MainFrame createFrame(Path dbConfig, Path dataDir, Path aiConfig) {
+        AppState state = new AppState();
+        MainFrame frame = new MainFrame(state);
+        Storage storage = chooseStorage(dbConfig, dataDir);
+        if (storage.fileModeReason() != null) state.setStorageNotice(AppState.FILE_MODE_NOTICE);
+
+        AuthService auth = new AuthService(storage.users(), state);
+        AuthFormController form = new AuthFormController(auth, state);
+        LoginPanel login = new LoginPanel(form, frame::refresh);
+        if (storage.fileModeReason() != null) {
+            login.showInfo("DB 없이 파일 저장 모드로 실행합니다. 기록은 " + dataDir + "에 저장됩니다.");
+        }
+        frame.register(Screen.LOGIN, login);
+        frame.register(Screen.SIGNUP, new SignupPanel(form, frame::refresh, login::showInfo));
+        frame.setLogoutAction(auth::logout);
+
+        AiClient ai = new AiClient(AiConfig.load(aiConfig), new JdkHttpTransport());
+        CaseGenerator generator = new CaseGenerator(ai, new CaseValidator(AllowedDrugs.load()),
+                new CaseLoader(), CaseGenerator.DEFAULT_MAX_ATTEMPTS);
+        // 개인 메인의 평가지표·과거 기록은 로그인한 사용자의 기록만 조회한다.
+        frame.register(Screen.HOME, new HomePanel(new HomeController(state, new CaseLoader(), generator), frame::refresh,
+                () -> auth.currentUser().map(u -> new ResultView(storage.attempts(), u.id())).orElse(null)));
+        frame.register(Screen.PATIENT, new PatientInfoPanel(state, frame::show));
+        frame.register(Screen.OBSERVATION, new ObservationPanel(state, frame::show));
+        frame.register(Screen.MEDICATION, new MedicationPanel(state, frame::show));
+        // SBAR 제출 시 로그인한 사용자의 실습 기록으로 저장한다.
+        SbarPanel sbar = new SbarPanel(new SbarController(state, storage.attempts(),
+                () -> auth.currentUser().orElseThrow().id(), ai), frame::show);
+        frame.register(Screen.SBAR, sbar);
+        frame.addDraftCheck(sbar::hasDraft);
+        frame.refresh();
+        return frame;
     }
 }

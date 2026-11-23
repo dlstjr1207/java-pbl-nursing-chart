@@ -2,6 +2,8 @@ package app.export;
 
 import app.domain.Attempt;
 import app.ui.ResultView;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -11,6 +13,7 @@ import java.time.format.DateTimeFormatter;
 
 /**
  * 선택한 실습 1건의 입력과 점검 결과를 UTF-8 텍스트 파일로 저장한다 (T-26, D22 파일 입출력).
+ * 강의에서 배운 FileWriter를 BufferedWriter로 감싸 한 줄씩 쓴다.
  * 저장 실패는 예외 대신 안내 문구로 돌려 화면이 그대로 보여 줄 수 있게 한다.
  */
 public class ResultExporter {
@@ -41,7 +44,13 @@ public class ResultExporter {
         try {
             Path parent = target.toAbsolutePath().getParent();
             if (parent != null && !Files.isDirectory(parent)) return "저장할 폴더가 없습니다: " + parent;
-            Files.writeString(target, content(a), StandardCharsets.UTF_8);
+            // try-with-resources로 파일을 반드시 닫는다. 한글이 깨지지 않도록 UTF-8을 지정한다.
+            try (BufferedWriter out = new BufferedWriter(new FileWriter(target.toFile(), StandardCharsets.UTF_8))) {
+                for (String line : content(a).split("\n", -1)) {
+                    out.write(line);
+                    out.newLine();
+                }
+            }
             return null;
         } catch (IOException | UncheckedIOException | SecurityException e) {
             return "파일을 저장하지 못했습니다. 위치와 권한을 확인해 주세요. (" + e.getClass().getSimpleName() + ")";
