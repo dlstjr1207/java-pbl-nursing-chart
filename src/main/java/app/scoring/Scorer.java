@@ -14,7 +14,7 @@ import java.util.Map;
 
 /**
  * 제출한 기록 전체를 점검하고 점수를 낸다 (D30).
- * 배점: R7 25, R2 20, R8 20, R6 15, R1 10, R4 10. R9는 피드백만, R5는 제외.
+ * 배점: R7 25, R2 20, R8 20, R6 15, R1 10, R4 10. R9·R10은 피드백만, R5는 제외.
  * 규칙마다 (통과 수 / 산출된 점검 수) × 배점을 더하고, 산출할 수 없는 규칙은 배점에서 빼 100점 비율로 환산한다.
  */
 public final class Scorer {
@@ -50,6 +50,7 @@ public final class Scorer {
         checks.addAll(ObservationWordingChecker.check(observations));
         checks.addAll(ReassessmentChecker.check(observations, medications));
         checks.addAll(SbarStructureChecker.check(sbar, key == null ? null : key.sbarElements()));
+        checks.addAll(RawNotesChecker.check(c, observations, medications, sbar)); // R10 피드백만 (배점 없음)
         return score(checks);
     }
 

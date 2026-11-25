@@ -14,7 +14,7 @@ public final class CheckLabels {
     /** 규칙 ID → 이름 (기획안 점검 기준) */
     public static final Map<String, String> RULE_NAMES = Map.of(
             "R1", "관찰 표현", "R2", "핵심 사실", "R4", "재평가 연결", "R6", "투약 기록 완결성",
-            "R7", "투약 값 일치", "R8", "필수 입력", "R9", "SBAR 구성");
+            "R7", "투약 값 일치", "R8", "필수 입력", "R9", "SBAR 구성", "R10", "원자료 정리");
 
     /** 필드 이름 → 한국어 */
     private static final Map<String, String> FIELDS = Map.ofEntries(

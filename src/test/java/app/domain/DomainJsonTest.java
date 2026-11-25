@@ -40,7 +40,10 @@ class DomainJsonTest {
                 "합성 SBAR 참고",
                 new AnswerKey(List.of("요소1"), List.of("요소2"),
                         new SbarElements(List.of("S1"), List.of("B1"), List.of("A1"), List.of("R1"))),
-                new ModelAnswer("모범 관찰", "모범 투약", "모범 SBAR"));
+                new ModelAnswer("모범 관찰", "모범 투약", "모범 SBAR"),
+                List.of(new RawNote("09:00", "합성 메모", false, List.of()),
+                        new RawNote("08:00", "합성 관련 없는 메모", true, List.of("합성"))),
+                "합성 과제");
     }
 
     /** 모든 항목을 채운 합성 실습 기록 */

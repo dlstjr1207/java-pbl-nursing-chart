@@ -56,6 +56,15 @@ public class SbarController {
         if (pc != null && pc.briefing() != null) {
             p.append("[케이스 사실(이 안의 발언·수치·사건만 사실로 쓸 것)]\n").append(pc.briefing()).append('\n');
         }
+        // 학생은 원자료 메모를 보고 기록한다. 메모의 발언·행동도 사실이다(브리핑에 없는 메모를 "지어냈다"고 지적하지 않게).
+        // 관련 없는 메모는 따로 표시해, 학생이 그 내용을 기록에 넣었으면 해설에서 짚을 수 있게 한다.
+        if (pc != null && pc.hasRawNotes()) {
+            for (app.domain.RawNote n : pc.rawNotes()) {
+                if (n == null) continue;
+                p.append(n.irrelevant() ? "[원자료 메모·이번 사건과 관련 없음] " : "[원자료 메모] ")
+                        .append(n.time()).append(' ').append(n.text()).append('\n');
+            }
+        }
         // 환자 기본 정보·알레르기·처방도 사실이다. 빠지면 학생이 B에 쓴 진단·약을 "케이스에 없다"고 잘못 지적한다.
         if (pc != null) {
             for (String line : caseFactLines(pc)) p.append(line).append('\n');

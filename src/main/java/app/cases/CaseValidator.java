@@ -63,6 +63,7 @@ public class CaseValidator {
         checkKeyLanguages(p, c);
         checkModelTimes(p, c);
         checkBriefingMatchesKey(p, c);
+        checkRawNotes(p, c);
         for (int i = 0; i < c.vitals().size(); i++) {
             VitalSign v = c.vitals().get(i);
             if (v == null || v.time() == null || !v.time().matches(TIME)) {
@@ -91,6 +92,116 @@ public class CaseValidator {
                         + fmt(VITAL_LIMITS[k][0]) + "~" + fmt(VITAL_LIMITS[k][1]) + ") 밖");
             }
         }
+    }
+
+    /** 원자료 메모 최소 개수 */
+    public static final int MIN_RAW_NOTES = 8;
+    /** 관련 없는 메모 최소 개수 */
+    public static final int MIN_IRRELEVANT = 2;
+
+    /**
+     * 원자료 메모 검사. 학생은 메모만 보고 기록하므로, 정답 키의 모든 요소(관찰·투약·SBAR)를
+     * 관련 있는 메모 안에서 찾을 수 있어야 한다("필요한 내용은 전부 있다"). 또 메모 8개 이상, 관련 없는 메모 2개 이상,
+     * 시각이 완전히 정렬돼 있지 않아야 한다(두서없는 메모). 관련 없는 메모의 낱말(cues)은 그 메모에만 있고
+     * 모범 기록에는 없어야 한다(모범 기록이 '관련 없는 정보' 피드백을 받지 않게). 모범 기록이 원자료를 그대로 옮긴 글이어도 안 된다.
+     */
+    private static void checkRawNotes(List<String> p, PatientCase c) {
+        List<app.domain.RawNote> notes = c.rawNotes();
+        if (notes.size() < MIN_RAW_NOTES) {
+            p.add("rawNotes(원자료 메모) " + MIN_RAW_NOTES + "개 이상 필요 (현재 " + notes.size() + "개)");
+        }
+        if (notes.isEmpty()) return;
+        if (blank(c.task())) p.add("task(과제 안내) 누락");
+        List<String> times = new ArrayList<>();
+        StringBuilder relevant = new StringBuilder();
+        int irrelevantCount = 0;
+        for (int i = 0; i < notes.size(); i++) {
+            app.domain.RawNote n = notes.get(i);
+            if (n == null || blank(n.text())) {
+                p.add("rawNotes[" + i + "].text 누락");
+                continue;
+            }
+            if (n.time() == null || !n.time().matches(TIME)) {
+                p.add("rawNotes[" + i + "].time 형식 오류 (HH:mm): " + n.time());
+            } else {
+                times.add(n.time());
+            }
+            if (n.irrelevant()) {
+                irrelevantCount++;
+                if (n.cues().isEmpty()) p.add("rawNotes[" + i + "] 관련 없는 메모에 cues(알아볼 낱말)가 없음");
+                for (String cue : n.cues()) {
+                    if (blank(cue) || !squash(n.text()).contains(squash(cue))) {
+                        p.add("rawNotes[" + i + "].cues '" + cue + "'이(가) 그 메모 글에 없음");
+                    }
+                }
+            } else {
+                relevant.append(n.time()).append(' ').append(n.text()).append('\n');
+            }
+        }
+        if (irrelevantCount < MIN_IRRELEVANT) {
+            p.add("rawNotes 관련 없는 메모(irrelevant) " + MIN_IRRELEVANT + "개 이상 필요 (현재 " + irrelevantCount + "개)");
+        }
+        boolean sorted = true;
+        for (int i = 1; i < times.size(); i++) {
+            if (times.get(i).compareTo(times.get(i - 1)) < 0) sorted = false;
+        }
+        if (sorted && times.size() > 1) p.add("rawNotes 시각이 모두 순서대로 정렬돼 있음 (일부 순서를 섞어야 함)");
+        String rel = relevant.toString();
+        String relSquashed = squash(rel);
+        for (app.domain.RawNote n : notes) {
+            if (n == null || !n.irrelevant()) continue;
+            for (String cue : n.cues()) {
+                if (!blank(cue) && relSquashed.contains(squash(cue))) {
+                    p.add("rawNotes cues '" + cue + "'이(가) 관련 있는 메모에도 있음 (관련 없는 메모에만 있는 낱말이어야 함)");
+                }
+            }
+        }
+        checkKeyInNotes(p, c, rel);
+        checkModelAgainstNotes(p, c);
+    }
+
+    /** 정답 키의 모든 요소가 관련 있는 메모에 있는지. 발언 인용은 메모의 따옴표 안 환자 말에 있어야 한다. */
+    private static void checkKeyInNotes(List<String> p, PatientCase c, String rel) {
+        var key = c.answerKey();
+        if (key == null) return;
+        for (var e : app.scoring.ElementPattern.parseAll(key.observationElements())) {
+            String where = e.label().equals("발언 인용") ? quoted(rel) : rel;
+            if (!e.foundIn(where)) {
+                p.add("answerKey 관찰 요소 '" + e.label() + "'(" + e.example() + ")을(를) 원자료 메모에서 찾을 수 없음"
+                        + (e.label().equals("발언 인용") ? " (따옴표 안 환자 말)" : ""));
+            }
+        }
+        for (var e : app.scoring.ElementPattern.parseAll(key.medicationElements())) {
+            if (!e.foundIn(rel)) {
+                p.add("answerKey 투약 요소 '" + e.label() + "'(" + e.example() + ")을(를) 원자료 메모에서 찾을 수 없음");
+            }
+        }
+        var s = key.sbarElements();
+        if (s == null) return;
+        String[] areas = {"S", "B", "A", "R"};
+        List<List<String>> lists = List.of(s.situation(), s.background(), s.assessment(), s.recommendation());
+        for (int k = 0; k < 4; k++) {
+            for (var e : app.scoring.ElementPattern.parseAll(lists.get(k))) {
+                if (!e.foundIn(rel)) {
+                    p.add("answerKey SBAR " + areas[k] + " 요소 '" + e.label() + "'(" + e.example() + ")을(를) 원자료 메모에서 찾을 수 없음");
+                }
+            }
+        }
+    }
+
+    /** 모범 기록은 원자료를 그대로 옮기지 않고, 관련 없는 정보도 넣지 않아야 한다 (R10 피드백이 없어야 한다). */
+    private static void checkModelAgainstNotes(List<String> p, PatientCase c) {
+        var m = c.modelAnswer();
+        if (m == null || m.observationRecord() == null) return;
+        var fb = app.scoring.RawNotesChecker.check(c, List.of(m.observationRecord()),
+                m.medicationRecord() == null ? List.of() : List.of(m.medicationRecord()), m.sbarReport());
+        for (var f : fb) {
+            p.add("모범 기록 " + f.targetRef() + "이(가) 원자료 정리 점검에 걸림: " + f.message());
+        }
+    }
+
+    private static String squash(String s) {
+        return s == null ? "" : s.replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
     }
 
     /**

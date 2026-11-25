@@ -32,7 +32,8 @@ class ObservationControllerTest {
                 List.of(new VitalSign("m1", "08:00", 120, 80, 70, 16, 36.5, 98),
                         new VitalSign("m2", "12:00", 130, 85, 90, 18, null, 97)),
                 List.of(new ObservationEntry("09:00", Shift.DAY, List.of("기타"), "기존 기록", null, null)),
-                demo.safetyRounds(), demo.briefing(), demo.sbarReference(), demo.answerKey(), demo.modelAnswer());
+                demo.safetyRounds(), demo.briefing(), demo.sbarReference(), demo.answerKey(), demo.modelAnswer(),
+                demo.rawNotes(), demo.task());
         state = new AppState();
         state.login("테스터");
         state.startPractice(c);

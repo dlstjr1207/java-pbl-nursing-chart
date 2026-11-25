@@ -167,7 +167,7 @@ public class CaseGenerator {
         return new PatientCase("GEN-검사중", c.title(), c.difficulty(), c.objectives(), "AI_GENERATED",
                 CaseSource.AI_GENERATED, c.patient(), c.adr(), c.riskTier(), tidyOrders(c.orders()), c.regimenHistory(),
                 c.lithiumLevel(), c.vitals(), c.observationLog(), c.safetyRounds(), c.briefing(),
-                c.sbarReference(), tidyKey(c.answerKey()), tidyModel(c.modelAnswer()));
+                c.sbarReference(), tidyKey(c.answerKey()), tidyModel(c.modelAnswer()), tidyCues(c.rawNotes()), c.task());
     }
 
     // ---- 용량 표기 정리: AI가 "1.0"으로 준 값을 "1"로 저장해 화면·정답 키·모범 기록을 같은 표기로 맞춘다 ----
@@ -205,11 +205,37 @@ public class CaseGenerator {
         return new app.domain.ModelAnswer(m.observation(), m.medication(), m.sbar(), m.observationRecord(), r2, m.sbarReport());
     }
 
+    /**
+     * 관련 없는 메모의 알아볼 낱말(cues) 정리: 그 메모 글에 없거나 관련 있는 메모에도 나오는 흔한 낱말(예: '측정', '침상')은 뺀다.
+     * 메모 내용은 바꾸지 않는다. 남는 낱말이 없으면 그대로 두어 검사기가 이유를 알리게 한다.
+     */
+    static List<app.domain.RawNote> tidyCues(List<app.domain.RawNote> notes) {
+        if (notes == null) return null;
+        String relevant = notes.stream().filter(n -> n != null && !n.irrelevant() && n.text() != null)
+                .map(n -> squash(n.text())).reduce("", (a, b) -> a + "\n" + b);
+        List<app.domain.RawNote> out = new ArrayList<>();
+        for (app.domain.RawNote n : notes) {
+            if (n == null || !n.irrelevant()) {
+                out.add(n);
+                continue;
+            }
+            String own = squash(n.text());
+            List<String> keep = n.cues().stream().filter(c -> c != null && !c.isBlank())
+                    .filter(c -> own.contains(squash(c)) && !relevant.contains(squash(c))).toList();
+            out.add(keep.isEmpty() ? n : new app.domain.RawNote(n.time(), n.text(), true, keep));
+        }
+        return out;
+    }
+
+    private static String squash(String s) {
+        return s == null ? "" : s.replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
+    }
+
     /** 케이스 ID만 바꾼 사본. */
     private static PatientCase withId(PatientCase c, String id) {
         return new PatientCase(id, c.title(), c.difficulty(), c.objectives(), c.reviewStatus(), c.source(), c.patient(),
                 c.adr(), c.riskTier(), c.orders(), c.regimenHistory(), c.lithiumLevel(), c.vitals(), c.observationLog(),
-                c.safetyRounds(), c.briefing(), c.sbarReference(), c.answerKey(), c.modelAnswer());
+                c.safetyRounds(), c.briefing(), c.sbarReference(), c.answerKey(), c.modelAnswer(), c.rawNotes(), c.task());
     }
 
     /**
@@ -282,8 +308,37 @@ public class CaseGenerator {
                 + "observationRecord.narrative에는 observationElements 각 요소(장소·행동·발언 인용·간호·투약·재평가)의 동의어 중 하나를 글자 그대로 넣고, "
                 + "sbarReport의 S·B·A·R 각 칸에는 sbarElements 해당 영역 요소의 동의어를 글자 그대로 넣는다. "
                 + "sbarReport.recommendations의 time도 반드시 HH:mm 시각이다(예: 16:00). DAY·EVENING·NIGHT 같은 근무 이름이나 '다음 근무'를 time에 쓰지 않는다.\n"
+                + RAW_NOTES_RULES
                 + "견본:\n" + TEMPLATE;
     }
+
+    /**
+     * 원자료 메모 조건. 학생 화면에는 briefing 대신 rawNotes(두서없는 근무 중 메모)와 task를 보여 주고,
+     * 학생은 메모에서 필요한 사실만 골라 기록한다. CaseValidator가 같은 조건을 검사한다.
+     */
+    static final String RAW_NOTES_RULES = "학생 화면에는 briefing 대신 rawNotes(원자료 메모)와 task(과제 안내)만 보인다. "
+            + "briefing은 학생에게 보이지 않는 정리된 사실(모범 기록·해설용)이다. rawNotes 조건:\n"
+            + "(a) 담당 간호사(학생)가 근무 중에 적어 둔 짧은 메모 10~12개, 각각 {\"time\":\"HH:mm\",\"text\":\"…\"}. "
+            + "배열 순서는 시간순이 아니게 2곳 이상 섞는다(예: 10:00 메모가 09:30 메모보다 앞).\n"
+            + "(b) 환자 말은 정리하지 않은 원문 그대로 큰따옴표 안에 쓴다. 끊기고 반복되고 두서없는 말투로 쓴다"
+            + "(예: \"아 그니까… 저기 저 사람이… 계속 봐요, 계속\"). 환자 말이 들어간 메모를 2개 이상 둔다.\n"
+            + "(c) 메모에 다음이 모두 있어야 한다: 근무 시작 인계(진단·입원 일수·현재 처방), 사건 장소와 시각, 관찰한 행동, "
+            + "간호 중재(행동 그대로), PRN 투약(약명·용량·경로·투여 시각·사유·구강 확인), 재평가 시각과 결과, "
+            + "다음 근무에 넘길 일(정규 투약 시각·관찰). 활력징후를 메모에 쓰면 vitals 값과 같아야 한다. "
+            + "answerKey의 모든 요소(observationElements·medicationElements·sbarElements 각 영역)의 동의어 중 하나가 "
+            + "관련 있는 메모 글에 글자 그대로 있어야 하고, '발언 인용' 동의어는 메모의 큰따옴표 안 환자 말에 있어야 한다.\n"
+            + "(d) 이번 사건과 관련 없는 메모 2~3개를 섞고 \"irrelevant\":true와 \"cues\"(그 메모에만 있는 낱말 2~4개)를 붙인다 "
+            + "(예: 점심 배식, 보호자 전화로 면회 시간 문의, 다른 환자 채혈 지원). 관련 없는 메모에는 임상 수치를 쓰지 않는다. "
+            + "cues 낱말은 그 메모에만 있는 구체적인 명사(예: 배식, 원무과, 면회, 혈당)로 고르고, "
+            + "관련 있는 메모와 모범 기록 어디에도 쓰지 않는다(측정·침상·지원·확인·환자 같은 흔한 말 금지).\n"
+            + "(e) 판단 표현(예: 협조적, 불안해 보임)은 메모에 써도 되지만 모범 기록에는 쓰지 않는다.\n"
+            + "메모는 짧은 메모체(예: '데이룸. 왔다 갔다 계속 서성거림, 손톱 물어뜯음')로 쓴다. "
+            + "모범 기록은 메모 문장을 그대로 옮기지 말고 필요한 사실만 골라 자연스러운 문장으로 새로 쓴다(환자 말 인용은 그대로 가능). "
+            + "순서: rawNotes를 먼저 쓰고, answerKey의 모든 동의어는 rawNotes(관련 있는 메모)에 실제로 쓴 낱말에서 고른다"
+            + "(예: 메모에 '차분해짐'이라고 썼으면 재평가 결과=차분|안정, 메모에 '안정'이 없으면 '안정'을 동의어로 쓰지 않는다). "
+            + "답하기 전에 observationElements·medicationElements·sbarElements의 요소 하나하나가 메모 글에 글자 그대로 있는지 확인한다.\n"
+            + "task에는 근무 날짜·근무 구분·시간, '아래 메모에서 필요한 사실만 골라 (1) 사건의 관찰 기록 1건 (2) PRN 투약 기록 1건 "
+            + "(3) 근무 끝 SBAR 인계를 작성' 안내만 쓰고, 사건 내용이나 정답은 쓰지 않는다.\n";
 
     /** 생성 응답의 형식 견본 (값은 예시 자리일 뿐 임상 값이 아님). */
     static final String TEMPLATE = """
@@ -300,6 +355,17 @@ public class CaseGenerator {
              "observationLog":[{"time":"HH:mm","shift":"DAY","tags":["기타"],"narrative":"사건 전 관찰 문장"},
                                {"time":"HH:mm","shift":"DAY","tags":["안정 회복"],"narrative":"재평가 결과 문장"}],
              "briefing":"사건 시각·장소·행동·환자 발언(큰따옴표)·담당 간호사인 학생이 한 간호(행동 그대로)·PRN 투약 시각을 담은 문장. 끝에 과제 안내",
+             "task":"2026-10-20 Day 근무(07:00~15:30). 아래 메모에서 필요한 사실만 골라 (1) … (2) … (3) …",
+             "rawNotes":[{"time":"07:20","text":"인계 받음. 진단·입원 일수·현재 처방 메모"},
+                         {"time":"HH:mm","text":"장소. 관찰한 행동 메모"},
+                         {"time":"HH:mm","text":"말 걸었더니 → \\"두서없는 환자 말 원문\\""},
+                         {"time":"HH:mm","text":"재평가 시각·결과 메모 (시간 순서를 섞은 자리)"},
+                         {"time":"HH:mm","text":"간호 중재 메모"},
+                         {"time":"HH:mm","text":"점심 배식 도움 같은 관련 없는 메모","irrelevant":true,"cues":["점심","배식"]},
+                         {"time":"HH:mm","text":"PRN 약명 용량 경로 투여, 사유, 구강 확인 메모"},
+                         {"time":"HH:mm","text":"활력징후 메모(vitals와 같은 값)"},
+                         {"time":"HH:mm","text":"보호자 전화 같은 관련 없는 메모","irrelevant":true,"cues":["보호자","면회"]},
+                         {"time":"HH:mm","text":"다음 근무에 넘길 일 메모(정규 투약 시각·관찰)"}],
              "answerKey":{"observationElements":["장소=데이룸|휴게실","행동=서성|왔다 갔다|손톱","발언 인용=답답|무서워","간호=1:1|일대일|지지|조용한 곳","투약=로라제팜|Lorazepam&1mg|1 mg&PO|경구","재평가=30분|재평가"],
                           "medicationElements":["약명=영문약명|한글약명","용량=숫자","단위=mg","경로=PO|경구","시각=HH:mm"],
                           "sbarElements":{"situation":["불안 사건=불안|초조"],"background":["진단=진단명"],"assessment":["재평가 결과=안정|불안 감소"],"recommendation":["다음 근무 관찰=관찰"]}},

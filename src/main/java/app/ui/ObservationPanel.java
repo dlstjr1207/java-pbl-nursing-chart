@@ -35,6 +35,8 @@ public class ObservationPanel extends JPanel implements Reloadable {
 
     /** 상황 브리핑(과제). 화면 맨 위에 큰 글씨로, 스크롤 없이 전체가 보이게 둔다 (polish 6). */
     private final JTextArea briefing = new JTextArea();
+    /** 원자료 메모 카드 (제목을 케이스에 맞게 바꾼다). */
+    private JPanel briefingCard;
     private final JComboBox<Metric> metricBox = new JComboBox<>(Metric.values());
     private final VitalChartPanel chart = new VitalChartPanel();
     /** 관찰 기록 목록: 한 줄씩 출처 배지 + 줄바꿈되는 글 (polish 5). */
@@ -70,8 +72,10 @@ public class ObservationPanel extends JPanel implements Reloadable {
     }
 
     private JPanel buildBriefing() {
-        JPanel card = Theme.cardPanel("상황 브리핑 (과제)", new BorderLayout());
-        briefing.setEditable(false);
+        JPanel card = Theme.cardPanel(RawNotesView.NOTES_TITLE, new BorderLayout());
+        briefingCard = card;
+        briefing.setName("rawNotes");
+        RawNotesView.protect(briefing);
         briefing.setLineWrap(true);
         briefing.setWrapStyleWord(true);
         briefing.setOpaque(false);
@@ -199,7 +203,8 @@ public class ObservationPanel extends JPanel implements Reloadable {
     @Override
     public void reload() {
         PatientCase c = state.currentCase();
-        briefing.setText(c == null || c.briefing() == null ? "" : c.briefing());
+        briefing.setText(RawNotesView.text(c));
+        if (briefingCard != null) briefingCard.setBorder(Theme.card(RawNotesView.title(c)));
         errorLabel.setText(" ");
         refreshLists();
     }

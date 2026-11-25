@@ -21,10 +21,12 @@ import java.util.List;
  * @param vitals         측정 시각별 활력징후
  * @param observationLog 기존 관찰 로그
  * @param safetyRounds   안전 라운딩
- * @param briefing       상황 브리핑 (제출 전 제공)
+ * @param briefing       상황 브리핑. 학생에게 보이지 않고 모범 기록·AI 해설의 사실로만 쓴다 (원자료 메모가 없는 예전 케이스는 화면에 보인다)
  * @param sbarReference  SBAR 참고 자료 (제출 전 제공)
  * @param answerKey      정답 키 (제출 후 공개)
  * @param modelAnswer    모범 기록 (제출 후 공개)
+ * @param rawNotes       원자료 메모 (학생 화면에 보이는 근무 중 메모, 시간 순서 일부 섞임)
+ * @param task           과제 안내 (원자료 메모 위에 보인다)
  */
 public record PatientCase(
         String id,
@@ -45,7 +47,9 @@ public record PatientCase(
         String briefing,
         String sbarReference,
         AnswerKey answerKey,
-        ModelAnswer modelAnswer) {
+        ModelAnswer modelAnswer,
+        List<RawNote> rawNotes,
+        String task) {
 
     public PatientCase {
         objectives = Lists.copy(objectives);
@@ -55,6 +59,12 @@ public record PatientCase(
         vitals = Lists.copy(vitals);
         observationLog = Lists.copy(observationLog);
         safetyRounds = Lists.copy(safetyRounds);
+        rawNotes = Lists.copy(rawNotes);
+    }
+
+    /** 원자료 메모가 있는지 (없으면 예전 방식대로 브리핑을 보여 준다). */
+    public boolean hasRawNotes() {
+        return !rawNotes.isEmpty();
     }
 
     /** 처방 식별자로 처방을 찾는다. 없으면 null. */
