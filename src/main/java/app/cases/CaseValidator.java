@@ -157,7 +157,71 @@ public class CaseValidator {
             }
         }
         checkKeyInNotes(p, c, rel);
+        checkUnlabeledNotes(p, c);
+        checkRawSpeech(p, rel);
         checkModelAgainstNotes(p, c);
+    }
+
+    /**
+     * 환자 말이 정리되지 않은 원문인지 (PC-01 수준): 관련 있는 메모의 따옴표 안 환자 말 전체에 끊김(… 또는 ...)이 2번 이상,
+     * 한 메모의 환자 말 안에서 같은 낱말 되풀이가 1번 이상 있어야 한다.
+     * (환자 말이 든 메모를 2~3개 두라는 것은 생성 지시로만 요구한다. 실제 AI가 한 메모에 몰아 쓰는 일이 잦아 검사로 막으면 생성이 자주 실패한다.)
+     */
+    private static void checkRawSpeech(List<String> p, String rel) {
+        boolean repeated = false;
+        for (String line : rel.split("\n")) {
+            String said = quoted(line);
+            if (!said.isBlank() && hasRepeatedWord(said)) repeated = true;
+        }
+        String speech = quoted(rel);
+        int pauses = 0;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("…|\\.\\.\\.").matcher(speech);
+        while (m.find()) pauses++;
+        if (pauses < 2) p.add("rawNotes 환자 말이 정리돼 있음: 말 끊김(…)이 2번 이상 필요 (현재 " + pauses + "번)");
+        if (!repeated) p.add("rawNotes 환자 말이 정리돼 있음: 같은 낱말을 되풀이하는 말이 필요 (예: \"계속, 계속 봐요\")");
+    }
+
+    /** 메모 하나의 환자 말 안에서 같은 낱말(2글자 이상)이 두 번 이상 나오는지. */
+    static boolean hasRepeatedWord(String said) {
+        java.util.Map<String, Integer> count = new java.util.HashMap<>();
+        for (String w : said.split("[^\\p{L}\\p{N}]+")) {
+            if (w.length() >= 2 && count.merge(w, 1, Integer::sum) >= 2) return true;
+        }
+        return false;
+    }
+
+    /**
+     * irrelevant 표시가 없는 메모는 이번 사건과 이어져야 한다: 정답 키 요소(관찰·투약·SBAR 아무 영역)의 동의어,
+     * 케이스 활력징후 혈압 값(예: 118/76), 따옴표 안 환자 말 중 하나라도 있어야 한다. 없으면 표시 없이 섞인 관련 없는 메모로 본다.
+     */
+    private static void checkUnlabeledNotes(List<String> p, PatientCase c) {
+        var key = c.answerKey();
+        if (key == null) return;
+        List<app.scoring.ElementPattern> all = new ArrayList<>();
+        all.addAll(app.scoring.ElementPattern.parseAll(key.observationElements()));
+        all.addAll(app.scoring.ElementPattern.parseAll(key.medicationElements()));
+        var s = key.sbarElements();
+        if (s != null) {
+            for (List<String> l : List.of(s.situation(), s.background(), s.assessment(), s.recommendation())) {
+                all.addAll(app.scoring.ElementPattern.parseAll(l));
+            }
+        }
+        List<String> bp = new ArrayList<>();
+        for (var v : c.vitals()) {
+            if (v != null && v.systolic() != null && v.diastolic() != null) bp.add(v.systolic() + "/" + v.diastolic());
+        }
+        for (int i = 0; i < c.rawNotes().size(); i++) {
+            app.domain.RawNote n = c.rawNotes().get(i);
+            if (n == null || n.irrelevant() || blank(n.text())) continue;
+            String text = n.text();
+            // 환자 말(따옴표)이 든 메모는 이번 환자의 사건 메모로 본다
+            boolean linked = !quoted(text).isBlank()
+                    || all.stream().anyMatch(e -> e.foundIn(text)) || bp.stream().anyMatch(text::contains);
+            if (!linked) {
+                p.add("rawNotes[" + i + "](" + n.time() + ") 관련 표시인데 정답 키·활력징후와 이어지는 내용이 없음"
+                        + " (이번 사건과 관계없는 메모면 \"irrelevant\":true와 cues를 붙임)");
+            }
+        }
     }
 
     /** 정답 키의 모든 요소가 관련 있는 메모에 있는지. 발언 인용은 메모의 따옴표 안 환자 말에 있어야 한다. */

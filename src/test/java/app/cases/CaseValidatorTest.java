@@ -30,9 +30,10 @@ class CaseValidatorTest {
                                {"time":"10:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"}],
              "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%s","dose":"%s","unit":"%s","route":"%s","scheduleTimes":["08:00"]}],
              "task":"합성 과제",
-             "rawNotes":[{"time":"07:20","text":"인계 받음"},{"time":"09:30","text":"데이룸. 서성거림. %s %smg PO 줌"},
-                         {"time":"09:00","text":"합성 메모 1"},{"time":"10:00","text":"합성 메모 2"},{"time":"11:00","text":"합성 메모 3"},
-                         {"time":"13:00","text":"합성 메모 4"},{"time":"12:00","text":"점심 배식","irrelevant":true,"cues":["점심"]},
+             "rawNotes":[{"time":"07:20","text":"인계 받음. 정규약 PO 아침"},{"time":"09:30","text":"데이룸. 서성거림. %s %smg PO 줌"},
+                         {"time":"09:00","text":"데이룸 합성 메모 1"},{"time":"10:00","text":"데이룸 합성 메모 2"},
+                         {"time":"11:00","text":"데이룸. \\"아… 저기, 저기… 괜찮아요\\""},
+                         {"time":"13:00","text":"데이룸 의자. \\"네… 네\\""},{"time":"12:00","text":"점심 배식","irrelevant":true,"cues":["점심"]},
                          {"time":"14:00","text":"보호자 전화","irrelevant":true,"cues":["보호자"]}],
              "answerKey":{"observationElements":["장소=데이룸"],"medicationElements":["약명=%s|TestDrug","용량=%s","경로=PO|경구","시각=09:30"]}}
             """.formatted(briefing, time, drug, dose, unit, route, drug, dose, drug, dose);

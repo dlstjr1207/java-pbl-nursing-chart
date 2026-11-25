@@ -129,11 +129,12 @@ public class CaseGenerator {
             return fallback(unavailableReason(), List.of());
         }
         List<String> problems = List.of();
+        String previous = null; // 검사에 걸린 직전 케이스(JSON). 다시 요청할 때 이것을 고치게 한다
         String conditions = conditions();
         for (int i = 1; i <= maxAttempts; i++) {
             String content;
             try {
-                content = ai.complete(systemPrompt(), userPrompt(conditions, problems));
+                content = ai.complete(systemPrompt(), userPrompt(conditions, problems, previous));
             } catch (IOException e) {
                 problems = List.of("AI 호출 실패");
                 continue;
@@ -144,6 +145,7 @@ public class CaseGenerator {
             } catch (RuntimeException e) {
                 // 원인을 다음 요청에 알려 고치게 한다
                 problems = List.of("JSON 형식 오류: 응답을 케이스로 읽을 수 없음 (" + shortReason(e) + ")");
+                previous = null;
                 continue;
             }
             problems = new ArrayList<>(validator.check(c));
@@ -153,6 +155,7 @@ public class CaseGenerator {
                 remember(c);
                 return new Result(withId(c, newCaseId()), true, "AI가 새 케이스를 만들었습니다.", List.of());
             }
+            previous = DomainJson.toJson(c);
         }
         return fallback("케이스 생성에 " + maxAttempts + "번 실패해 기본 케이스로 실습합니다.", problems);
     }
@@ -167,7 +170,7 @@ public class CaseGenerator {
         return new PatientCase("GEN-검사중", c.title(), c.difficulty(), c.objectives(), "AI_GENERATED",
                 CaseSource.AI_GENERATED, c.patient(), c.adr(), c.riskTier(), tidyOrders(c.orders()), c.regimenHistory(),
                 c.lithiumLevel(), c.vitals(), c.observationLog(), c.safetyRounds(), c.briefing(),
-                c.sbarReference(), tidyKey(c.answerKey()), tidyModel(c.modelAnswer()), tidyCues(c.rawNotes()), c.task());
+                c.sbarReference(), tidyKey(c.answerKey()), tidyModel(c.modelAnswer()), tidyOrder(tidyCues(c.rawNotes())), c.task());
     }
 
     // ---- 용량 표기 정리: AI가 "1.0"으로 준 값을 "1"로 저장해 화면·정답 키·모범 기록을 같은 표기로 맞춘다 ----
@@ -207,7 +210,8 @@ public class CaseGenerator {
 
     /**
      * 관련 없는 메모의 알아볼 낱말(cues) 정리: 그 메모 글에 없거나 관련 있는 메모에도 나오는 흔한 낱말(예: '측정', '침상')은 뺀다.
-     * 메모 내용은 바꾸지 않는다. 남는 낱말이 없으면 그대로 두어 검사기가 이유를 알리게 한다.
+     * 메모 내용은 바꾸지 않는다. 남는 낱말이 없으면 그 메모 글에서 관련 메모에 없는 낱말을 골라 쓰고(cuesFromText),
+     * 그런 낱말도 없으면 그대로 두어 검사기가 이유를 알리게 한다.
      */
     static List<app.domain.RawNote> tidyCues(List<app.domain.RawNote> notes) {
         if (notes == null) return null;
@@ -222,9 +226,64 @@ public class CaseGenerator {
             String own = squash(n.text());
             List<String> keep = n.cues().stream().filter(c -> c != null && !c.isBlank())
                     .filter(c -> own.contains(squash(c)) && !relevant.contains(squash(c))).toList();
+            if (keep.isEmpty()) keep = cuesFromText(n.text(), relevant);
             out.add(keep.isEmpty() ? n : new app.domain.RawNote(n.time(), n.text(), true, keep));
         }
         return out;
+    }
+
+    /** 알아볼 낱말로 쓰지 않는 흔한 말 */
+    private static final java.util.Set<String> COMMON_WORDS = java.util.Set.of("측정", "침상", "지원", "확인", "환자", "요청",
+            "문의", "전화", "완료", "다른", "관련", "시간", "병동", "간호사", "옴", "함", "받음", "드림", "해줌", "있음", "없음");
+    /** 낱말 끝에서 떼는 조사·메모체 끝말 (긴 것부터) */
+    private static final List<String> PARTICLES = List.of("에서", "으로", "에게", "이", "가", "을", "를", "은", "는", "에", "로",
+            "와", "과", "의", "도", "함", "옴", "됨");
+
+    /**
+     * 관련 없는 메모의 알아볼 낱말이 모두 빠졌을 때, 그 메모 글에서 관련 있는 메모에 나오지 않는 낱말(2글자 이상, 조사 뗌)을
+     * 최대 3개 고른다. 메모 글에 있는 낱말만 쓰므로 새 내용을 지어내지 않는다.
+     */
+    static List<String> cuesFromText(String text, String relevantSquashed) {
+        List<String> out = new ArrayList<>();
+        if (text == null) return out;
+        for (String w : text.split("[^\\p{L}\\p{N}]+")) {
+            for (String p : PARTICLES) {
+                if (w.length() > p.length() + 1 && w.endsWith(p)) {
+                    w = w.substring(0, w.length() - p.length());
+                    break;
+                }
+            }
+            if (w.length() < 2 || w.matches(".*\\d.*") || COMMON_WORDS.contains(w)) continue;
+            if (relevantSquashed.contains(squash(w)) || out.contains(w)) continue;
+            out.add(w);
+            if (out.size() == 3) break;
+        }
+        return out;
+    }
+
+    /**
+     * 메모 순서 정리: 메모가 시각순으로 완전히 정렬돼 있으면 가운데의 시각이 다른 이웃 두 메모의 자리를 바꿔
+     * 순서를 일부 섞는다(두서없는 메모). 메모 글·시각은 바꾸지 않고 보이는 순서만 바꾼다.
+     */
+    static List<app.domain.RawNote> tidyOrder(List<app.domain.RawNote> notes) {
+        if (notes == null || notes.size() < 3) return notes;
+        for (int i = 1; i < notes.size(); i++) {
+            app.domain.RawNote a = notes.get(i - 1);
+            app.domain.RawNote b = notes.get(i);
+            if (a == null || b == null || a.time() == null || b.time() == null) return notes;
+            if (b.time().compareTo(a.time()) < 0) return notes; // 이미 섞여 있음
+        }
+        List<app.domain.RawNote> out = new ArrayList<>(notes);
+        int mid = out.size() / 2;
+        for (int d = 0; d < out.size(); d++) {
+            for (int i : new int[] {mid + d, mid - d}) {
+                if (i >= 1 && i < out.size() && !out.get(i).time().equals(out.get(i - 1).time())) {
+                    java.util.Collections.swap(out, i - 1, i);
+                    return out;
+                }
+            }
+        }
+        return notes; // 모든 시각이 같으면 그대로 (검사기가 알린다)
     }
 
     private static String squash(String s) {
@@ -256,6 +315,19 @@ public class CaseGenerator {
                 .filter(x -> x.status() == app.domain.CheckStatus.MISSING || x.status() == app.domain.CheckStatus.MISMATCH)
                 .limit(6)
                 .forEach(x -> out.add("모범 기록 " + x.ruleId() + " " + x.targetRef() + ": " + x.message()));
+        // 관찰 핵심 사실이 빠졌으면 어떤 동의어를 넣어야 하는지 구체적으로 알린다 (같은 실수를 되풀이하지 않게)
+        if (c.answerKey() != null) {
+            for (var e : app.scoring.ElementPattern.parseAll(c.answerKey().observationElements())) {
+                boolean missing = r.checks().stream().anyMatch(x -> x.status() == app.domain.CheckStatus.MISSING
+                        && x.targetRef().equals("observation.fact[" + e.label() + "]"));
+                if (missing) {
+                    String raw = c.answerKey().observationElements().stream()
+                            .filter(x -> x != null && x.startsWith(e.label() + "=")).findFirst().orElse(e.label());
+                    out.add("고치는 법: modelAnswer.observationRecord의 narrative나 intervention에 정답 키 '" + raw
+                            + "'의 동의어 하나를 글자 그대로 넣는다 (동의어는 메모에 있는 낱말이어야 함)");
+                }
+            }
+        }
         return out;
     }
 
@@ -320,14 +392,21 @@ public class CaseGenerator {
             + "briefing은 학생에게 보이지 않는 정리된 사실(모범 기록·해설용)이다. rawNotes 조건:\n"
             + "(a) 담당 간호사(학생)가 근무 중에 적어 둔 짧은 메모 10~12개, 각각 {\"time\":\"HH:mm\",\"text\":\"…\"}. "
             + "배열 순서는 시간순이 아니게 2곳 이상 섞는다(예: 10:00 메모가 09:30 메모보다 앞).\n"
-            + "(b) 환자 말은 정리하지 않은 원문 그대로 큰따옴표 안에 쓴다. 끊기고 반복되고 두서없는 말투로 쓴다"
-            + "(예: \"아 그니까… 저기 저 사람이… 계속 봐요, 계속\"). 환자 말이 들어간 메모를 2개 이상 둔다.\n"
+            + "(b) 환자 말은 정리하지 않은 원문 그대로 큰따옴표 안에 쓴다. 기본 케이스 수준으로 끊기고 반복되고 두서없게 쓴다: "
+            + "환자 말(큰따옴표)이 들어간 관련 메모를 반드시 2~3개(한 메모에 몰지 말고 서로 다른 시각의 메모에 나눠서) 두고, 환자 말 전체에 말줄임표(…)를 3번 이상 넣고, "
+            + "적어도 한 메모의 환자 말에서는 같은 낱말(2글자 이상)을 2~3번 되풀이한다"
+            + "(예: \"아 그니까… 저기, 저기 저 사람이… 누가 나를 감시하는 것 같아요… 계속, 계속 봐요 계속\", "
+            + "\"여기는… 여기는 아무도 없죠? 없죠?\"). 매끄럽게 정리된 한 문장(예: \"누가 나를 감시하는 것 같아요\")만 쓰지 않는다.\n"
             + "(c) 메모에 다음이 모두 있어야 한다: 근무 시작 인계(진단·입원 일수·현재 처방), 사건 장소와 시각, 관찰한 행동, "
             + "간호 중재(행동 그대로), PRN 투약(약명·용량·경로·투여 시각·사유·구강 확인), 재평가 시각과 결과, "
             + "다음 근무에 넘길 일(정규 투약 시각·관찰). 활력징후를 메모에 쓰면 vitals 값과 같아야 한다. "
             + "answerKey의 모든 요소(observationElements·medicationElements·sbarElements 각 영역)의 동의어 중 하나가 "
             + "관련 있는 메모 글에 글자 그대로 있어야 하고, '발언 인용' 동의어는 메모의 큰따옴표 안 환자 말에 있어야 한다.\n"
-            + "(d) 이번 사건과 관련 없는 메모 2~3개를 섞고 \"irrelevant\":true와 \"cues\"(그 메모에만 있는 낱말 2~4개)를 붙인다 "
+            + "(d) 이번 사건과 관련 없는 메모 2~3개를 섞고, 그런 메모에는 하나도 빠짐없이 반드시 \"irrelevant\":true와 "
+            + "\"cues\"(그 메모에만 있는 낱말 2~4개)를 붙인다. irrelevant 표시가 없는 메모는 모두 이번 환자의 사건·인계·투약·"
+            + "활력징후 메모여야 하고, 각 메모에 answerKey 동의어나 vitals 혈압 값(예: 118/76)이 하나 이상 있어야 한다. "
+            + "다른 환자 일, 배식, 보호자 전화, 물품·비품 정리, 라운딩 특이사항 없음, 행정 업무처럼 이번 사건과 관계없는 메모를 "
+            + "irrelevant 표시 없이 두지 않는다(이런 메모는 모두 irrelevant:true, 이 메모만 2~3개) "
             + "(예: 점심 배식, 보호자 전화로 면회 시간 문의, 다른 환자 채혈 지원). 관련 없는 메모에는 임상 수치를 쓰지 않는다. "
             + "cues 낱말은 그 메모에만 있는 구체적인 명사(예: 배식, 원무과, 면회, 혈당)로 고르고, "
             + "관련 있는 메모와 모범 기록 어디에도 쓰지 않는다(측정·침상·지원·확인·환자 같은 흔한 말 금지).\n"
@@ -336,7 +415,8 @@ public class CaseGenerator {
             + "모범 기록은 메모 문장을 그대로 옮기지 말고 필요한 사실만 골라 자연스러운 문장으로 새로 쓴다(환자 말 인용은 그대로 가능). "
             + "순서: rawNotes를 먼저 쓰고, answerKey의 모든 동의어는 rawNotes(관련 있는 메모)에 실제로 쓴 낱말에서 고른다"
             + "(예: 메모에 '차분해짐'이라고 썼으면 재평가 결과=차분|안정, 메모에 '안정'이 없으면 '안정'을 동의어로 쓰지 않는다). "
-            + "답하기 전에 observationElements·medicationElements·sbarElements의 요소 하나하나가 메모 글에 글자 그대로 있는지 확인한다.\n"
+            + "답하기 전에 observationElements·medicationElements·sbarElements의 요소 하나하나가 메모 글에 글자 그대로 있는지, "
+            + "관계없는 메모마다 irrelevant:true와 cues가 있는지, 환자 말에 말줄임표와 낱말 되풀이가 있는지 확인한다.\n"
             + "task에는 근무 날짜·근무 구분·시간, '아래 메모에서 필요한 사실만 골라 (1) 사건의 관찰 기록 1건 (2) PRN 투약 기록 1건 "
             + "(3) 근무 끝 SBAR 인계를 작성' 안내만 쓰고, 사건 내용이나 정답은 쓰지 않는다.\n";
 
@@ -360,7 +440,7 @@ public class CaseGenerator {
                          {"time":"HH:mm","text":"장소. 관찰한 행동 메모"},
                          {"time":"HH:mm","text":"말 걸었더니 → \\"두서없는 환자 말 원문\\""},
                          {"time":"HH:mm","text":"재평가 시각·결과 메모 (시간 순서를 섞은 자리)"},
-                         {"time":"HH:mm","text":"간호 중재 메모"},
+                         {"time":"HH:mm","text":"간호 중재 메모 + 그때 한 환자 말 \\"끊기고… 되풀이되는, 되풀이되는 말 원문\\""},
                          {"time":"HH:mm","text":"점심 배식 도움 같은 관련 없는 메모","irrelevant":true,"cues":["점심","배식"]},
                          {"time":"HH:mm","text":"PRN 약명 용량 경로 투여, 사유, 구강 확인 메모"},
                          {"time":"HH:mm","text":"활력징후 메모(vitals와 같은 값)"},
@@ -489,15 +569,24 @@ public class CaseGenerator {
     }
 
     String userPrompt(List<String> problems) {
-        return userPrompt("", problems);
+        return userPrompt("", problems, null);
     }
 
-    String userPrompt(String conditions, List<String> problems) {
+    /**
+     * 생성 요청 글. 다시 요청할 때는 직전 케이스(previous)와 문제 목록을 함께 보내, 처음부터 새로 만들지 않고
+     * 문제만 고치게 한다(새로 만들면 고친 곳 대신 다른 곳이 어긋나는 일이 잦다).
+     */
+    String userPrompt(String conditions, List<String> problems, String previous) {
         StringBuilder sb = new StringBuilder("사건 유형: ").append(EVENT_ANXIETY_PRN).append('\n');
         sb.append(conditions);
         sb.append("허용 약물: ").append(DomainJson.toJson(validator.allowedDrugs().all())).append('\n');
         if (!problems.isEmpty()) {
             sb.append("이전 응답의 문제를 고쳐 다시 만든다: ").append(String.join("; ", problems));
+            if (previous != null) {
+                sb.append("\n아래 이전 응답에서 위 문제만 고치고, 문제가 없는 부분(환자·메모·정답 키·모범 기록)은 그대로 둔 채 ")
+                        .append("전체 JSON을 다시 답한다. 고친 뒤 다른 조건(메모 순서 섞임, 관련 없는 메모 표시, 정답 키 동의어가 메모에 있음, ")
+                        .append("모범 기록은 메모를 그대로 옮기지 않음)이 깨지지 않았는지 확인한다.\n이전 응답: ").append(previous);
+            }
         }
         return sb.toString();
     }

@@ -65,7 +65,7 @@ public class ResultPanel extends JPanel implements Reloadable {
         RuleBarsPanel chart = new RuleBarsPanel();
         chart.setScores(Scorer.WEIGHTS, a.checks().isEmpty() ? java.util.Map.of() : Scorer.score(a.checks()).ruleScores());
         bars.add(chart, BorderLayout.CENTER);
-        JLabel r9 = new JLabel("R9 SBAR 구성은 배점 없이 피드백만 줍니다.");
+        JLabel r9 = new JLabel("R9 SBAR 구성과 R10 원자료 정리는 배점 없이 피드백만 줍니다.");
         r9.setForeground(Theme.MUTED);
         bars.add(r9, BorderLayout.SOUTH);
         addCard(bars);
@@ -83,7 +83,7 @@ public class ResultPanel extends JPanel implements Reloadable {
         addCard(fix);
 
         if (!g.feedback().isEmpty()) {
-            JPanel fb = Theme.cardPanel("피드백 — 판단 표현·SBAR 구성 (배점 없음, " + g.feedback().size() + ")", new BorderLayout());
+            JPanel fb = Theme.cardPanel("피드백 — 판단 표현·SBAR 구성·원자료 정리 (배점 없음, " + g.feedback().size() + ")", new BorderLayout());
             fb.add(text(ResultView.lines(g.feedback()).strip(), Theme.TEXT), BorderLayout.CENTER);
             addCard(fb);
         }

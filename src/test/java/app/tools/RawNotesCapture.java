@@ -15,7 +15,7 @@ import javax.swing.SwingUtilities;
 /**
  * 환자 정보 화면(원자료 메모)을 그림 파일로 저장하는 점검 도구 (개발용, 프로그램에 포함 안 됨).
  * 화면을 띄우지 않고 창 컴포넌트만 그리므로 다른 화면 내용은 찍히지 않는다.
- * 사용: RawNotesCapture &lt;출력.png&gt; [케이스 JSON 파일(없으면 PC-01)]
+ * 사용: RawNotesCapture &lt;출력.png&gt; [케이스 JSON 파일(없으면 PC-01)]. -Dscreen=observation이면 관찰 화면을 그린다.
  */
 public final class RawNotesCapture {
     public static void main(String[] args) throws Exception {
@@ -29,7 +29,8 @@ public final class RawNotesCapture {
             s.startPractice(c);
             JFrame f = new JFrame();
             f.setUndecorated(true);
-            PatientInfoPanel p = new PatientInfoPanel(s, x -> { });
+            javax.swing.JPanel p = "observation".equals(System.getProperty("screen"))
+                    ? new app.ui.ObservationPanel(s, x -> { }) : new PatientInfoPanel(s, x -> { });
             p.setBackground(Theme.BG);
             f.setContentPane(p);
             f.pack();

@@ -77,7 +77,7 @@ class CaseGeneratorTest {
                          {"time":"08:00","text":"데이룸 왔다갔다 \\"무, 무서워요… 무서워\\""},
                          {"time":"08:00","text":"%1$s %2$smg PO 줌"},
                          {"time":"08:40","text":"재평가 안정, 불안 줄어듦"},
-                         {"time":"08:20","text":"합성 메모"},
+                         {"time":"08:20","text":"데이룸 구석. \\"여기… 여기 있어도 돼요?\\""},
                          {"time":"09:00","text":"다음 근무 관찰 부탁"},
                          {"time":"12:00","text":"점심 배식","irrelevant":true,"cues":["점심","배식"]},
                          {"time":"13:00","text":"보호자 전화 면회 문의","irrelevant":true,"cues":["보호자","면회"]}],
@@ -123,6 +123,20 @@ class CaseGeneratorTest {
         assertTrue(r.generated());
         assertEquals(3, f.calls);
         assertTrue(f.prompts.get(1).contains("허용 약물 목록에 없음")); // 위반 이유를 알려 줌
+        // 처음부터 새로 만들지 않고 직전 케이스를 고치게 한다
+        assertTrue(f.prompts.get(1).contains("위 문제만 고치고"));
+        assertTrue(f.prompts.get(1).contains("이전 응답:") && f.prompts.get(1).contains("없는약"));
+        assertFalse(f.prompts.get(0).contains("이전 응답:")); // 첫 요청에는 없음
+    }
+
+    @Test
+    void 형식_오류_뒤에는_직전_응답_없이_다시_요청한다() {
+        Fake f = new Fake();
+        f.contents.add("JSON이 아님");
+        f.contents.add(caseJson("테스트약A", "3"));
+        assertTrue(generator(ON, f, ALLOWED, 2).generate().generated());
+        assertTrue(f.prompts.get(1).contains("JSON 형식 오류"));
+        assertFalse(f.prompts.get(1).contains("이전 응답:"));
     }
 
     @Test
@@ -323,6 +337,10 @@ class CaseGeneratorTest {
         assertTrue(prompt.contains("간호사에게 알리고"));
         assertTrue(prompt.contains("PO|경구"));
         assertTrue(prompt.contains("한글·영어"));
+        // 원자료 메모: 환자 말은 끊기고 되풀이되게, 관계없는 메모에는 반드시 irrelevant와 cues
+        assertTrue(prompt.contains("말줄임표(…)를 3번 이상"));
+        assertTrue(prompt.contains("같은 낱말(2글자 이상)을 2~3번 되풀이"));
+        assertTrue(prompt.contains("하나도 빠짐없이 반드시"));
         assertFalse(prompt.contains("\\\"id\\\":\\\"GEN-1\\\"")); // 견본에 ID를 주지 않는다
     }
 
@@ -336,6 +354,8 @@ class CaseGeneratorTest {
         assertTrue(r.generated());
         assertEquals(2, f.calls);
         assertTrue(f.prompts.get(1).contains("100점이어야 함"), f.prompts.get(1));
+        // 빠진 핵심 사실의 정답 키 동의어를 알려 준다
+        assertTrue(f.prompts.get(1).contains("고치는 법") && f.prompts.get(1).contains("장소=데이룸"), f.prompts.get(1));
         // 구조화된 모범 기록이 없어도 거부
         Fake g = new Fake();
         g.contents.add(caseJson("테스트약A", "3").replaceAll(",\\s*\"observationRecord\"[\\s\\S]*\\}\\}\\s*$", "}}"));

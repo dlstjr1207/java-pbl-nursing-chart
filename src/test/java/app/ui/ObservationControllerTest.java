@@ -94,16 +94,20 @@ class ObservationControllerTest {
     }
 
     @Test
-    void 기존_기록과_학생_기록을_시각순으로_함께_보이고_출처가_구분된다() {
+    void 관찰_목록에는_학생_기록만_시각순으로_보이고_기존_로그는_숨긴다() {
+        saveValid("10:30", "학생 나중", Map.of());
         saveValid("08:30", "학생 먼저", Map.of());
-        saveValid("09:00", "같은 시각 학생", Map.of());
         List<ObservationController.TimelineRow> rows = controller.timeline();
-        assertEquals(3, rows.size());
-        assertEquals("08:30", rows.get(0).time());
-        assertFalse(rows.get(0).fromCase());
-        assertTrue(rows.get(1).fromCase()); // 같은 시각이면 기존 기록이 먼저
-        assertTrue(rows.get(1).text().startsWith("[기존]"));
-        assertTrue(rows.get(2).text().startsWith("[학생]"));
+        assertEquals(List.of("08:30", "10:30"), rows.stream().map(r -> r.time()).toList());
+        assertTrue(rows.stream().noneMatch(r -> r.fromCase()));
+        assertTrue(rows.stream().allMatch(r -> r.text().startsWith("[학생]")));
+        // 기존 로그 데이터는 지우지 않는다 (AI 해설 자료)
+        assertEquals(1, state.currentCase().observationLog().size());
+    }
+
+    @Test
+    void 기록이_없으면_목록이_비어_있다() {
+        assertTrue(controller.timeline().isEmpty());
     }
 
     @Test

@@ -69,7 +69,7 @@ public class SbarController {
         if (pc != null) {
             for (String line : caseFactLines(pc)) p.append(line).append('\n');
         }
-        // 학생이 환자 정보 화면에서 본 활력징후·관찰 로그도 사실이다. 빠지면 AI가 실제 수치를 "지어냈다"고 잘못 지적한다.
+        // 활력징후와 케이스 관찰 로그(학생 화면에는 숨김, 같은 내용이 원자료 메모에 있음)도 사실이다. 빠지면 AI가 실제 수치를 "지어냈다"고 잘못 지적한다.
         if (pc != null) {
             for (app.domain.VitalSign v : pc.vitals()) {
                 p.append("[케이스 활력징후] ").append(v.time()).append(' ').append(vitalText(v)).append('\n');

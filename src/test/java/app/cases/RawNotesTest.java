@@ -78,6 +78,25 @@ class RawNotesTest {
         assertEquals(List.of(), r10(r));
     }
 
+    @Test
+    void 판단_표현_불안해_보임은_R1_피드백만_주고_점수는_그대로다() {
+        ObservationEntry model = pc01.modelAnswer().observationRecord();
+        Scorer.Result base = score(List.of(model));
+        Scorer.Result r = score(List.of(obs(model, model.narrative() + " 불안해 보임.")));
+        assertTrue(r.checks().stream().anyMatch(c -> c.ruleId().equals("R1") && c.status() == CheckStatus.FEEDBACK
+                && c.message().contains("불안해 보임")), r.checks().toString());
+        assertEquals(base.score(), r.score());
+        // 모범 기록에는 판단 표현 피드백이 없다
+        assertTrue(base.checks().stream().noneMatch(c -> c.status() == CheckStatus.FEEDBACK), base.checks().toString());
+    }
+
+    @Test
+    void 불안해하며_같은_행동_서술은_판단_표현으로_잡지_않는다() {
+        ObservationEntry model = pc01.modelAnswer().observationRecord();
+        Scorer.Result r = score(List.of(obs(model, model.narrative() + " 불안해하며 서성임.")));
+        assertTrue(r.checks().stream().noneMatch(c -> c.ruleId().equals("R1") && c.status() == CheckStatus.FEEDBACK));
+    }
+
     // ---- R10 피드백 ----
 
     @Test
@@ -173,6 +192,45 @@ class RawNotesTest {
     }
 
     @Test
+    void PC01은_환자_말_원문과_관련_표시_검사를_통과한다() {
+        List<String> p = problems(pc01.rawNotes());
+        assertTrue(p.stream().noneMatch(x -> x.contains("환자 말") || x.contains("관련 표시인데")), p.toString());
+    }
+
+    @Test
+    void 표시_없이_섞인_관련_없는_메모는_불합격() {
+        List<RawNote> notes = new ArrayList<>(pc01.rawNotes());
+        notes.add(RawNote.of("15:20", "502호 침구 교체 요청 받아 린넨실에 연락"));
+        assertTrue(has(problems(notes), "(15:20) 관련 표시인데 정답 키·활력징후와 이어지는 내용이 없음"));
+        // 정답 키 낱말이 없어도 환자 말(따옴표)이 든 메모는 사건 메모로 본다
+        List<RawNote> speech = new ArrayList<>(pc01.rawNotes());
+        speech.add(RawNote.of("09:28", "또 말함 \"자꾸… 자꾸 비웃는 것 같아요\""));
+        assertFalse(has(problems(speech), "(09:28) 관련 표시인데"));
+    }
+
+    @Test
+    void 환자_말을_정리해_쓰면_불합격() {
+        // 끊김·되풀이 없이 정리된 말로 바꾼다
+        List<RawNote> notes = pc01.rawNotes().stream().map(n -> n.irrelevant() || !n.text().contains("\"") ? n
+                : new RawNote(n.time(), n.text().replaceAll("\"[^\"]*\"", "\"누가 나를 감시하는 것 같아요\""), false, List.of()))
+                .toList();
+        List<String> p = problems(notes);
+        assertTrue(has(p, "말 끊김(…)이 2번 이상 필요"), p.toString());
+        assertTrue(has(p, "같은 낱말을 되풀이하는 말이 필요"), p.toString());
+        // 끊기고 되풀이되는 환자 말이 한 메모에만 있어도 통과 (메모 2~3개는 생성 지시로만 요구)
+        List<RawNote> one = pc01.rawNotes().stream().filter(n -> n.irrelevant() || !n.text().contains("\"")
+                || n.text().contains("감시")).toList();
+        assertFalse(has(problems(one), "환자 말"), problems(one).toString());
+    }
+
+    @Test
+    void 되풀이_낱말_판정() {
+        assertTrue(CaseValidator.hasRepeatedWord("계속, 계속 봐요 계속"));
+        assertTrue(CaseValidator.hasRepeatedWord("여기는… 여기는 아무도 없죠?"));
+        assertFalse(CaseValidator.hasRepeatedWord("누가 나를 감시하는 것 같아요"));
+    }
+
+    @Test
     void 시각이_모두_정렬돼_있으면_불합격() {
         List<RawNote> sorted = pc01.rawNotes().stream()
                 .sorted(java.util.Comparator.comparing(RawNote::time)).toList();
@@ -228,8 +286,32 @@ class RawNotesTest {
         List<RawNote> t = CaseGenerator.tidyCues(notes);
         assertEquals(notes.get(0), t.get(0));
         assertEquals(List.of("혈당"), t.get(1).cues()); // 관련 메모에도 있는 '침상', 글에 없는 '없는말'은 뺀다
-        assertEquals(List.of("침상"), t.get(2).cues()); // 남는 낱말이 없으면 그대로 두어 검사기가 알린다
-        assertTrue(new CaseValidator(AllowedDrugs.load()).check(withNotes(pc01, t)).stream()
+        assertEquals(List.of("정리"), t.get(2).cues()); // 남는 낱말이 없으면 메모 글에서 관련 메모에 없는 낱말을 고른다
+        // 그런 낱말도 없으면 그대로 두어 검사기가 알린다
+        List<RawNote> none = List.of(RawNote.of("17:50", "재평가함. 침상에서 쉬는 중."),
+                new RawNote("16:00", "침상", true, List.of("침상")));
+        assertEquals(List.of("침상"), CaseGenerator.tidyCues(none).get(1).cues());
+        assertTrue(new CaseValidator(AllowedDrugs.load()).check(withNotes(pc01, CaseGenerator.tidyCues(none))).stream()
                 .anyMatch(x -> x.contains("cues '침상'이(가) 관련 있는 메모에도")));
+    }
+
+    @Test
+    void 사건_장소와_겹치는_알아볼_낱말은_메모_글의_다른_낱말로_바꾼다() {
+        // 실제 AI 생성에서 나온 경우: 사건 장소 '면회실'과 관련 없는 메모의 낱말 '면회'가 겹침
+        List<RawNote> notes = List.of(RawNote.of("19:30", "면회실 앞. 계속 왔다 갔다 함."),
+                new RawNote("16:00", "보호자가 면회 신청 전화함.", true, List.of("면회")));
+        List<RawNote> t = CaseGenerator.tidyCues(notes);
+        assertEquals(List.of("보호자", "신청"), t.get(1).cues());
+    }
+
+    @Test
+    void 생성_케이스의_메모가_시각순으로_정렬돼_있으면_일부를_섞는다() {
+        List<RawNote> sorted = pc01.rawNotes().stream().sorted(java.util.Comparator.comparing(RawNote::time)).toList();
+        List<RawNote> t = CaseGenerator.tidyOrder(sorted);
+        assertEquals(new java.util.HashSet<>(sorted), new java.util.HashSet<>(t)); // 메모는 그대로, 순서만
+        assertEquals(sorted.size(), t.size());
+        assertFalse(has(problems(t), "모두 순서대로 정렬"));
+        // 이미 섞여 있으면 그대로
+        assertEquals(pc01.rawNotes(), CaseGenerator.tidyOrder(pc01.rawNotes()));
     }
 }
