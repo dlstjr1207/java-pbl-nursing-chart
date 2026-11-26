@@ -1,24 +1,28 @@
 {
-  "_설명": "AI 생성 케이스의 허용 약물·용량 범위 (D29). 근거표에서 원문을 확인한 허가 용법만 넣는다. 그 외 약은 생성 금지.",
+  "_설명": "AI 생성 케이스의 허용 약물·용량 범위 (D29). 근거표에서 원문을 확인한 허가 용법만 넣는다. 그 외 약은 생성 금지. tabletStrengths는 근거표에서 확인한 허가 제품의 정제 함량(처방 표기의 1T, D38).",
   "drugs": [
     {
       "name": "Aripiprazole", "aliases": ["아리피프라졸"], "unit": "mg", "route": "PO",
       "minDailyDose": 10, "maxDailyDose": 30,
+      "tabletStrengths": [10, 30], "_정제함량근거": "E-20(아리피졸정10밀리그램·30밀리그램)",
       "evidenceId": "E-20", "note": "1일 10~30mg. 허가 효능효과: 조현병, 양극성 장애 급성 조증 등(허가정보 API 2026-11-23 확인). 조현정동장애는 허가 적응증에 명시되지 않음 — 임상에서 흔한 허가 외 사용을 반영한 교육용 예시"
     },
     {
       "name": "Olanzapine", "aliases": ["올란자핀"], "unit": "mg", "route": "PO",
       "minDailyDose": 5, "maxDailyDose": 20,
+      "tabletStrengths": [10], "_정제함량근거": "E-28(산도스올란자핀정10mg)",
       "evidenceId": "E-28", "note": "1일 5~20mg"
     },
     {
       "name": "Lithium", "aliases": ["탄산리튬", "리튬", "Lithium carbonate"], "unit": "mg", "route": "PO",
       "minDailyDose": 600, "maxDailyDose": 1800, "timesPerDay": 3,
+      "tabletStrengths": [150, 300], "_정제함량근거": "E-21(명인탄산리튬정150밀리그램·300밀리그램)",
       "evidenceId": "E-21", "note": "1일 0.6~1.8g 3회 분할"
     },
     {
       "name": "Lorazepam", "aliases": ["로라제팜"], "unit": "mg", "route": "PO",
       "minDailyDose": 1, "maxDailyDose": 4, "prnDoses": [0.5, 1],
+      "tabletStrengths": [0.5, 1], "_정제함량근거": "E-29(스리반정0.5mg·1mg)",
       "evidenceId": "E-29", "note": "허가 효능효과: 신경증의 불안·긴장 등, 1일 1~4mg. 불안 시 PRN 1회 0.5 또는 1mg은 1일 범위 안. '초조'에 쓰는 것은 허가 외 사용을 반영한 교육용 예시"
     }
   ]

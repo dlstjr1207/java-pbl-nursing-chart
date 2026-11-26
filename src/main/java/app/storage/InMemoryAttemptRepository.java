@@ -53,6 +53,6 @@ public class InMemoryAttemptRepository implements AttemptRepository {
     static Attempt withId(Attempt a, long id) {
         return new Attempt(id, a.userId(), a.caseId(), a.caseSource(), a.generatedCaseJson(),
                 a.startedAt(), a.submittedAt(), a.observationEntries(), a.medicationRecords(),
-                a.sbar(), a.checks(), a.score(), a.aiFeedback());
+                a.sbar(), a.checks(), a.score(), a.aiFeedback(), a.mentalStatus());
     }
 }

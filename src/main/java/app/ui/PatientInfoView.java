@@ -65,18 +65,8 @@ public final class PatientInfoView {
 
     /** 처방 1건을 한 줄로: [구분] 약명 용량단위 / 경로 / 횟수 (시각, PRN 적응, 비고). */
     static String orderLine(Medication m) {
-        StringBuilder sb = new StringBuilder();
-        sb.append('[').append(typeLabel(m.type())).append("] ")
-                .append(text(m.drugName())).append(' ')
-                .append(text(m.dose())).append(m.unit() == null ? "" : m.unit())
-                .append(" / 경로 ").append(text(m.route()))
-                .append(" / ").append(text(m.frequency()));
-        if (!m.scheduleTimes().isEmpty()) sb.append(" / 시각 ").append(String.join(", ", m.scheduleTimes()));
-        String prn = text(m.prnIndication());
-        if (!prn.equals(EMPTY)) sb.append(" / PRN 적응: ").append(prn);
-        String note = StudentText.note(m.note());
-        if (!note.isBlank()) sb.append(" (").append(note).append(')');
-        return sb.toString();
+        // 실제 EMR 형식 (D38): "[정규] Aripiprazole 10mg 1T PO QD 08:30"
+        return "[" + typeLabel(m.type()) + "] " + OrderNotation.format(m);
     }
 
     private static String typeLabel(OrderType t) {

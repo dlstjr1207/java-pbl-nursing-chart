@@ -48,6 +48,29 @@ abstract class AttemptRepositoryContract {
     }
 
     @Test
+    void 정신상태_평가와_투약_5원칙을_저장하고_읽는다() {
+        // D38: 새 값도 저장·조회 후 그대로여야 한다 (MySQL은 attempt_extras 표)
+        AttemptRepository repo = repository();
+        long user = newUser("student-mse");
+        Attempt base = full(user, T0);
+        app.domain.FiveRights r = new app.domain.FiveRights(true, true, true, true, true);
+        Attempt a = new Attempt(null, user, base.caseId(), base.caseSource(), base.generatedCaseJson(), base.startedAt(),
+                base.submittedAt(), base.observationEntries(), List.of(base.medicationRecords().get(0).withRights(r)),
+                base.sbar(), base.checks(), base.score(), base.aiFeedback(),
+                new app.domain.MentalStatus("명료(alert)", "합성 외모", "합성 기분", null, "합성 지각", "합성 지남력"));
+        Attempt saved = repo.save(a);
+        Attempt found = repo.findById(user, saved.attemptId()).orElseThrow();
+        assertEquals(saved, found);
+        assertEquals("명료(alert)", found.mentalStatus().consciousness());
+        assertEquals(r, found.medicationRecords().get(0).rights());
+        // 이 기능 전의 기록(값 없음)은 null로 읽는다
+        Attempt old = repo.save(full(user, T0.plusHours(1)));
+        Attempt oldFound = repo.findById(user, old.attemptId()).orElseThrow();
+        assertEquals(null, oldFound.mentalStatus());
+        assertEquals(null, oldFound.medicationRecords().get(0).rights());
+    }
+
+    @Test
     void savesAndReadsBackAllData() {
         AttemptRepository repo = repository();
         long user = newUser("student01");

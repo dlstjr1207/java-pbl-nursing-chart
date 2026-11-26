@@ -60,9 +60,9 @@ public class EvidenceDialog extends JDialog {
             if (c.reviewStatus() != null) sb.append("  검토 상태: ").append(c.reviewStatus()).append('\n');
             sb.append("\n[처방별 근거·비고 (원문)]\n");
             for (Medication m : c.orders()) {
-                sb.append("  - ").append(m.drugName()).append(' ').append(m.dose()).append(m.unit() == null ? "" : m.unit())
-                        .append(" (").append(m.type()).append(") 경로 ").append(m.route()).append(", ").append(m.frequency());
-                if (m.note() != null) sb.append(" — ").append(m.note());
+                // 화면과 같은 EMR 표기 (D38) 뒤에 원문 비고를 붙인다
+                sb.append("  - ").append(OrderNotation.format(m)).append(" [").append(m.type()).append(']');
+                if (m.note() != null) sb.append(" — 원문 비고: ").append(m.note());
                 sb.append('\n');
             }
             c.regimenHistory().forEach(r -> sb.append("  - 처방 변경 ").append(r.date()).append(": ")

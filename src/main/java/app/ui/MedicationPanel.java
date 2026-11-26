@@ -46,6 +46,8 @@ public class MedicationPanel extends JPanel implements Reloadable {
     private final JLabel reasonLabel = new JLabel("사유");
     private final JTextField basisField = new JTextField(30);
     private final JCheckBox oralBox = new JCheckBox("구강 확인");
+    /** 투약 5원칙 체크 (D38): 약물·용량·대상자·경로·시간. 모두 체크해야 저장한다 */
+    private final java.util.List<JCheckBox> rightsBoxes = new java.util.ArrayList<>();
     private final JTextArea planArea = new JTextArea(2, 30);
     private final JLabel errorLabel = new JLabel(" ");
     /** 선택한 처방 내용 (polish 8). 학생은 이것을 보고 용량·단위·경로·시각을 직접 입력한다. */
@@ -91,6 +93,21 @@ public class MedicationPanel extends JPanel implements Reloadable {
         JPanel form = new JPanel(new GridLayout(0, 1, 2, 2));
         formPanel = form;
         form.setBorder(BorderFactory.createTitledBorder("투약 입력"));
+
+        JPanel r0 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JLabel rightsLabel = new JLabel("투약 5원칙(5 Rights) 확인");
+        rightsLabel.setFont(Theme.font(java.awt.Font.BOLD, 13f));
+        r0.add(rightsLabel);
+        for (String label : app.domain.FiveRights.LABELS) {
+            JCheckBox b = new JCheckBox(label);
+            b.setName("right-" + label);
+            rightsBoxes.add(b);
+            r0.add(b);
+        }
+        JLabel rightsHint = new JLabel("(모두 체크해야 저장 · 배점 없음)");
+        rightsHint.setForeground(Theme.MUTED);
+        r0.add(rightsHint);
+        form.add(r0);
 
         JPanel r1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
         r1.add(new JLabel("처방"));
@@ -198,13 +215,14 @@ public class MedicationPanel extends JPanel implements Reloadable {
     private void save() {
         var r = controller.save((Medication) orderBox.getSelectedItem(), doseField.getText(), unitField.getText(),
                 routeField.getText(), timeField.getText(), selectedResult(), reasonField.getText(),
-                basisField.getText(), oralBox.isSelected(), planArea.getText());
+                basisField.getText(), oralBox.isSelected(), planArea.getText(), rights());
         if (r.saved()) {
             timeField.setText("");
             resultGroup.clearSelection();
             reasonField.setText("");
             basisField.setText("");
             oralBox.setSelected(false);
+            rightsBoxes.forEach(b -> b.setSelected(false));
             planArea.setText("");
             errorLabel.setForeground(Theme.GREEN);
             errorLabel.setText("저장했습니다.");
@@ -214,6 +232,12 @@ public class MedicationPanel extends JPanel implements Reloadable {
             errorLabel.setForeground(Theme.RED);
             errorLabel.setText("<html>" + String.join("<br>", r.errors().byField().values()) + "</html>");
         }
+    }
+
+    /** 체크한 5원칙 */
+    private app.domain.FiveRights rights() {
+        return new app.domain.FiveRights(rightsBoxes.get(0).isSelected(), rightsBoxes.get(1).isSelected(),
+                rightsBoxes.get(2).isSelected(), rightsBoxes.get(3).isSelected(), rightsBoxes.get(4).isSelected());
     }
 
     /** 현재 케이스의 처방 목록으로 선택지를 다시 채운다. */
@@ -232,6 +256,10 @@ public class MedicationPanel extends JPanel implements Reloadable {
 
     private void refreshList() {
         recordModel.clear();
-        controller.recordLines().forEach(recordModel::addElement);
+        // 5원칙·서명은 둘째 줄에 보인다 (한 줄이 길어 잘리지 않게)
+        for (String line : controller.recordLines()) {
+            String safe = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+            recordModel.addElement("<html>" + safe.replace(" · 5 Rights", "<br>5 Rights") + "</html>");
+        }
     }
 }

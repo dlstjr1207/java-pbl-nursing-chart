@@ -71,11 +71,17 @@ public class HomePanel extends JPanel implements Reloadable {
             start.setEnabled(false);
             ai.setEnabled(false);
             generating = true;
-            messageLabel.setText("AI가 새 케이스를 만드는 중입니다. 잠시 기다려 주세요…");
-            new javax.swing.SwingWorker<app.cases.CaseGenerator.Result, Void>() {
+            messageLabel.setText(controller.generatingText(1));
+            // 시도마다 "생성 중 (n/5)"를 화면 스레드에 알린다 (publish → process)
+            new javax.swing.SwingWorker<app.cases.CaseGenerator.Result, Integer>() {
                 @Override
                 protected app.cases.CaseGenerator.Result doInBackground() {
-                    return controller.generateCase();
+                    return controller.generateCase(n -> publish(n));
+                }
+
+                @Override
+                protected void process(java.util.List<Integer> chunks) {
+                    if (generating && !chunks.isEmpty()) messageLabel.setText(controller.generatingText(chunks.get(chunks.size() - 1)));
                 }
 
                 @Override

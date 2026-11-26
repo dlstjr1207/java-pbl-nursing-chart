@@ -67,7 +67,9 @@ class ResultViewTest {
         List<String> m = view.metrics();
         assertEquals("총 실습 횟수: 2회", m.get(0));
         assertTrue(m.get(1).startsWith("최근 점수: ") && m.get(1).endsWith("점"), m.get(1));
-        assertTrue(m.stream().anyMatch(s -> s.startsWith("항목별 R8")));
+        // R8은 점수에 넣지 않으므로 항목별 줄에서 숨긴다 (D38). 배점이 있는 항목은 보인다
+        assertTrue(m.stream().noneMatch(s -> s.startsWith("항목별 R8")), m.toString());
+        assertTrue(m.stream().anyMatch(s -> s.startsWith("항목별 R1")), m.toString());
         assertTrue(m.stream().anyMatch(s -> s.startsWith("최근 2회")));
     }
 

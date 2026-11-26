@@ -140,7 +140,7 @@ public class ResultPanel extends JPanel implements Reloadable {
         addCard(pass);
 
         JPanel mine = Theme.cardPanel("내가 제출한 기록", new BorderLayout());
-        mine.add(text(ResultView.submittedText(a).strip(), Theme.TEXT), BorderLayout.CENTER);
+        mine.add(text(ResultView.submittedText(a, state.signature()).strip(), Theme.TEXT), BorderLayout.CENTER);
         addCard(mine);
 
         JPanel model = Theme.cardPanel("모범 기록 (제출 후 공개, 참고용)", new BorderLayout());
@@ -193,7 +193,7 @@ public class ResultPanel extends JPanel implements Reloadable {
         chooser.setSelectedFile(new java.io.File(app.export.ResultExporter.suggestedFileName(shown)));
         if (chooser.showSaveDialog(this) != javax.swing.JFileChooser.APPROVE_OPTION) return;
         java.nio.file.Path target = chooser.getSelectedFile().toPath();
-        String error = new app.export.ResultExporter().export(shown, target);
+        String error = new app.export.ResultExporter().export(shown, target, state.signature());
         message.setText(error == null ? "저장했습니다: " + target.getFileName() : error);
     }
 

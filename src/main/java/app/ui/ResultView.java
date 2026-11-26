@@ -47,6 +47,8 @@ public class ResultView {
         for (Attempt a : all) {
             for (CheckResult c : a.checks()) {
                 if (c.status() == CheckStatus.NOT_SCORED) continue;
+                // 지금 배점(D33)에 있는 항목만 보인다. R8(필수 입력)은 점수에 넣지 않으므로 숨긴다 (D38)
+                if (!app.scoring.Scorer.WEIGHTS.containsKey(c.ruleId())) continue;
                 int[] v = perRule.computeIfAbsent(c.ruleId(), k -> new int[2]);
                 if (c.status() == CheckStatus.PASS) v[0]++;
                 v[1]++;
@@ -79,35 +81,73 @@ public class ResultView {
         return attempts.findById(userId, attemptId).map(ResultView::detailText);
     }
 
-    /** 제출 당시 입력과 점검 결과를 그대로 재현하는 상세 문장. */
+    /** 제출 당시 입력과 점검 결과를 그대로 재현하는 상세 문장 (서명은 "학생"). */
     public static String detailText(Attempt a) {
+        return detailText(a, "학생");
+    }
+
+    /** 제출 당시 입력과 점검 결과를 그대로 재현하는 상세 문장. signer는 기록 서명(로그인한 사용자 이름). */
+    public static String detailText(Attempt a, String signer) {
         StringBuilder sb = new StringBuilder();
         sb.append(historyLine(a)).append("\n\n");
         sb.append(ruleScoreText(a.checks()));
         sb.append("[점검 결과]\n");
         sb.append(checksText(a.checks())).append('\n');
-        sb.append(submittedText(a));
+        sb.append(submittedText(a, signer));
         sb.append('\n').append(modelAnswerText(a));
         sb.append(aiText(a.aiFeedback()));
         return sb.toString();
     }
 
-    /** 제출 당시 학생이 쓴 관찰·투약·SBAR을 그대로 재현한다 (결과 화면 "내가 제출한 기록", S8). */
+    /** 실제 인계 기록 형태 안내 (D38, B5) */
+    public static final String HANDOFF_NOTICE = "실제 인계 기록은 칸을 나누지 않고 이 순서로 한 문단으로 씁니다.";
+
+    /** SBAR를 S→B→A→R 순서로 이어 붙인 한 문단 (D38, B5). 채점과 무관한 보기용. */
+    public static String handoffParagraph(SbarReport r) {
+        if (r == null) return "";
+        List<String> parts = new ArrayList<>();
+        for (String s : new String[] {r.situation(), r.background(), r.assessment()}) {
+            if (s != null && !s.isBlank()) parts.add(s.strip().replaceAll("\\s*\\R\\s*", " "));
+        }
+        List<String> recs = new ArrayList<>();
+        for (SbarRecommendation x : r.recommendations()) {
+            String t = ((x.time() == null ? "" : x.time().strip()) + " " + (x.intervention() == null ? "" : x.intervention().strip())).strip();
+            if (!t.isEmpty()) recs.add(t);
+        }
+        if (!recs.isEmpty()) parts.add(String.join(", ", recs));
+        return String.join(" ", parts);
+    }
+
+    /** 제출 당시 학생이 쓴 관찰·투약·SBAR (서명은 "학생"). */
     public static String submittedText(Attempt a) {
+        return submittedText(a, "학생");
+    }
+
+    /**
+     * 제출 당시 학생이 쓴 관찰·투약·SBAR을 그대로 재현한다 (결과 화면 "내가 제출한 기록", S8).
+     * 관찰은 "날짜·시간 | 내용 | 서명", 투약은 5원칙 체크와 서명, SBAR는 서명과 실제 인계 기록 형태(한 문단)를 붙인다 (D38).
+     */
+    public static String submittedText(Attempt a, String signer) {
+        String sign = signer == null || signer.isBlank() ? "학생" : signer;
+        app.domain.PatientCase pc = caseOf(a);
         StringBuilder sb = new StringBuilder();
-        sb.append("[관찰 기록]\n");
+        sb.append("[관찰 기록] 날짜·시간 | 내용 | 서명\n");
         int i = 1;
         for (ObservationEntry o : a.observationEntries()) {
-            sb.append(i++).append(". ").append(o.time()).append(' ').append(o.tags()).append(' ')
-                    .append(o.narrative()).append('\n');
+            sb.append(i++).append(". ").append(ObservationController.dateTime(pc, o.time())).append(" | ").append(o.tags()).append(' ')
+                    .append(o.narrative()).append(" | ").append(sign).append('\n');
         }
         if (a.observationEntries().isEmpty()) sb.append("(없음)\n");
+        sb.append("\n[정신상태 평가] (배점 없음)\n");
+        if (app.domain.MentalStatus.blank(a.mentalStatus())) sb.append("(없음)\n");
+        else a.mentalStatus().lines().forEach(l -> sb.append(l).append('\n'));
         sb.append("\n[투약 기록]\n");
         i = 1;
         for (MedicationRecord m : a.medicationRecords()) {
             sb.append(i++).append(". ").append(m.drugName()).append(' ').append(m.dose()).append(' ')
                     .append(m.route()).append(' ').append(m.administeredTime()).append(' ')
-                    .append(m.result() == null ? "" : m.result()).append('\n');
+                    .append(m.result() == null ? "" : MedicationController.resultLabel(m.result()))
+                    .append(" | ").append(app.domain.FiveRights.text(m.rights())).append(" | 서명 ").append(sign).append('\n');
         }
         if (a.medicationRecords().isEmpty()) sb.append("(없음)\n");
         sb.append("\n[SBAR]\n");
@@ -120,6 +160,9 @@ public class ResultView {
             for (SbarRecommendation x : r.recommendations()) {
                 sb.append("R: ").append(x.time()).append(' ').append(x.intervention()).append('\n');
             }
+            sb.append("서명: ").append(sign).append('\n');
+            sb.append("\n[실제 인계 기록 형태]\n").append(handoffParagraph(r)).append(" (서명: ").append(sign).append(")\n")
+                    .append("※ ").append(HANDOFF_NOTICE).append('\n');
         }
         return sb.toString();
     }

@@ -14,7 +14,8 @@ public final class CheckLabels {
     /** 규칙 ID → 이름 (기획안 점검 기준) */
     public static final Map<String, String> RULE_NAMES = Map.of(
             "R1", "관찰 표현", "R2", "핵심 사실", "R4", "재평가 연결", "R6", "투약 기록 완결성",
-            "R7", "투약 값 일치", "R8", "필수 입력", "R9", "SBAR 구성", "R10", "원자료 정리");
+            "R7", "투약 값 일치", "R8", "필수 입력", "R9", "SBAR 구성", "R10", "원자료 정리",
+            "MSE", "정신상태 평가, 배점 없음");
 
     /** 필드 이름 → 한국어 */
     private static final Map<String, String> FIELDS = Map.ofEntries(
@@ -54,6 +55,7 @@ public final class CheckLabels {
             String base = area(m.group(1)) + " " + m.group(2);
             return m.group(3) == null ? base : base + " · " + field(m.group(3));
         }
+        if ("mse".equals(ref)) return "관찰 기록 · 정신상태 평가";
         return AREAS.getOrDefault(ref, ref);
     }
 

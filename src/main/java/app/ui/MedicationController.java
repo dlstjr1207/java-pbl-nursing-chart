@@ -55,25 +55,8 @@ public class MedicationController {
      * "Lithium carbonate 300mg PO 1일 3회 (08:30, 12:30, 18:30)". 개발용 표기는 숨긴다.
      */
     public static String orderSummary(Medication o) {
-        if (o == null) return "";
-        StringBuilder sb = new StringBuilder();
-        sb.append(o.drugName()).append(' ').append(StudentText.value(o.dose())).append(o.unit() == null ? "" : o.unit())
-                .append(' ').append(StudentText.value(o.route()));
-        java.util.List<String> extra = new java.util.ArrayList<>();
-        if (o.type() == OrderType.PRN) {
-            sb.append(" PRN");
-            if (o.prnIndication() != null && !StudentText.value(o.prnIndication()).equals(PatientInfoView.EMPTY)) {
-                extra.add(StudentText.value(o.prnIndication()));
-            }
-        } else {
-            String f = StudentText.value(o.frequency());
-            if (!f.equals(PatientInfoView.EMPTY)) sb.append(' ').append(f);
-            if (!o.scheduleTimes().isEmpty()) extra.add(String.join(", ", o.scheduleTimes()));
-        }
-        String note = StudentText.note(o.note());
-        if (!note.isBlank()) extra.add(note);
-        if (!extra.isEmpty()) sb.append(" (").append(String.join(", ", extra)).append(')');
-        return sb.toString();
+        // 실제 EMR 형식 (D38): 예 "Lorazepam 1mg 1T PO PRN (불안·초조 시, 1일 최대 4mg)"
+        return OrderNotation.format(o);
     }
 
     /**
@@ -83,6 +66,17 @@ public class MedicationController {
     public SaveResult save(Medication order, String dose, String unit, String route, String time,
                            MedicationResult result, String reason, String orderBasis,
                            Boolean oralCheck, String reassessmentPlan) {
+        // 테스트·도구용: 5원칙을 모두 확인한 것으로 저장한다. 화면은 아래 체크 값을 넘기는 save를 쓴다
+        return save(order, dose, unit, route, time, result, reason, orderBasis, oralCheck, reassessmentPlan,
+                app.domain.FiveRights.ALL);
+    }
+
+    /**
+     * 투약 5원칙(약물·용량·대상자·경로·시간)을 모두 체크해야 저장한다 (D38, B2). 점수에는 넣지 않는다.
+     */
+    public SaveResult save(Medication order, String dose, String unit, String route, String time,
+                           MedicationResult result, String reason, String orderBasis,
+                           Boolean oralCheck, String reassessmentPlan, app.domain.FiveRights rights) {
         if (state.isReviewing()) return new SaveResult(false, new Errors(Map.of("readonly", AppState.REVIEW_LOCKED)));
         Map<String, String> errors = new LinkedHashMap<>();
         if (order == null) errors.put("order", "처방을 선택하세요.");
@@ -97,11 +91,14 @@ public class MedicationController {
         if (order != null && result != null && reasonRequired(order, result) && blank(reason)) {
             errors.put("reason", "PRN·거부·보류는 사유를 입력해야 합니다.");
         }
+        if (rights == null || !rights.allChecked()) {
+            errors.put("rights", "투약 5원칙을 모두 확인하세요" + (rights == null ? "" : " (확인 안 함: " + String.join("·", rights.unchecked()) + ")") + ".");
+        }
         if (!errors.isEmpty()) return new SaveResult(false, new Errors(errors));
 
         state.addMedication(new MedicationRecord(order.orderId(), order.drugName(), dose, unit, route, t,
                 result, blank(reason) ? null : reason, orderBasis, oralCheck,
-                blank(reassessmentPlan) ? null : reassessmentPlan));
+                blank(reassessmentPlan) ? null : reassessmentPlan, rights));
         return new SaveResult(true, new Errors(Map.of()));
     }
 
@@ -109,7 +106,8 @@ public class MedicationController {
     public List<String> recordLines() {
         return state.studentMedications().stream().map(r ->
                 "[학생] " + r.administeredTime() + " " + r.drugName() + " " + r.dose() + r.unit()
-                        + " " + r.route() + " · " + resultLabel(r.result())).toList();
+                        + " " + r.route() + " · " + resultLabel(r.result()) + " · " + app.domain.FiveRights.text(r.rights())
+                        + " · 서명 " + state.signature()).toList();
     }
 
     /** 투약 결과의 한국어 이름. */

@@ -14,6 +14,7 @@ package app.domain;
  * @param orderBasis       처방 근거
  * @param oralCheck        구강 확인 여부 (입력하지 않았으면 null)
  * @param reassessmentPlan 재평가 계획
+ * @param rights           투약 5원칙 확인 (D38. 이 기능 전에 저장한 기록이면 null)
  */
 public record MedicationRecord(
         String orderId,
@@ -26,5 +27,20 @@ public record MedicationRecord(
         String reason,
         String orderBasis,
         Boolean oralCheck,
-        String reassessmentPlan) {
+        String reassessmentPlan,
+        FiveRights rights) {
+
+    /** 5원칙 확인이 없는 기록 (D38 전 기록·테스트용) */
+    public MedicationRecord(String orderId, String drugName, String dose, String unit, String route,
+                            String administeredTime, MedicationResult result, String reason, String orderBasis,
+                            Boolean oralCheck, String reassessmentPlan) {
+        this(orderId, drugName, dose, unit, route, administeredTime, result, reason, orderBasis, oralCheck,
+                reassessmentPlan, null);
+    }
+
+    /** 5원칙 확인을 붙인 사본 */
+    public MedicationRecord withRights(FiveRights r) {
+        return new MedicationRecord(orderId, drugName, dose, unit, route, administeredTime, result, reason, orderBasis,
+                oralCheck, reassessmentPlan, r);
+    }
 }

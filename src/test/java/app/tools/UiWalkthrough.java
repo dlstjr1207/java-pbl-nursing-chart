@@ -283,7 +283,7 @@ public final class UiWalkthrough {
         String filled = call(() -> ((JTextComponent) get(mp, "doseField")).getText() + ((JTextComponent) get(mp, "unitField")).getText()
                 + ((JTextComponent) get(mp, "routeField")).getText() + ((JTextComponent) get(mp, "timeField")).getText());
         row("투약 화면", "처방을 골라도 입력칸 빈칸, '선택한 처방' 표시", sel + (filled.isEmpty() ? " / 입력칸 빈칸" : " / 자동 채움: " + filled),
-                sel.startsWith("선택한 처방: Lorazepam 1mg PO PRN") && filled.isEmpty());
+                sel.startsWith("선택한 처방: Lorazepam 1mg 1T PO PRN") && filled.isEmpty());
         row("투약 화면", "개발용 표기 숨김", devMarks(call(() -> allText(mp))), devMarks(call(() -> allText(mp))).equals("없음"));
         String drug = call(() -> ((JTextComponent) get(mp, "drugInfoArea")).getText());
         row("약 정보", "PRN 로라제팜 선택 시 식약처 허가정보 표시", drug.lines().findFirst().orElse(""),

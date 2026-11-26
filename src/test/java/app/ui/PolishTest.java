@@ -90,7 +90,7 @@ class PolishTest {
     @Test
     void 선택한_처방_문구() {
         Medication prn = pc01.orders().stream().filter(m -> m.type() == OrderType.PRN).findFirst().orElseThrow();
-        assertEquals("Lorazepam 1mg PO PRN (불안·초조 시, 1일 최대 4mg)", MedicationController.orderSummary(prn));
+        assertEquals("Lorazepam 1mg 1T PO PRN (불안·초조 시, 1일 최대 4mg)", MedicationController.orderSummary(prn)); // D38 EMR 표기
     }
 
     @Test
@@ -102,7 +102,7 @@ class PolishTest {
         @SuppressWarnings("unchecked")
         var box = (javax.swing.JComboBox<Medication>) field(panel, "orderBox");
         box.setSelectedIndex(box.getItemCount() - 1);
-        assertTrue(panel.selectedOrderText().startsWith("선택한 처방: Lorazepam 1mg PO PRN"), panel.selectedOrderText());
+        assertTrue(panel.selectedOrderText().startsWith("선택한 처방: Lorazepam 1mg 1T PO PRN"), panel.selectedOrderText());
         for (String f : List.of("doseField", "unitField", "routeField", "timeField")) {
             assertEquals("", ((javax.swing.JTextField) field(panel, f)).getText(), f);
         }

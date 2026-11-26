@@ -35,6 +35,41 @@ public class ObservationController {
     /** 저장 결과. 성공이면 errors가 비어 있다. */
     public record SaveResult(boolean saved, Errors errors) {}
 
+    /** 케이스에 원래 있던 기록의 서명 (D38) */
+    public static final String PREVIOUS_STAFF = "이전 근무자";
+
+    /** 기록 서명: 케이스 기록은 "이전 근무자", 학생 기록은 로그인한 사용자 이름 (D38, 3교대 기록자 표시) */
+    public String signature(TimelineRow row) {
+        return row.fromCase() ? PREVIOUS_STAFF : state.signature();
+    }
+
+    /** 표의 날짜·시간 칸: 케이스 근무 날짜(과제 안내의 날짜) + 시각. 날짜가 없으면 시각만 */
+    public String dateTime(TimelineRow row) {
+        return dateTime(state.currentCase(), row.time());
+    }
+
+    /** 케이스 근무 날짜 + 시각 (결과 화면에서도 쓴다) */
+    public static String dateTime(PatientCase c, String time) {
+        java.time.LocalDate d = c == null ? null : app.cases.CaseGenerator.taskDate(c.task());
+        String t = time == null ? "" : time;
+        return d == null ? t : d + " " + t;
+    }
+
+    /**
+     * 정신상태 평가를 저장한다 (D38). 모두 비우면 지운다. 의식 수준은 5단계 중 하나여야 한다.
+     */
+    public SaveResult saveMentalStatus(String consciousness, String appearance, String mood, String thought,
+                                       String perception, String orientation) {
+        if (state.isReviewing()) return new SaveResult(false, new Errors(Map.of("readonly", AppState.REVIEW_LOCKED)));
+        if (state.currentCase() == null) return new SaveResult(false, new Errors(Map.of("case", "실습 중인 케이스가 없습니다.")));
+        app.domain.MentalStatus m = new app.domain.MentalStatus(consciousness, appearance, mood, thought, perception, orientation);
+        if (m.consciousness() != null && !app.domain.MentalStatus.CONSCIOUSNESS.contains(m.consciousness())) {
+            return new SaveResult(false, new Errors(Map.of("consciousness", "의식 수준은 5단계 중에서 고르세요.")));
+        }
+        state.setMentalStatus(m);
+        return new SaveResult(true, new Errors(Map.of()));
+    }
+
     /** 타임라인 한 줄. fromCase가 true면 기존 기록, false면 학생 기록. */
     public record TimelineRow(String time, boolean fromCase, ObservationEntry entry) {
         /** 화면에 보일 한 줄 문구. 출처를 앞에 붙인다. */

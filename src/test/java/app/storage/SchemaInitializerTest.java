@@ -13,7 +13,7 @@ class SchemaInitializerTest {
     /** 기획안 '저장 방식 (D21)'의 테이블 초안 */
     static final List<String> EXPECTED_TABLES = List.of(
             "users", "attempts", "observation_records", "medication_records",
-            "sbar_reports", "sbar_recommendations", "check_results");
+            "sbar_reports", "sbar_recommendations", "attempt_extras", "check_results");
 
     @Test
     void schemaHasOneCreateStatementPerPlannedTable() {
