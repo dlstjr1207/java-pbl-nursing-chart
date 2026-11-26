@@ -30,18 +30,39 @@ class CaseValidatorTest {
                                {"time":"10:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"}],
              "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%s","dose":"%s","unit":"%s","route":"%s","scheduleTimes":["08:00"]}],
              "task":"2026-10-20 Day 근무. 합성 과제",
-             "rawNotes":[{"time":"07:20","kind":"HANDOFF","text":"인계 받음. 정규약 PO 아침"},{"time":"09:30","kind":"PRN","text":"데이룸. 서성거림. %s %smg PO 줌"},
-                         {"time":"09:00","kind":"EVENT","text":"데이룸 합성 메모 1"},{"time":"10:00","kind":"REASSESS","text":"데이룸 합성 메모 2"},
+             "rawNotes":[{"time":"07:20","kind":"HANDOFF","text":"인계 받음. 입원 10일째. 정규약 {DRUG} PO 아침·16:00, 관찰 부탁"},{"time":"09:30","kind":"PRN","text":"데이룸. 서성거림. %s %smg PO 줌"},
+                         {"time":"09:00","kind":"EVENT","text":"데이룸 합성 메모 1"},{"time":"10:00","kind":"REASSESS","text":"데이룸 합성 메모 2. VAS 2, RASS 0"},
                          {"time":"09:10","kind":"SPEECH","text":"데이룸. \\"아… 저기, 저기… 괜찮아요\\""},
                          {"time":"09:20","kind":"INTERVENTION","text":"데이룸 의자. \\"네… 네\\""},{"time":"12:00","kind":"IRRELEVANT","text":"점심 배식","irrelevant":true,"cues":["점심"]},
                          {"time":"14:00","kind":"IRRELEVANT","text":"보호자 전화","irrelevant":true,"cues":["보호자"]}],
-             "answerKey":{"observationElements":["장소=데이룸"],"medicationElements":["약명=%s|TestDrug","용량=%s","경로=PO|경구","시각=09:30"]}}
-            """.formatted(briefing, time, drug, dose, unit, route, drug, dose, drug, dose);
+             "answerKey":{"observationElements":["장소=데이룸"],"medicationElements":["약명=%s|TestDrug","용량=%s","경로=PO|경구","시각=09:30"],
+                          "sbarElements":{"situation":["불안 사건=서성","투약={DRUG}|TestDrug"],"background":["입원 일수=10일","현재 처방={DRUG}|TestDrug","경로=PO"],
+                                          "assessment":["재평가=vas 2","RASS=rass 0"],"recommendation":["16:00 투약=16:00&{DRUG}|TestDrug","관찰=관찰"]}}}
+            """.formatted(briefing, time, drug, dose, unit, route, drug, dose, drug, dose).replace("{DRUG}", drug);
     }
 
     private List<String> check(String drug, String dose, String unit, String route, String time, String briefing) {
         PatientCase c = DomainJson.fromJson(json(drug, dose, unit, route, time, briefing), PatientCase.class);
         return validator.check(c);
+    }
+
+    @Test
+    void SBAR_요소가_PC01보다_약하면_거부한다() {
+        // Windows 시연 검토: "B: 조현병 환자임"처럼 짧은 SBAR로 만점이 나오지 않게 PC-01 수준 요소를 요구한다
+        String weak = json("테스트약A", "3", "mg", "PO", "09:30", B).replaceAll("\"sbarElements\":\\{[^}]*\\}",
+                "\"sbarElements\":{\"situation\":[\"불안 사건=서성\"],\"background\":[\"진단=합성\"],\"assessment\":[\"재평가=안정\"],\"recommendation\":[\"관찰=관찰\"]}");
+        List<String> p = validator.check(DomainJson.fromJson(weak, PatientCase.class));
+        assertTrue(p.contains("answerKey SBAR situation(S) 요소가 1개뿐임 (2개 이상: 사건 증상, PRN 투약 약명)"), p.toString());
+        assertTrue(p.stream().anyMatch(x -> x.startsWith("answerKey SBAR background(B) 요소가 1개뿐임")), p.toString());
+        assertTrue(p.contains("answerKey SBAR B 요소에 입원 일수(10일)가 없음 (예: \"입원 10일=10일\")"), p.toString());
+        assertTrue(p.stream().anyMatch(x -> x.startsWith("answerKey SBAR B 요소에 현재 정규 처방 약명이 없음")), p.toString());
+        assertTrue(p.stream().anyMatch(x -> x.startsWith("answerKey SBAR A 요소에 재평가 수치(숫자)가 없음")), p.toString());
+        assertTrue(p.stream().anyMatch(x -> x.startsWith("answerKey SBAR R 요소에 다음 시각 정규 투약(HH:mm과 약명)이 없음")), p.toString());
+        // PC-01은 이 기준을 통과한다 (기준이 PC-01 구성에서 나왔으므로)
+        PatientCase pc01 = new CaseLoader().load("PC-01");
+        List<String> q = new java.util.ArrayList<>();
+        validator.checkSbarStrength(q, pc01);
+        assertEquals(List.of(), q);
     }
 
     @Test

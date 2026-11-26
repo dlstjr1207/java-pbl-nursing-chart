@@ -47,6 +47,9 @@ class CaseGeneratorTest {
             calls++;
             if (fail) throw new IOException("가짜 통신 실패");
             String c = contents.get(Math.min(calls - 1, contents.size() - 1));
+            // 프로그램이 정한 입원 일수(D38)를 응답의 {DAY} 자리에 넣는다 (실제 AI가 요청대로 쓰는 것과 같게)
+            var day = java.util.regex.Pattern.compile("입원 일수 (\\d+)일").matcher(body);
+            c = c.replace("{DAY}", day.find() ? day.group(1) : "10");
             JsonObject msg = new JsonObject();
             msg.addProperty("content", c);
             JsonObject choice = new JsonObject();
@@ -73,27 +76,27 @@ class CaseGeneratorTest {
                                {"time":"10:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"}],
              "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%1$s","dose":"%2$s","unit":"mg","route":"PO","scheduleTimes":["08:00"]}],
              "task":"2026-10-20 Day 근무. 합성 과제",
-             "rawNotes":[{"time":"07:10","kind":"HANDOFF","text":"인계. 합성 진단, 정규약 아침"},
+             "rawNotes":[{"time":"07:10","kind":"HANDOFF","text":"인계. 합성 진단 입원 {DAY}일째, 정규약 %1$s 아침"},
                          {"time":"07:50","kind":"EVENT","text":"데이룸 왔다갔다 \\"무, 무서워요… 무서워\\""},
                          {"time":"08:00","kind":"PRN","text":"%1$s %2$smg PO 줌"},
-                         {"time":"08:40","kind":"REASSESS","text":"재평가 안정, 불안 줄어듦"},
+                         {"time":"08:40","kind":"REASSESS","text":"재평가 안정, 불안 줄어듦 VAS 2, RASS 0"},
                          {"time":"07:55","kind":"SPEECH","text":"데이룸 구석. \\"여기… 여기 있어도 돼요?\\""},
                          {"time":"07:58","kind":"INTERVENTION","text":"데이룸 옆 조용한 곳에서 1:1 대화"},
-                         {"time":"09:00","kind":"NEXT_SHIFT","text":"다음 근무 관찰 부탁"},
+                         {"time":"09:00","kind":"NEXT_SHIFT","text":"16:00 %1$s 정규 투약, 다음 근무 관찰 부탁"},
                          {"time":"12:00","kind":"IRRELEVANT","text":"점심 배식","irrelevant":true,"cues":["점심","배식"]},
                          {"time":"13:00","kind":"IRRELEVANT","text":"보호자 전화 면회 문의","irrelevant":true,"cues":["보호자","면회"]}],
              "answerKey":{"observationElements":["장소=데이룸","발언 인용=무서워","투약=%1$s|TestDrugA&%2$smg|%2$s mg&PO|경구"],
                           "medicationElements":["약명=%1$s|TestDrugA","용량=%2$s","단위=mg","경로=PO|경구","시각=08:00"],
-                          "sbarElements":{"situation":["불안 사건=불안"],"background":["진단=합성 진단"],
-                                          "assessment":["재평가 결과=안정"],"recommendation":["다음 근무 관찰=관찰"]}},
+                          "sbarElements":{"situation":["불안 사건=불안","PRN 투여=%1$s|TestDrugA"],"background":["진단=합성 진단","입원 일수={DAY}일","현재 처방=%1$s|TestDrugA"],
+                                          "assessment":["재평가 결과=안정","재평가 수치=vas 2|rass 0"],"recommendation":["16:00 정규 투약=16:00&%1$s|TestDrugA","다음 근무 관찰=관찰"]}},
              "modelAnswer":{"observation":"합성 모범","medication":"합성 모범","sbar":"S: 합성",
                "observationRecord":{"time":"08:00","shift":"DAY","tags":["불안 급증"],
                  "narrative":"데이룸에서 서성이며 \\"무서워요\\"라고 말함. 08:00 %1$s %2$smg 경구 투여함. 08:30 재평가 예정.",
                  "intervention":"1:1로 조용한 곳에서 대화함"},
                "medicationRecord":{"orderId":"O1","drugName":"%1$s","dose":"%2$s","unit":"mg","route":"PO","administeredTime":"08:00",
                  "result":"GIVEN","reason":"정규 투약","orderBasis":"정규 처방","oralCheck":true,"reassessmentPlan":"08:30 재평가"},
-               "sbarReport":{"situation":"08:00 불안으로 서성임","background":"합성 진단","assessment":"08:30 안정됨",
-                 "recommendations":[{"time":"16:00","intervention":"불안 재발 관찰"}]}}}
+               "sbarReport":{"situation":"08:00 불안으로 서성여 %1$s %2$smg PO 투여함","background":"35세, 합성 진단으로 입원 {DAY}일째. 현재 처방 %1$s","assessment":"08:30 재평가 VAS 2, 안정됨",
+                 "recommendations":[{"time":"16:00","intervention":"%1$s 정규 투약"},{"time":"16:30","intervention":"불안 재발 관찰"}]}}}
             """.formatted(drug, dose);
     }
 
@@ -385,6 +388,9 @@ class CaseGeneratorTest {
         assertTrue(prompt.contains("'재평가' 낱말과 시각을 한 문장에 함께"));
         assertTrue(prompt.contains("oralCheck true"));
         assertTrue(prompt.contains("sbarElements 해당 영역의 모든 요소 동의어"));
+        // SBAR 요소는 PC-01만큼 구체적으로 (S 2, B 3, A 2(수치), R 2(다음 투약 시각))
+        assertTrue(prompt.contains("sbarElements는 기본 케이스(PC-01)만큼 구체적이어야 한다"), prompt);
+        assertTrue(prompt.contains("background 3개 이상(진단명, 입원 일수"), prompt);
         assertTrue(prompt.contains("Evening에 점심 배식"));
         // D34: 식사 시간대와 리튬 고정
         assertTrue(prompt.contains("아침 06:30~09:00, 점심 11:00~13:30, 저녁 17:00~19:30"));
@@ -421,8 +427,7 @@ class CaseGeneratorTest {
     @Test
     void 학생이_한글로_쓴_모범_문장으로도_100점이다() {
         Fake f = new Fake();
-        f.contents.add(caseJson("TestDrugA", "3").replace("약명=TestDrugA|TestDrugA", "약명=TestDrugA|테스트약A")
-                .replace("투약=TestDrugA|TestDrugA", "투약=TestDrugA|테스트약A"));
+        f.contents.add(caseJson("TestDrugA", "3").replace("TestDrugA|TestDrugA", "TestDrugA|테스트약A"));
         PatientCase c = generator(ON, f, ALLOWED_EN, 1).generate().patientCase();
         assertTrue(c.id().startsWith("GEN-"), "생성 실패: " + c.id());
         // 약명·경로를 한글로 쓴 학생 기록
@@ -431,8 +436,12 @@ class CaseGeneratorTest {
                 "조용한 곳에서 1:1로 이야기함", null);
         var med = new app.domain.MedicationRecord("O1", "테스트약A", "3", "mg", "경구", "08:00",
                 app.domain.MedicationResult.GIVEN, "정규 투약", "정규 처방", true, "08:30 재평가");
-        var sbar = new app.domain.SbarReport("08:00 불안해하며 서성임", "합성 진단으로 입원", "08:30 안정됨",
-                List.of(new app.domain.SbarRecommendation("16:00", "불안 다시 오는지 관찰")));
+        // SBAR 요소(D38 이후 PC-01 수준): S 사건·투약 약명, B 진단·입원 일수·정규 처방, A 재평가 수치, R 다음 투약 시각·관찰
+        int day = c.patient().hospitalDay();
+        var sbar = new app.domain.SbarReport("08:00 불안해하며 서성여 테스트약A 3mg 경구 투여함",
+                "35세, 합성 진단으로 입원 " + day + "일째. 현재 처방 테스트약A", "08:30 재평가 VAS 2, 안정됨",
+                List.of(new app.domain.SbarRecommendation("16:00", "테스트약A 정규 투약"),
+                        new app.domain.SbarRecommendation("16:30", "불안 다시 오는지 관찰")));
         app.scoring.Scorer.Result r = app.scoring.Scorer.evaluate(c, List.of(obs), List.of(med), sbar);
         assertEquals(100.0, r.score(), r.checks().stream().filter(x -> x.status() != app.domain.CheckStatus.PASS
                 && x.status() != app.domain.CheckStatus.FEEDBACK).toList().toString());

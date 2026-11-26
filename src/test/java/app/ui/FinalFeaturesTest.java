@@ -114,7 +114,11 @@ class FinalFeaturesTest {
         var s = a.sbar();
         assertTrue(paragraph.startsWith(s.situation().strip().replaceAll("\\s*\\R\\s*", " ")), paragraph);
         assertTrue(paragraph.indexOf(s.assessment().strip().substring(0, 5)) > paragraph.indexOf(s.background().strip().substring(0, 5)));
-        assertTrue(paragraph.endsWith(s.recommendations().get(s.recommendations().size() - 1).intervention().strip()), paragraph);
+        assertTrue(paragraph.endsWith(s.recommendations().get(s.recommendations().size() - 1).intervention().strip() + "."), paragraph);
+        // 칸 끝에 문장부호가 없으면 마침표를 붙여 문장 경계가 보이게 한다
+        assertEquals("환자가 초조 증상을 보임. 조현병 환자임. 투약 후 차분해짐! 18:30 정규 투약 및 상태 관찰.",
+                ResultView.handoffParagraph(new app.domain.SbarReport("환자가 초조 증상을 보임", "조현병 환자임.", "투약 후 차분해짐!",
+                        List.of(new app.domain.SbarRecommendation("18:30", "정규 투약 및 상태 관찰")))));
         assertFalse(paragraph.contains("\n"));
         assertTrue(t.contains("[실제 인계 기록 형태]\n" + paragraph + " (서명: 김간호)"), t);
         assertTrue(t.contains("실제 인계 기록은 칸을 나누지 않고 이 순서로 한 문단으로 씁니다."));
@@ -127,6 +131,32 @@ class FinalFeaturesTest {
         // 새 실습이면 비어 있다
         state.startPractice(pc01);
         assertNull(state.mentalStatus());
+    }
+
+    @Test
+    void 결과의_투약_줄은_단위와_구강_확인을_보인다() {
+        // Windows 실습 검토: "Lorazepam 1 PO 09:30 투여"처럼 단위가 빠지던 것을 "1mg"로, 구강 확인 상태를 함께
+        AppState state = practice();
+        assertTrue(new MedicationController(state).save(prn(), "1", "mg", "PO", "09:30", MedicationResult.GIVEN, "불안",
+                "PRN 처방", true, null, FiveRights.ALL).saved());
+        var s = pc01.modelAnswer().sbarReport();
+        var r = new SbarController(state, new InMemoryAttemptRepository(), () -> 1L)
+                .submit(s.situation(), s.background(), s.assessment(), s.recommendations());
+        assertTrue(r.submitted(), r.message());
+        String line = "1. Lorazepam 1mg PO 09:30 투여 · 구강 확인 ✓ | 5 Rights: 약물 ✓ · 용량 ✓ · 대상자 ✓ · 경로 ✓ · 시간 ✓ | 서명 김간호";
+        assertTrue(ResultView.submittedText(r.attempt(), "김간호").contains(line), ResultView.submittedText(r.attempt(), "김간호"));
+        // 내보내기 파일도 같은 줄
+        assertTrue(app.export.ResultExporter.content(r.attempt(), "김간호").contains(line));
+        assertEquals("구강 확인 ✗", ResultView.oralText(false));
+        assertEquals("구강 확인 기록 없음", ResultView.oralText(null));
+    }
+
+    @Test
+    void R_행_끝_마침표는_쉼표와_겹치지_않는다() {
+        assertEquals("상황. 배경. 평가. 18:30 탄산리튬 투약 확인 바랍니다, 23:30 관찰 바랍니다.",
+                ResultView.handoffParagraph(new app.domain.SbarReport("상황", "배경", "평가", List.of(
+                        new app.domain.SbarRecommendation("18:30", "탄산리튬 투약 확인 바랍니다."),
+                        new app.domain.SbarRecommendation("23:30", "관찰 바랍니다.")))));
     }
 
     @Test
