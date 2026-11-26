@@ -26,6 +26,44 @@ public final class Scorer {
     private Scorer() {
     }
 
+    /** 이전 배점 (D30): R7 25, R2 20, R8 20, R6 15, R1 10, R4 10. D33 전에 저장된 기록의 항목별 막대를 저장 당시 기준으로 보일 때만 쓴다. */
+    public static final Map<String, Integer> WEIGHTS_D30 = weightsD30();
+
+    /** 결과 화면 안내 문구 (예전 기록) */
+    public static final String D30_NOTICE = "이전 채점 기준(D30)으로 채점된 기록입니다";
+
+    private static Map<String, Integer> weightsD30() {
+        Map<String, Integer> w = new LinkedHashMap<>();
+        w.put("R7", 25);
+        w.put("R2", 20);
+        w.put("R8", 20);
+        w.put("R6", 15);
+        w.put("R1", 10);
+        w.put("R4", 10);
+        return java.util.Collections.unmodifiableMap(w);
+    }
+
+    /**
+     * 저장된 점검 결과가 D33 전(D30 기준)에 만들어졌는지. 저장 형식을 바꾸지 않고 결과 모양으로 알아본다:
+     * D30의 R9는 R 행마다 시각·중재 점검(rec1.time 등, 행이 없으면 rec)을 냈고, R10은 FEEDBACK 상태였다.
+     * D33부터는 둘 다 나오지 않는다. 제출 화면은 R 행을 1행 이상 요구하므로 D30 기록에는 항상 rec1.time이 있다.
+     */
+    public static boolean scoredUnderD30(List<CheckResult> checks) {
+        if (checks == null) return false;
+        for (CheckResult r : checks) {
+            if ("R9".equals(r.ruleId()) && r.targetRef() != null && r.targetRef().matches("rec(\\d+\\.(time|intervention))?")) {
+                return true;
+            }
+            if ("R10".equals(r.ruleId()) && r.status() == CheckStatus.FEEDBACK) return true;
+        }
+        return false;
+    }
+
+    /** 이 점검 결과를 채점한 배점: D30 기록이면 WEIGHTS_D30, 아니면 WEIGHTS. */
+    public static Map<String, Integer> weightsFor(List<CheckResult> checks) {
+        return scoredUnderD30(checks) ? WEIGHTS_D30 : WEIGHTS;
+    }
+
     private static Map<String, Integer> weights() {
         Map<String, Integer> w = new LinkedHashMap<>();
         w.put("R7", 25);
@@ -57,12 +95,17 @@ public final class Scorer {
         return score(checks);
     }
 
-    /** 점검 결과로 점수를 계산한다. */
+    /** 점검 결과로 점수를 계산한다. D33 전에 저장된 기록이면 저장 당시 배점(D30)으로 계산한다. */
     public static Result score(List<CheckResult> checks) {
+        return score(checks, weightsFor(checks));
+    }
+
+    /** 주어진 배점으로 점수를 계산한다. */
+    public static Result score(List<CheckResult> checks, Map<String, Integer> weights) {
         Map<String, Double> ruleScores = new LinkedHashMap<>();
         double earned = 0;
         int possible = 0;
-        for (Map.Entry<String, Integer> w : WEIGHTS.entrySet()) {
+        for (Map.Entry<String, Integer> w : weights.entrySet()) {
             int scored = 0;
             int passed = 0;
             for (CheckResult r : checks) {

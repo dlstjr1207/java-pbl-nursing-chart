@@ -63,9 +63,19 @@ public class ResultPanel extends JPanel implements Reloadable {
         addCard(header(a));
         JPanel bars = Theme.cardPanel("항목별 점수", new BorderLayout());
         RuleBarsPanel chart = new RuleBarsPanel();
-        chart.setScores(Scorer.WEIGHTS, a.checks().isEmpty() ? java.util.Map.of() : Scorer.score(a.checks()).ruleScores());
+        boolean d30 = Scorer.scoredUnderD30(a.checks());
+        // 예전 기록은 막대도 저장 당시 배점(D30)으로 보이고, 총점은 저장된 값 그대로 둔다
+        chart.setScores(Scorer.weightsFor(a.checks()), a.checks().isEmpty() ? java.util.Map.of() : Scorer.score(a.checks()).ruleScores());
         bars.add(chart, BorderLayout.CENTER);
-        JLabel r9 = new JLabel("R8 필수 입력은 화면에서 빈칸을 막으므로 점수에 넣지 않습니다. R1 판단 표현은 피드백만 줍니다.");
+        JLabel r9 = new JLabel(d30
+                ? Scorer.D30_NOTICE + ". 총점과 막대는 저장 당시 기준(R8 20점 포함, R9·R10 피드백만)입니다."
+                : "R8 필수 입력은 화면에서 빈칸을 막으므로 점수에 넣지 않습니다. R1 판단 표현은 피드백만 줍니다.");
+        if (d30) {
+            JLabel notice = new JLabel(Scorer.D30_NOTICE);
+            notice.setForeground(Theme.ORANGE);
+            notice.setFont(Theme.font(Font.BOLD, 13f));
+            bars.add(notice, BorderLayout.NORTH);
+        }
         r9.setForeground(Theme.MUTED);
         bars.add(r9, BorderLayout.SOUTH);
         addCard(bars);

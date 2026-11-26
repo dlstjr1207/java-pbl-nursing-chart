@@ -137,11 +137,14 @@ public class ResultView {
         List<CheckResult> mismatch = new ArrayList<>();
         List<CheckResult> feedback = new ArrayList<>();
         List<CheckResult> passed = new ArrayList<>();
+        // D30 기록의 R9는 배점이 없던 때라 누락이어도 피드백으로 둔다 (저장 당시 기준)
+        boolean d30 = app.scoring.Scorer.scoredUnderD30(checks);
         for (CheckResult c : checks == null ? List.<CheckResult>of() : checks) {
+            boolean feedbackOnly = d30 && "R9".equals(c.ruleId());
             switch (c.status()) {
                 case PASS -> passed.add(c);
-                case MISSING -> missing.add(c);
-                case MISMATCH -> mismatch.add(c);
+                case MISSING -> (feedbackOnly ? feedback : missing).add(c);
+                case MISMATCH -> (feedbackOnly ? feedback : mismatch).add(c);
                 default -> feedback.add(c); // FEEDBACK, NOT_SCORED
             }
         }
@@ -173,9 +176,14 @@ public class ResultView {
         var r = app.scoring.Scorer.score(checks);
         if (r.ruleScores().isEmpty()) return "[항목별 점수] 미산출\n\n";
         StringBuilder sb = new StringBuilder("[항목별 점수]\n");
+        var weights = app.scoring.Scorer.weightsFor(checks);
         r.ruleScores().forEach((rule, v) -> sb.append("  ").append(rule).append(' ')
-                .append(v).append(" / ").append(app.scoring.Scorer.WEIGHTS.get(rule)).append('\n'));
-        sb.append("  R8 필수 입력은 점수에 넣지 않음 (빈칸은 화면에서 막음)\n\n");
+                .append(v).append(" / ").append(weights.get(rule)).append('\n'));
+        if (app.scoring.Scorer.scoredUnderD30(checks)) {
+            sb.append("  ").append(app.scoring.Scorer.D30_NOTICE).append(" (R8 20점 포함, R9·R10 피드백만)\n\n");
+        } else {
+            sb.append("  R8 필수 입력은 점수에 넣지 않음 (빈칸은 화면에서 막음)\n\n");
+        }
         return sb.toString();
     }
 

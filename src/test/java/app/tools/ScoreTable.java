@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 채점 기준을 바꿀 때 PC-01의 대표 기록 6가지 점수를 표로 보는 점검 도구 (개발용, 프로그램에 포함 안 됨).
+ * 채점 기준을 바꿀 때 PC-01의 대표 기록 7가지 점수를 표로 보는 점검 도구 (개발용, 프로그램에 포함 안 됨).
  * 실제 제출과 같은 Scorer.evaluate를 쓴다. 사용: ScoreTable
  */
 public final class ScoreTable {
@@ -39,7 +39,7 @@ public final class ScoreTable {
     /** 한 번 제출하는 관찰·투약·SBAR 묶음. */
     public record Rec(ObservationEntry obs, MedicationRecord med, SbarReport sbar) {}
 
-    /** 모범 기록과 다섯 가지 변형. 테스트에서도 같은 기록을 쓴다. */
+    /** 모범 기록과 여섯 가지 변형. 테스트에서도 같은 기록을 쓴다. */
     public static Map<String, Rec> records(PatientCase c) {
         ModelAnswer m = c.modelAnswer();
         ObservationEntry o = m.observationRecord();
@@ -48,7 +48,8 @@ public final class ScoreTable {
         Map<String, Rec> out = new LinkedHashMap<>();
         out.put("모범 기록", new Rec(o, med, s));
         String pasted = RawNotesChecker.allNotes(c.rawNotes().stream().filter(n -> !n.irrelevant()).toList());
-        out.put("메모 통째로 붙여 넣기", new Rec(obs(o, pasted), med, s));
+        out.put("메모 통째로 붙여 넣기(관련 있는 메모만)", new Rec(obs(o, pasted), med, s));
+        out.put("메모 12개 전부 붙여 넣기", new Rec(obs(o, RawNotesChecker.allNotes(c.rawNotes())), med, s));
         out.put("관련 없는 정보 포함", new Rec(obs(o, o.narrative() + " 08:05 옆 침상 환자 채혈 같이 들어감."), med,
                 new SbarReport(s.situation(), s.background() + " 13:20 어머니가 주말 면회 시간 문의함.",
                         s.assessment(), s.recommendations())));

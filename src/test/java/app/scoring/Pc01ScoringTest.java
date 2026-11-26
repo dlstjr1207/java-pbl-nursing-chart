@@ -182,10 +182,11 @@ class Pc01ScoringTest {
     }
 
     @Test
-    void 대표_기록_6가지의_점수() {
+    void 대표_기록_7가지의_점수() {
         java.util.Map<String, Double> expected = new java.util.LinkedHashMap<>();
         expected.put("모범 기록", 100.0);
-        expected.put("메모 통째로 붙여 넣기", 95.0);
+        expected.put("메모 통째로 붙여 넣기(관련 있는 메모만)", 95.0); // R10 그대로 옮김만
+        expected.put("메모 12개 전부 붙여 넣기", 90.0); // R10 그대로 옮김 + 관련 없는 정보
         expected.put("관련 없는 정보 포함", 95.0);
         expected.put("재평가 안 함", 90.0);
         expected.put("구강 확인 미체크", 98.1);

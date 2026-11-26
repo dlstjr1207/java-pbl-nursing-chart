@@ -346,6 +346,9 @@ class CaseGeneratorTest {
         assertTrue(prompt.contains("oralCheck true"));
         assertTrue(prompt.contains("sbarElements 해당 영역의 모든 요소 동의어"));
         assertTrue(prompt.contains("Evening에 점심 배식"));
+        // D34: 식사 시간대와 리튬 고정
+        assertTrue(prompt.contains("아침 06:30~09:00, 점심 11:00~13:30, 저녁 17:00~19:30"));
+        assertTrue(prompt.contains("정규 300mg PO 1일 3회"));
         assertTrue(prompt.contains("Day 07:00~15:30, Evening 15:00~23:30, Night 23:00~07:30"));
         assertFalse(prompt.contains("\\\"id\\\":\\\"GEN-1\\\"")); // 견본에 ID를 주지 않는다
     }

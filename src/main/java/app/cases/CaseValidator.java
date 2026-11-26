@@ -64,6 +64,7 @@ public class CaseValidator {
         checkModelTimes(p, c);
         checkBriefingMatchesKey(p, c);
         checkRawNotes(p, c);
+        checkLithium(p, c);
         for (int i = 0; i < c.vitals().size(); i++) {
             VitalSign v = c.vitals().get(i);
             if (v == null || v.time() == null || !v.time().matches(TIME)) {
@@ -160,7 +161,106 @@ public class CaseValidator {
         checkUnlabeledNotes(p, c);
         checkRawSpeech(p, rel);
         checkIrrelevantInShift(p, c);
+        checkMealTimes(p, c);
         checkModelAgainstNotes(p, c);
+    }
+
+    /**
+     * 식사 시간대 (D34, 교육용 병동 일과 가정이며 임상 값이 아니다). 분 단위 [시작, 끝].
+     * 아침 06:30~09:00, 점심 11:00~13:30, 저녁 17:00~19:30.
+     */
+    static final java.util.Map<String, int[]> MEAL_HOURS = mealHours();
+
+    private static java.util.Map<String, int[]> mealHours() {
+        java.util.Map<String, int[]> m = new java.util.LinkedHashMap<>();
+        m.put("아침", new int[] {6 * 60 + 30, 9 * 60});
+        m.put("점심", new int[] {11 * 60, 13 * 60 + 30});
+        m.put("저녁", new int[] {17 * 60, 19 * 60 + 30});
+        return java.util.Collections.unmodifiableMap(m);
+    }
+
+    /** "점심 배식", "아침식사", "저녁 식사 도움"처럼 식사 이름 바로 뒤(2글자 안)에 배식·식사가 오는 표현. 1번 묶음이 식사 이름. */
+    static final java.util.regex.Pattern MEAL = java.util.regex.Pattern.compile("(아침|조식|점심|중식|저녁|석식)\\s{0,2}(배식|식사)");
+
+    /** 식사 표현이 든 메모 시각이 그 식사 시간대 안인지. 식사 표현이 없으면 null(검사 안 함), 맞으면 "", 틀리면 식사 이름. */
+    static String mealMismatch(String time, String text) {
+        if (time == null || !time.matches(TIME) || text == null) return null;
+        var m = MEAL.matcher(text);
+        if (!m.find()) return null;
+        String meal = switch (m.group(1)) {
+            case "조식" -> "아침";
+            case "중식" -> "점심";
+            case "석식" -> "저녁";
+            default -> m.group(1);
+        };
+        int[] w = MEAL_HOURS.get(meal);
+        int t = Integer.parseInt(time.substring(0, 2)) * 60 + Integer.parseInt(time.substring(3, 5));
+        return t >= w[0] && t <= w[1] ? "" : meal;
+    }
+
+    /** 원자료 메모의 식사(배식·식사) 시각이 식사 시간대와 맞아야 한다 (D34, 예: 08:10 점심 배식 거부). */
+    private static void checkMealTimes(List<String> p, PatientCase c) {
+        for (int i = 0; i < c.rawNotes().size(); i++) {
+            app.domain.RawNote n = c.rawNotes().get(i);
+            if (n == null) continue;
+            String meal = mealMismatch(n.time(), n.text());
+            if (meal != null && !meal.isEmpty()) {
+                int[] w = MEAL_HOURS.get(meal);
+                p.add("rawNotes[" + i + "](" + n.time() + ") " + meal + " 배식·식사 메모의 시각이 " + meal + " 시간대("
+                        + String.format("%02d:%02d~%02d:%02d", w[0] / 60, w[0] % 60, w[1] / 60, w[1] % 60) + ") 밖임");
+            }
+        }
+    }
+
+    /** 리튬 처방 고정값 (D34): PC-01과 같은 300mg PO 1일 3회 08:30·12:30·18:30. 새 임상 값을 만들지 않기 위해서다. */
+    static final String LITHIUM_DOSE = "300";
+    static final List<String> LITHIUM_TIMES = List.of("08:30", "12:30", "18:30");
+    private static final java.util.regex.Pattern LITHIUM = java.util.regex.Pattern.compile("(?i)리튬|lithium");
+    /** 글 속 리튬 용량: "리튬 600mg", "Lithium carbonate (탄산리튬) 300 mg" (숫자를 건너뛰지 않는다) */
+    private static final java.util.regex.Pattern LITHIUM_MG =
+            java.util.regex.Pattern.compile("(?i)(리튬|lithium)[^\\d\\n]{0,15}(\\d+(?:\\.\\d+)?)\\s*(mg|밀리그램)");
+
+    /** 리튬은 처방도, 메모·브리핑·관찰 로그·모범 기록 글의 용량도 PC-01과 같아야 한다 (D34). */
+    private static void checkLithium(List<String> p, PatientCase c) {
+        for (int i = 0; i < c.orders().size(); i++) {
+            Medication m = c.orders().get(i);
+            if (m == null || m.drugName() == null || !LITHIUM.matcher(m.drugName()).find()) continue;
+            String dose = app.scoring.ElementPattern.trimZeroDecimal(m.dose());
+            List<String> times = m.scheduleTimes() == null ? List.of()
+                    : m.scheduleTimes().stream().map(t -> t == null ? "" : t.trim()).sorted().toList();
+            boolean ok = m.type() == app.domain.OrderType.REGULAR && LITHIUM_DOSE.equals(dose)
+                    && "mg".equalsIgnoreCase(m.unit() == null ? "" : m.unit().trim())
+                    && "PO".equalsIgnoreCase(m.route() == null ? "" : m.route().trim())
+                    && m.frequency() != null && m.frequency().replaceAll("\\s+", "").contains("1일3회")
+                    && LITHIUM_TIMES.equals(times);
+            if (!ok) {
+                p.add("orders[" + i + "] 리튬은 PC-01과 같은 정규 300mg PO 1일 3회(08:30·12:30·18:30)로만 처방 (현재 "
+                        + m.type() + " " + m.dose() + m.unit() + " " + m.route() + " " + m.frequency() + " " + m.scheduleTimes() + ")");
+            }
+        }
+        List<String> texts = new ArrayList<>();
+        texts.add(c.briefing());
+        for (var n : c.rawNotes()) if (n != null) texts.add(n.text());
+        for (var o : c.observationLog()) if (o != null) texts.add(o.narrative());
+        var ma = c.modelAnswer();
+        if (ma != null) {
+            texts.add(ma.observation());
+            texts.add(ma.medication());
+            texts.add(ma.sbar());
+            if (ma.sbarReport() != null) {
+                texts.add(ma.sbarReport().background());
+                for (var r : ma.sbarReport().recommendations()) if (r != null) texts.add(r.intervention());
+            }
+        }
+        for (String t : texts) {
+            if (t == null) continue;
+            var mm = LITHIUM_MG.matcher(t);
+            while (mm.find()) {
+                if (!LITHIUM_DOSE.equals(app.scoring.ElementPattern.trimZeroDecimal(mm.group(2)))) {
+                    p.add("리튬 용량 '" + mm.group() + "'이(가) 300mg이 아님 (리튬은 300mg 1일 3회로 고정)");
+                }
+            }
+        }
     }
 
     /** 근무 시간 (D33): Day 07:00~15:30, Evening 15:00~23:30, Night 23:00~07:30(다음 날). 분 단위 [시작, 끝]. */

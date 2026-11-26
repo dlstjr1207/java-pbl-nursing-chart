@@ -131,4 +131,62 @@ class RawNotesViewTest {
         assertEquals(List.of(), app.scoring.RawNotesChecker.check(restored, old.observationEntries(),
                 old.medicationRecords(), old.sbar()));
     }
+
+    /** D30 때 저장된 점검 결과 모양: R9가 R 행 점검(rec1.time 등)을 냈고, R10은 FEEDBACK이었다. */
+    private static List<app.domain.CheckResult> asD30(List<app.domain.CheckResult> now) {
+        List<app.domain.CheckResult> old = new java.util.ArrayList<>();
+        for (var c : now) {
+            if (c.ruleId().equals("R10")) {
+                if (c.status() != app.domain.CheckStatus.PASS) {
+                    old.add(new app.domain.CheckResult("R10", c.target(), c.targetRef(), app.domain.CheckStatus.FEEDBACK,
+                            c.message() + " (배점 없음)", null));
+                }
+                continue;
+            }
+            old.add(c);
+        }
+        old.add(new app.domain.CheckResult("R9", app.domain.CheckTarget.SBAR, "rec1.time", app.domain.CheckStatus.PASS, "R 1행: 시각이 있습니다.", null));
+        old.add(new app.domain.CheckResult("R9", app.domain.CheckTarget.SBAR, "rec1.intervention", app.domain.CheckStatus.PASS, "R 1행: 중재가 있습니다.", null));
+        return old;
+    }
+
+    @Test
+    void D33_전에_저장된_기록은_안내_문구와_저장_당시_배점_막대를_보인다() {
+        PatientCase pc01 = new CaseLoader().load("PC-01");
+        var m = pc01.modelAnswer();
+        var o = m.observationRecord();
+        var pasted = new app.domain.ObservationEntry(o.time(), o.shift(), o.tags(),
+                app.scoring.RawNotesChecker.allNotes(pc01.rawNotes()), o.intervention(), o.vitals());
+        var now = app.scoring.Scorer.evaluate(pc01, List.of(pasted), List.of(m.medicationRecord()), m.sbarReport());
+        assertEquals(90.0, now.score()); // 지금 기준
+        assertFalse(app.scoring.Scorer.scoredUnderD30(now.checks()));
+        List<app.domain.CheckResult> oldChecks = asD30(now.checks());
+        assertTrue(app.scoring.Scorer.scoredUnderD30(oldChecks));
+        // 저장 당시 배점으로 다시 계산하면 저장된 총점(100)과 같다
+        var re = app.scoring.Scorer.score(oldChecks);
+        assertEquals(100.0, re.score());
+        assertEquals(app.scoring.Scorer.WEIGHTS_D30.keySet(), re.ruleScores().keySet());
+        app.domain.Attempt old = new app.domain.Attempt(1L, 1L, "PC-01", app.domain.CaseSource.FIXED, null,
+                java.time.LocalDateTime.now(), java.time.LocalDateTime.now(), List.of(pasted),
+                List.of(m.medicationRecord()), m.sbarReport(), oldChecks, 100.0, null);
+        AppState s = new AppState();
+        s.login("테스트");
+        assertTrue(s.showResult(old));
+        String text = allText(new ResultPanel(s, x -> { }));
+        assertTrue(text.contains("이전 채점 기준(D30)으로 채점된 기록입니다"), text);
+        assertTrue(text.contains("100점"), text);
+        assertTrue(ResultView.ruleScoreText(oldChecks).contains("R8 20.0 / 20"));
+        assertTrue(ResultView.ruleScoreText(oldChecks).contains("이전 채점 기준(D30)"));
+        // D30 기록의 R10은 피드백 묶음에 그대로 남는다
+        assertTrue(ResultView.groups(oldChecks).feedback().stream().anyMatch(c -> c.ruleId().equals("R10")));
+
+        // 새 기록에는 안내 문구가 없다
+        app.domain.Attempt fresh = new app.domain.Attempt(2L, 1L, "PC-01", app.domain.CaseSource.FIXED, null,
+                java.time.LocalDateTime.now(), java.time.LocalDateTime.now(), List.of(pasted),
+                List.of(m.medicationRecord()), m.sbarReport(), now.checks(), now.score(), null);
+        assertTrue(s.showResult(fresh));
+        String freshText = allText(new ResultPanel(s, x -> { }));
+        assertFalse(freshText.contains("D30"), freshText);
+        assertTrue(freshText.contains("90점"), freshText);
+    }
 }

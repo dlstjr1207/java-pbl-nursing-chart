@@ -2,6 +2,7 @@ package app.cases;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.domain.CheckResult;
@@ -122,6 +123,16 @@ class RawNotesTest {
     }
 
     @Test
+    void 메모_12개를_전부_붙여_넣으면_R10_두_점검에_모두_걸려_10점이_빠진다() {
+        ObservationEntry model = pc01.modelAnswer().observationRecord();
+        Scorer.Result r = score(List.of(obs(model, RawNotesChecker.allNotes(pc01.rawNotes()))));
+        assertEquals(List.of(RawNotesChecker.REF_COPIED, RawNotesChecker.REF_IRRELEVANT),
+                r10(r).stream().map(CheckResult::targetRef).toList());
+        assertEquals(0.0, r.ruleScores().get("R10"));
+        assertEquals(90.0, r.score());
+    }
+
+    @Test
     void 메모_한_줄을_길게_그대로_옮겨도_피드백을_준다() {
         ObservationEntry model = pc01.modelAnswer().observationRecord();
         String line = pc01.rawNotes().stream().filter(n -> n.time().equals("07:20")).findFirst().orElseThrow().text();
@@ -199,6 +210,53 @@ class RawNotesTest {
         assertFalse(CaseValidator.inShift(app.domain.Shift.EVENING, "14:59"));
         assertFalse(CaseValidator.inShift(app.domain.Shift.DAY, "06:59"));
         assertEquals(java.util.Set.of(app.domain.Shift.DAY), CaseValidator.caseShifts(pc01));
+    }
+
+    @Test
+    void 배식_식사_메모의_시각이_식사_시간대_밖이면_거부한다() {
+        List<RawNote> notes = new ArrayList<>(pc01.rawNotes());
+        int i = indexOfIrrelevant(notes);
+        RawNote n = notes.get(i);
+        notes.set(i, new RawNote("08:10", "점심 배식 준비.", true, List.of("점심", "배식")));
+        assertTrue(has(problems(notes), "(08:10) 점심 배식·식사 메모의 시각이 점심 시간대(11:00~13:30) 밖임"), problems(notes).toString());
+        notes.set(i, new RawNote("12:10", "점심 배식 준비.", true, List.of("점심", "배식")));
+        assertFalse(has(problems(notes), "시간대"));
+        // 다른 식사·표기
+        assertEquals("저녁", CaseValidator.mealMismatch("15:20", "저녁배식 카트 정리"));
+        assertEquals("아침", CaseValidator.mealMismatch("10:00", "조식 식사 보조"));
+        assertEquals("", CaseValidator.mealMismatch("07:40", "아침 식사 도움"));
+        assertEquals("", CaseValidator.mealMismatch("19:30", "석식 배식"));
+        // 식사 이름 + 배식·식사가 아니면 검사하지 않는다 (투약 시각을 말하는 인계 등)
+        assertNull(CaseValidator.mealMismatch("15:10", "18:30 리튬 300mg 저녁 투약"));
+        assertNull(CaseValidator.mealMismatch("07:20", "Aripiprazole 10mg 아침 1번"));
+        assertEquals(List.of("아침", "점심", "저녁"), List.copyOf(CaseValidator.MEAL_HOURS.keySet()));
+    }
+
+    @Test
+    void 리튬은_PC01과_같은_300mg_1일_3회로만_처방한다() {
+        assertTrue(problems(pc01.rawNotes()).stream().noneMatch(x -> x.contains("리튬")), problems(pc01.rawNotes()).toString());
+        var li = pc01.orders().stream().filter(o -> o.drugName().contains("Lithium")).findFirst().orElseThrow();
+        java.util.function.Function<app.domain.Medication, List<String>> withLi = m -> {
+            List<app.domain.Medication> orders = new ArrayList<>(pc01.orders());
+            orders.replaceAll(o -> o == li ? m : o);
+            return validator.check(new PatientCase(pc01.id(), pc01.title(), pc01.difficulty(), pc01.objectives(),
+                    pc01.reviewStatus(), pc01.source(), pc01.patient(), pc01.adr(), pc01.riskTier(), orders,
+                    pc01.regimenHistory(), pc01.lithiumLevel(), pc01.vitals(), pc01.observationLog(), pc01.safetyRounds(),
+                    pc01.briefing(), pc01.sbarReference(), pc01.answerKey(), pc01.modelAnswer(), pc01.rawNotes(), pc01.task()));
+        };
+        var p600 = withLi.apply(new app.domain.Medication(li.orderId(), li.type(), "Lithium", "600", "mg", "PO", "1일 3회",
+                li.scheduleTimes(), null, null));
+        assertTrue(has(p600, "리튬은 PC-01과 같은 정규 300mg PO 1일 3회"), p600.toString());
+        var wrongTime = withLi.apply(new app.domain.Medication(li.orderId(), li.type(), "탄산리튬", "300.0", "mg", "PO", "1일 3회",
+                List.of("08:00", "12:30", "18:30"), null, null));
+        assertTrue(has(wrongTime, "리튬은 PC-01과 같은"), wrongTime.toString());
+        var ok = withLi.apply(new app.domain.Medication(li.orderId(), li.type(), "탄산리튬", "300.0", "mg", "PO", "1일 3회",
+                List.of("18:30", "08:30", "12:30"), null, null));
+        assertFalse(has(ok, "리튬"), ok.toString());
+        // 메모 글의 리튬 용량도 300mg이어야 한다
+        List<RawNote> notes = new ArrayList<>(pc01.rawNotes());
+        notes.add(new RawNote("15:20", "인계: 리튬 600mg 저녁 투약", false, List.of()));
+        assertTrue(has(problems(notes), "리튬 용량 '리튬 600mg'이(가) 300mg이 아님"), problems(notes).toString());
     }
 
     private static int indexOfIrrelevant(List<RawNote> notes) {
