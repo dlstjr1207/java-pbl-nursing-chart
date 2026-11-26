@@ -56,6 +56,8 @@ public final class DemoSession {
         dir.mkdirs();
         String pw = Files.readString(Path.of(args[1])).strip();
         boolean aiOnly = args.length > 2 && args[2].equals("ai");
+        // show <번호> <시작 번호>: 새 실습 없이 저장된 기록을 열어 결과·다시 보기만 다시 그린다
+        boolean show = args.length > 4 && args[2].equals("show");
         n = aiOnly ? 20 : 0;
         try {
             SwingUtilities.invokeAndWait(() -> {
@@ -70,7 +72,10 @@ public final class DemoSession {
             // DB에 연결되지 않으면 사용자 폴더의 파일에 저장되므로 멈춘다 (시연 기록은 DB에 남겨야 한다)
             if (onEdt(() -> state.notices().contains(AppState.FILE_MODE_NOTICE))) throw new IllegalStateException("DB에 연결되지 않아 멈춤");
             login(pw);
-            if (aiOnly) aiPractice();
+            if (show) {
+                n = Integer.parseInt(args[4]);
+                showRecord(Long.parseLong(args[3]));
+            } else if (aiOnly) aiPractice();
             else pc01Practice();
         } catch (Throwable t) {
             t.printStackTrace();
@@ -109,6 +114,39 @@ public final class DemoSession {
         shot("결과로-돌아감");
     }
 
+    /** 개인 메인 과거 기록 목록에서 그 번호를 눌러 결과를 연다 (Main과 같은 경로) */
+    private static void showRecord(long id) throws Exception {
+        edt(() -> {
+            app.ui.HomePanel home = first(frame.getRootPane(), app.ui.HomePanel.class);
+            home.reload();
+            @SuppressWarnings("unchecked")
+            var list = (javax.swing.JList<app.domain.Attempt>) get(home, "historyList");
+            for (int i = 0; i < list.getModel().getSize(); i++) {
+                if (list.getModel().getElementAt(i).attemptId() == id) list.setSelectedIndex(i);
+            }
+        });
+        var a = onEdt(state::resultAttempt);
+        if (a == null || a.attemptId() != id) throw new IllegalStateException("기록을 열지 못함: " + id);
+        System.out.println("열림: 번호 " + a.attemptId() + ", 케이스 " + a.caseId() + ", 점수 " + a.score());
+        boolean ai = a.caseSource() == app.domain.CaseSource.AI_GENERATED;
+        shotTall(ai ? "AI환자-결과-AI해설" : "결과-AI해설");
+        edt(() -> frame.show(Screen.PATIENT));
+        shot(ai ? "AI환자-다시보기-환자정보" : "다시보기-환자정보");
+        if (ai) {
+            edt(() -> frame.show(Screen.SBAR));
+            shot("AI환자-다시보기-SBAR");
+            return;
+        }
+        edt(() -> frame.show(Screen.OBSERVATION));
+        shot("다시보기-관찰-정신상태평가");
+        edt(() -> frame.show(Screen.MEDICATION));
+        shot("다시보기-투약");
+        edt(() -> frame.show(Screen.SBAR));
+        shot("다시보기-SBAR");
+        edt(() -> button(frame.getRootPane(), "결과로 돌아가기").doClick());
+        shot("결과로-돌아감");
+    }
+
     private static void aiPractice() throws Exception {
         edt(() -> button(frame.getRootPane(), "AI로 새 케이스 생성").doClick());
         // 생성은 시도마다 수십 초 걸릴 수 있다 (최대 5번)
@@ -119,6 +157,11 @@ public final class DemoSession {
         PatientCase c = onEdt(state::currentCase);
         if (c == null) throw new IllegalStateException("AI 케이스로 실습을 시작하지 못함");
         System.out.println("케이스: " + c.id() + " (" + c.source() + "), 과제: " + c.task());
+        // 생성에 실패해 기본 케이스로 돌아갔으면 실습하지 않는다 (AI 환자 기록만 남긴다)
+        if (c.source() != app.domain.CaseSource.AI_GENERATED) {
+            System.out.println("AI 생성 실패로 기본 케이스가 열림: " + onEdt(() -> text(frame.getRootPane())));
+            return;
+        }
         practice("AI");
         shotTall("AI환자-결과-AI해설");
         edt(() -> frame.show(Screen.PATIENT));
@@ -146,13 +189,27 @@ public final class DemoSession {
             ((JTextArea) get(p, "narrativeArea")).setText(o.narrative());
             ((JTextField) get(p, "interventionField")).setText(o.intervention() == null ? "" : o.intervention());
             button(p, "관찰 기록 저장").doClick();
-            // 정신상태 평가: 원자료 메모에 있는 관찰만 옮긴다 (메모에 없는 의식 수준·지남력은 비워 둔다)
+            // 정신상태 평가: 원자료 메모에 있는 관찰만 옮긴다. 의식 수준은 학생이 관찰해 고르는 칸이다
+            // (환자가 말에 대답하고 걸어 다니므로 명료). 메모에 없는 지각·지남력은 비워 둔다
+            @SuppressWarnings("unchecked")
+            JComboBox<String> level = (JComboBox<String>) get(p, "consciousnessBox");
+            level.setSelectedItem("명료(alert)");
             if ("PC01".equals(label)) {
                 ((JTextField) get(p, "appearanceField")).setText("데이룸 창가 쪽을 왔다 갔다 서성거림, 손톱을 물어뜯음");
                 ((JTextField) get(p, "thoughtField")).setText("\"누가 나를 감시하는 것 같아요… 계속 봐요\"라고 말함");
                 ((JTextField) get(p, "moodField")).setText("재평가 때 \"이제… 좀 괜찮아요\"라고 말함");
-                button(p, "정신상태 평가 저장").doClick();
+            } else {
+                // AI 환자: 메모의 관찰을 맞는 칸에 옮긴다. 외모·행동 = 사건 관찰 메모,
+                // 환자 말 = 들리거나 보인다는 말이면 지각(환청·환시), 아니면 사고 내용, 기분·정동 = 재평가 메모 중 불안·차분 문장
+                ((JTextField) get(p, "appearanceField")).setText(memo(c, "EVENT"));
+                String speech = memo(c, "SPEECH");
+                boolean perceptual = speech.matches(".*(들려|들린|소리|보여|보인|목소리).*");
+                ((JTextField) get(p, perceptual ? "perceptionField" : "thoughtField")).setText(speech);
+                String mood = java.util.Arrays.stream(memo(c, "REASSESS").split("(?<=[.])\\s*"))
+                        .filter(x -> x.matches(".*(불안|차분|안정|초조|편안|괜찮).*")).findFirst().orElse("");
+                ((JTextField) get(p, "moodField")).setText(mood.strip());
             }
+            button(p, "정신상태 평가 저장").doClick();
         });
         System.out.println("관찰 저장: " + onEdt(() -> state.studentObservations().size()) + "건, 정신상태 평가: "
                 + onEdt(() -> String.valueOf(state.mentalStatus())));
@@ -211,6 +268,12 @@ public final class DemoSession {
                 + ", AI 해설 " + (a.aiFeedback() == null ? "NONE" : a.aiFeedback().status()));
         a.checks().stream().filter(x -> x.status() != app.domain.CheckStatus.PASS)
                 .forEach(x -> System.out.println("  - " + x.ruleId() + " " + x.status() + " " + x.message()));
+    }
+
+    /** 그 종류의 가장 이른 메모 글 (없으면 빈 글) */
+    private static String memo(PatientCase c, String kind) {
+        return c.rawNotes().stream().filter(x -> kind.equals(x.kind())).min((x, y) -> x.time().compareTo(y.time()))
+                .map(app.domain.RawNote::text).orElse("");
     }
 
     // ---------- 도우미 ----------
