@@ -66,6 +66,7 @@ public class CaseValidator {
         checkRawNotes(p, c);
         checkLithium(p, c);
         checkDates(p, c);
+        checkSbarStrength(p, c);
         for (int i = 0; i < c.vitals().size(); i++) {
             VitalSign v = c.vitals().get(i);
             if (v == null || v.time() == null || !v.time().matches(TIME)) {
@@ -527,7 +528,8 @@ public class CaseValidator {
         for (int k = 0; k < 4; k++) {
             for (var e : app.scoring.ElementPattern.parseAll(lists.get(k))) {
                 if (!e.foundIn(rel)) {
-                    p.add("answerKey SBAR " + areas[k] + " 요소 '" + e.label() + "'(" + e.example() + ")을(를) 원자료 메모에서 찾을 수 없음");
+                    p.add("answerKey SBAR " + areas[k] + " 요소 '" + e.label() + "'(" + e.example() + ")을(를) 원자료 메모에서 찾을 수 없음"
+                            + " (고치는 법: 동의어를 메모에 쓴 글자 그대로 바꾸거나 더한다. 수치는 표기가 달라지기 쉬움, 예: 메모 'VAS 8에서 2로'면 '8에서 2로')");
                 }
             }
         }
@@ -717,6 +719,107 @@ public class CaseValidator {
             p.add("answerKey 투약 정답(" + drug.get().expected() + " " + dose.get().expected()
                     + ")이 현재 처방(정규·PRN)의 약·용량과 다름");
         }
+    }
+
+    /** SBAR 영역별 최소 요소 수 (PC-01 정답 키 구성: S 2, B 3, A 2, R 2) */
+    static final int MIN_S = 2, MIN_B = 3, MIN_A = 2, MIN_R = 2;
+    private static final java.util.regex.Pattern HHMM = java.util.regex.Pattern.compile("([01]\\d|2[0-3]):[0-5]\\d");
+
+    /**
+     * 정답 키의 SBAR 요소가 PC-01만큼 구체적인지 (Windows 시연 검토). 요소가 적으면 "B: 조현병 환자임"처럼 짧은 SBAR로도 만점이 나온다.
+     * PC-01 기준: S = 사건 증상 + PRN 투약(약명), B = 진단 + 입원 일수(N일) + 현재 정규 처방(약명),
+     * A = 재평가 수치(숫자가 든 요소) 2개 이상, R = 다음 시각 정규 투약(HH:mm과 약명) + 관찰 계획.
+     * 모범 기록이 이 요소를 모두 담아야 하는 것은 '모범 기록이 자기 정답 키로 100점' 검사가 함께 막는다.
+     */
+    void checkSbarStrength(List<String> p, PatientCase c) {
+        var key = c.answerKey();
+        if (key == null) return;
+        var s = key.sbarElements();
+        if (s == null) {
+            p.add("answerKey.sbarElements 누락 (S·B·A·R 요소를 PC-01처럼 채운다)");
+            return;
+        }
+        count(p, "situation(S)", s.situation(), MIN_S, "사건 증상, PRN 투약 약명");
+        count(p, "background(B)", s.background(), MIN_B, "진단, 입원 일수(N일), 현재 정규 처방 약명");
+        count(p, "assessment(A)", s.assessment(), MIN_A, "재평가 수치(예: VAS 2, RASS 0), 재평가 결과");
+        count(p, "recommendation(R)", s.recommendation(), MIN_R, "다음 시각 정규 투약(HH:mm&약명), 관찰 계획");
+        // 약 이름: 처방 약명과 허용 약물 목록의 이름·별칭 (소문자)
+        List<String> regular = new ArrayList<>();
+        List<String> prn = new ArrayList<>();
+        for (Medication m : c.orders()) {
+            if (m == null || blank(m.drugName()) || m.type() == OrderType.PAST) continue;
+            (m.type() == OrderType.PRN ? prn : regular).addAll(drugNames(m.drugName()));
+        }
+        if (!prn.isEmpty() && none(s.situation(), prn)) {
+            p.add("answerKey SBAR S 요소에 PRN 투약 약명이 없음 (예: \"PRN 투여=prn|로라제팜|lorazepam\")");
+        }
+        var pt = c.patient();
+        if (pt != null && !blank(pt.diagnosis()) && s.background().stream().noneMatch(e -> diagnosisIn(e, pt.diagnosis()))) {
+            p.add("answerKey SBAR B 요소에 진단(" + pt.diagnosis() + ")이 없음 (예: \"진단=" + pt.diagnosis().replaceAll("\\(.*\\)", "").strip() + "\")");
+        }
+        if (pt != null && pt.hospitalDay() != null && none(s.background(), List.of(pt.hospitalDay() + "일"))) {
+            p.add("answerKey SBAR B 요소에 입원 일수(" + pt.hospitalDay() + "일)가 없음 (예: \"입원 " + pt.hospitalDay() + "일=" + pt.hospitalDay() + "일\")");
+        }
+        if (!regular.isEmpty() && none(s.background(), regular)) {
+            p.add("answerKey SBAR B 요소에 현재 정규 처방 약명이 없음 (예: \"현재 처방=아리피프라졸|aripiprazole\")");
+        }
+        if (s.assessment().stream().noneMatch(e -> synonyms(e).matches(".*\\d.*"))) {
+            p.add("answerKey SBAR A 요소에 재평가 수치(숫자)가 없음 (예: \"재평가 결과=vas 2|vas 8→2\", \"RASS 0=rass 0\")");
+        }
+        if (!regular.isEmpty() && s.recommendation().stream().noneMatch(e -> HHMM.matcher(synonyms(e)).find() && hasAny(synonyms(e), regular))) {
+            p.add("answerKey SBAR R 요소에 다음 시각 정규 투약(HH:mm과 약명)이 없음 (예: \"18:30 리튬 투약=18:30&리튬|lithium\")");
+        }
+    }
+
+    private static void count(List<String> p, String area, List<String> list, int min, String hint) {
+        if (list.size() < min) {
+            p.add("answerKey SBAR " + area + " 요소가 " + list.size() + "개뿐임 (" + min + "개 이상: " + hint + ")");
+        }
+    }
+
+    /** 요소 문자열의 동의어 부분 (소문자, '=' 뒤) */
+    private static String synonyms(String element) {
+        if (element == null) return "";
+        int i = element.indexOf('=');
+        return (i < 0 ? element : element.substring(i + 1)).toLowerCase();
+    }
+
+    /** 동의어 글에 약 이름이 있거나, 동의어 낱말(2글자 이상, 시각 제외)이 약 이름 안에 있으면 그 약으로 본다 (예: 리튬 ⊂ Lithium carbonate (탄산리튬)) */
+    private static boolean hasAny(String text, List<String> names) {
+        if (names.stream().anyMatch(n -> !n.isBlank() && text.contains(n))) return true;
+        for (String syn : text.split("[|&]")) {
+            String x = syn.strip();
+            if (x.length() < 2 || HHMM.matcher(x).matches()) continue;
+            if (names.stream().anyMatch(n -> n.contains(x))) return true;
+        }
+        return false;
+    }
+
+    private static boolean none(List<String> elements, List<String> names) {
+        return elements.stream().noneMatch(e -> hasAny(synonyms(e), names));
+    }
+
+    /** 요소 동의어(2글자 이상) 중 하나가 진단명에 들어 있으면 진단 요소로 본다 (예: '조현정동장애' ⊂ '조현정동장애(양극형)') */
+    private static boolean diagnosisIn(String element, String diagnosis) {
+        String d = diagnosis.toLowerCase().replaceAll("\\s+", "");
+        for (String syn : synonyms(element).split("[|&]")) {
+            String x = syn.strip().replaceAll("\\s+", "");
+            if (x.length() >= 2 && (d.contains(x) || x.contains(d))) return true;
+        }
+        return false;
+    }
+
+    /** 처방 약명과 허용 약물 목록의 이름·별칭 (소문자, 괄호 앞 이름 포함) */
+    private List<String> drugNames(String drugName) {
+        List<String> out = new ArrayList<>();
+        out.add(drugName.toLowerCase().strip());
+        out.add(drugName.replaceAll("\\(.*\\)", "").toLowerCase().strip());
+        allowedDrugs().find(drugName).ifPresent(d -> {
+            out.add(d.name().toLowerCase());
+            d.aliases().forEach(a -> out.add(a.toLowerCase()));
+        });
+        out.removeIf(String::isBlank);
+        return out;
     }
 
     /** 통과하지 못하면 원인과 함께 {@link CaseLoadException}으로 거부한다. */

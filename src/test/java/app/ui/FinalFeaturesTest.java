@@ -114,7 +114,11 @@ class FinalFeaturesTest {
         var s = a.sbar();
         assertTrue(paragraph.startsWith(s.situation().strip().replaceAll("\\s*\\R\\s*", " ")), paragraph);
         assertTrue(paragraph.indexOf(s.assessment().strip().substring(0, 5)) > paragraph.indexOf(s.background().strip().substring(0, 5)));
-        assertTrue(paragraph.endsWith(s.recommendations().get(s.recommendations().size() - 1).intervention().strip()), paragraph);
+        assertTrue(paragraph.endsWith(s.recommendations().get(s.recommendations().size() - 1).intervention().strip() + "."), paragraph);
+        // 칸 끝에 문장부호가 없으면 마침표를 붙여 문장 경계가 보이게 한다
+        assertEquals("환자가 초조 증상을 보임. 조현병 환자임. 투약 후 차분해짐! 18:30 정규 투약 및 상태 관찰.",
+                ResultView.handoffParagraph(new app.domain.SbarReport("환자가 초조 증상을 보임", "조현병 환자임.", "투약 후 차분해짐!",
+                        List.of(new app.domain.SbarRecommendation("18:30", "정규 투약 및 상태 관찰")))));
         assertFalse(paragraph.contains("\n"));
         assertTrue(t.contains("[실제 인계 기록 형태]\n" + paragraph + " (서명: 김간호)"), t);
         assertTrue(t.contains("실제 인계 기록은 칸을 나누지 않고 이 순서로 한 문단으로 씁니다."));

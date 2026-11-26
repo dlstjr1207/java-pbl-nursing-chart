@@ -113,15 +113,22 @@ public class ResultView {
         if (r == null) return "";
         List<String> parts = new ArrayList<>();
         for (String s : new String[] {r.situation(), r.background(), r.assessment()}) {
-            if (s != null && !s.isBlank()) parts.add(s.strip().replaceAll("\\s*\\R\\s*", " "));
+            if (s != null && !s.isBlank()) parts.add(sentence(s.strip().replaceAll("\\s*\\R\\s*", " ")));
         }
         List<String> recs = new ArrayList<>();
         for (SbarRecommendation x : r.recommendations()) {
             String t = ((x.time() == null ? "" : x.time().strip()) + " " + (x.intervention() == null ? "" : x.intervention().strip())).strip();
             if (!t.isEmpty()) recs.add(t);
         }
-        if (!recs.isEmpty()) parts.add(String.join(", ", recs));
+        if (!recs.isEmpty()) parts.add(sentence(String.join(", ", recs)));
         return String.join(" ", parts);
+    }
+
+    /** 칸 끝에 문장부호(. ! ? 등)가 없으면 마침표를 붙인다 (한 문단으로 이을 때 문장 경계가 보이게) */
+    static String sentence(String s) {
+        if (s.isEmpty()) return s;
+        char last = s.charAt(s.length() - 1);
+        return ".!?。…".indexOf(last) >= 0 ? s : s + ".";
     }
 
     /** 제출 당시 학생이 쓴 관찰·투약·SBAR (서명은 "학생"). */

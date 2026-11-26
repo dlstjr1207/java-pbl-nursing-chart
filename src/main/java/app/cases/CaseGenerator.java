@@ -414,6 +414,11 @@ public class CaseGenerator {
                 }
             }
         }
+        // SBAR 요소가 빠졌으면: 모범 SBAR 칸에 정답 키 동의어를 글자 그대로 쓰거나, 동의어에 모범 문장의 표기를 더한다
+        if (r.checks().stream().anyMatch(x -> "R9".equals(x.ruleId()) && x.status() == app.domain.CheckStatus.MISSING)) {
+            out.add("고치는 법: modelAnswer.sbarReport의 해당 칸에 sbarElements 동의어 하나를 글자 그대로 쓴다. "
+                    + "수치는 표기가 달라지기 쉬우므로(예: 'VAS 8→2'와 'VAS 8에서 2로') 정답 키 동의어에 메모·모범 문장에 쓴 표기를 모두 넣는다(예: 재평가 수치=8에서 2로|8→2|2로)");
+        }
         return out;
     }
 
@@ -474,7 +479,15 @@ public class CaseGenerator {
                 + "medicationRecord.reassessmentPlan '10:00 불안 VAS 재평가'), '재평가 안 함·없음·생략' 같은 부정 표현을 쓰지 않는다. "
                 + "PRN을 투여한 medicationRecord는 result GIVEN, oralCheck true, reason을 채운다. "
                 + "sbarReport의 S·B·A·R 각 칸과 recommendations(시각+중재 글)에 sbarElements 해당 영역의 모든 요소 동의어가 하나씩 들어가야 한다"
-                + "(R 요소가 '18:30&리튬'처럼 시각과 약을 함께 요구하면 그 시각 행의 중재에 약명을 쓴다).\n"
+                + "(R 요소가 '18:30&리튬'처럼 시각과 약을 함께 요구하면 그 시각 행의 중재에 약명을 쓴다). "
+                + "sbarElements는 기본 케이스(PC-01)만큼 구체적이어야 한다: "
+                + "situation 2개 이상(사건 증상, PRN 투약 약명 예: PRN 투여=prn|로라제팜|lorazepam), "
+                + "background 3개 이상(진단명, 입원 일수 예: 입원 N일=N일(patient.hospitalDay와 같은 N), 현재 정규 처방 약명 예: 현재 처방=아리피프라졸|aripiprazole), "
+                + "assessment 2개 이상이고 그중 하나는 재평가 수치(숫자 포함). 수치 요소의 동의어는 REASSESS 메모와 모범 SBAR에 실제로 쓴 수치 표기를 글자 그대로 쓰고, "
+                + "표기가 달라도 맞도록 여러 개 쓴다(예: 메모가 'VAS 8에서 2로'면 재평가 수치=8에서 2로|8→2|2로. 견본 수치를 베끼지 않고 이 케이스의 수치를 쓴다), "
+                + "recommendation 2개 이상(다음 시각 정규 투약 예: 18:30 리튬 투약=18:30&리튬|lithium, 관찰 계획 예: 다음 근무 관찰=관찰). "
+                + "이 요소들은 메모에 있어야 하고, 모범 SBAR(sbarReport·sbar 문장)도 나이·성별, 진단, 입원 일수, 정규 처방, 알레르기, 재평가 수치, 다음 투약 시각을 담은 문장으로 쓴다"
+                + "(예: B '28세 여성, 조현정동장애로 동의입원 14일차. 현재 처방 아리피프라졸 10mg PO 1일 1회, 탄산리튬 300mg PO 1일 3회. Penicillin 알레르기.').\n"
                 + RAW_NOTES_RULES
                 + "견본:\n" + TEMPLATE;
     }
@@ -558,7 +571,7 @@ public class CaseGenerator {
                          {"time":"15:10","kind":"NEXT_SHIFT","text":"다음 근무에 넘길 일 메모(정규 투약 시각·관찰)"}],
              "answerKey":{"observationElements":["장소=데이룸|휴게실","행동=서성|왔다 갔다|손톱","발언 인용=답답|무서워","간호=1:1|일대일|지지|조용한 곳","투약=로라제팜|Lorazepam&1mg|1 mg&PO|경구","재평가=30분|재평가"],
                           "medicationElements":["약명=영문약명|한글약명","용량=숫자","단위=mg","경로=PO|경구","시각=HH:mm"],
-                          "sbarElements":{"situation":["불안 사건=불안|초조"],"background":["진단=진단명"],"assessment":["재평가 결과=안정|불안 감소"],"recommendation":["다음 근무 관찰=관찰"]}},
+                          "sbarElements":{"situation":["불안 사건=불안|초조","PRN 투여=prn|한글약명|영문약명"],"background":["진단=진단명","입원 N일=N일","현재 처방=정규약 한글명|정규약 영문명"],"assessment":["재평가 결과=vas 2|vas 8→2","RASS 0=rass 0"],"recommendation":["HH:mm 정규 투약=HH:mm&정규약 한글명|정규약 영문명","다음 근무 관찰=관찰"]}},
              "modelAnswer":{"observation":"모범 관찰 문장","medication":"모범 투약 문장","sbar":"S: …\\nB: …\\nA: …\\nR: …",
                             "observationRecord":{"time":"HH:mm","shift":"DAY","tags":["불안 급증","PRN 투여"],
                                                  "narrative":"장소·행동·\\"환자 발언\\"·간호·투약(약명 용량 경로 시각)·재평가 시각을 담은 관찰 문장",
