@@ -21,6 +21,8 @@ public class AppState {
 
     /** 저장 방식 안내 문구 (파일 저장 모드일 때만 값이 있다). */
     private String storageNotice;
+    /** AI 연결 상태 배지 문구 (null이면 표시 안 함) */
+    private volatile String aiNotice;
 
     private String userName;
     private PatientCase currentCase;
@@ -41,6 +43,9 @@ public class AppState {
 
     /** 저장 방식 안내 문구를 정한다 (파일 저장 모드면 FILE_MODE_NOTICE, DB면 null). */
     public void setStorageNotice(String notice) { this.storageNotice = notice; }
+
+    /** AI 연결 상태 문구를 정한다 (예: "AI 서버 연결됨"). */
+    public void setAiNotice(String notice) { this.aiNotice = notice; }
 
     /** 실습 중에 학생이 작성해 둔 관찰·투약 기록이 있는지 (제출 전이라 이동하면 사라진다). */
     public boolean hasStudentRecords() {
@@ -169,6 +174,7 @@ public class AppState {
         List<String> list = new ArrayList<>();
         list.add(EDU_NOTICE);
         if (storageNotice != null) list.add(storageNotice);
+        if (aiNotice != null) list.add(aiNotice);
         if (currentCase != null) {
             if (currentCase.source() == CaseSource.DEMO) list.add(DEMO_NOTICE);
             else if (currentCase.source() == CaseSource.AI_GENERATED) list.add(AI_NOTICE);

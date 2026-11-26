@@ -118,7 +118,7 @@ public class CaseGenerator {
 
     /** 생성을 쓸 수 없는 이유 (쓸 수 있으면 빈 문자열). */
     public String unavailableReason() {
-        if (!ai.isEnabled()) return "AI 키가 설정되지 않아 케이스를 생성할 수 없습니다. 기본 케이스로 실습합니다.";
+        if (!ai.isEnabled()) return "AI 키가 설정되지 않아 케이스를 생성할 수 없습니다(메뉴 설정 > AI 서버 주소에서 연결할 수 있습니다). 기본 케이스로 실습합니다.";
         if (!validator.generationAvailable()) return "허용 약물 목록이 비어 있어 케이스를 생성할 수 없습니다. 기본 케이스로 실습합니다.";
         return "";
     }

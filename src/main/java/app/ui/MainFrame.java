@@ -43,6 +43,9 @@ public class MainFrame extends JFrame {
     private final JLabel noticeLabel = new JLabel();
     /** 상단 오른쪽의 안내 배지 (교육용·DEMO·AI·파일 저장 모드). */
     private final JPanel badgePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+    /** 메뉴 '설정 > AI 서버 주소' 동작 (앱 시작 시 정한다. 없으면 메뉴가 꺼져 있다). */
+    private Runnable aiServerAction;
+    private final JMenuItem aiServerItem = new JMenuItem("AI 서버 주소…");
     /** 로그아웃 버튼 동작. 기본은 상태만 지우며, 앱 시작 시 AuthService.logout으로 바꾼다. */
     private Runnable logoutAction;
     /** 화면에만 있고 아직 AppState에 없는 작성 중 내용(예: SBAR 입력칸)을 알려 주는 함수들. */
@@ -75,6 +78,12 @@ public class MainFrame extends JFrame {
 
     /** 로그아웃 버튼의 동작을 정한다. */
     public void setLogoutAction(Runnable action) { this.logoutAction = action; }
+
+    /** 메뉴 '설정 > AI 서버 주소'의 동작을 정한다. */
+    public void setAiServerAction(Runnable action) {
+        this.aiServerAction = action;
+        aiServerItem.setEnabled(action != null);
+    }
 
     /** 화면에만 있는 작성 중 내용을 확인하는 함수를 추가한다 (예: SbarPanel::hasDraft). */
     public void addDraftCheck(java.util.function.BooleanSupplier check) { draftChecks.add(check); }
@@ -196,6 +205,12 @@ public class MainFrame extends JFrame {
             } else if (n.equals(AppState.FILE_MODE_NOTICE)) {
                 fg = Theme.BLUE;
                 bg = Theme.BLUE_BG;
+            } else if (n.equals(app.ai.AiConnection.STATUS_RELAY_OK) || n.equals(app.ai.AiConnection.STATUS_KEY)) {
+                fg = Theme.GREEN;
+                bg = Theme.GREEN_BG;
+            } else if (n.equals(app.ai.AiConnection.STATUS_OFF)) {
+                fg = Theme.MUTED;
+                bg = Theme.BG;
             }
             badgePanel.add(Theme.badge(n, fg, bg));
         }
@@ -265,6 +280,14 @@ public class MainFrame extends JFrame {
             go.add(item);
         }
         bar.add(go);
+        // AI 서버 주소: 키 없이 맥미니의 AI 중계 서버로 AI 기능을 쓴다
+        JMenu settings = new JMenu("설정");
+        aiServerItem.setEnabled(false);
+        aiServerItem.addActionListener(e -> {
+            if (aiServerAction != null) aiServerAction.run();
+        });
+        settings.add(aiServerItem);
+        bar.add(settings);
         return bar;
     }
 

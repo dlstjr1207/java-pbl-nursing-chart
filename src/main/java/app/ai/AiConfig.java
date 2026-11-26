@@ -8,8 +8,12 @@ import java.nio.file.Path;
 import java.util.Properties;
 
 /**
- * AI 설정 (config/ai.properties). 키는 사람이 직접 넣으며 toString·오류 메시지에 출력하지 않는다.
- * 파일이 없거나 키가 비어 있으면 {@link #isEnabled()}가 false라서 AI 기능만 꺼진다.
+ * AI 설정. 두 가지 방식이 있다.
+ * <ul>
+ *   <li>키 방식: config/ai.properties에 키·모델·접속 주소를 사람이 직접 넣는다. 키는 toString·오류 메시지에 출력하지 않는다.</li>
+ *   <li>중계 방식: 키 없이 AI 중계 서버 주소만 쓴다({@link #relay}). 키와 모델은 중계 서버(맥미니)에만 있다.</li>
+ * </ul>
+ * 둘 다 없으면 {@link #isEnabled()}가 false라서 AI 기능만 꺼진다.
  */
 public final class AiConfig {
 
@@ -20,17 +24,34 @@ public final class AiConfig {
     private final String apiKey;
     private final String model;
     private final String baseUrl;
+    /** 중계 서버 주소를 쓰는지 (키 없이 보낸다) */
+    private final boolean relay;
+
+    /** 중계 방식의 provider 이름 */
+    public static final String RELAY = "relay";
 
     public AiConfig(String provider, String apiKey, String model, String baseUrl) {
         this.provider = clean(provider);
         this.apiKey = clean(apiKey);
         this.model = clean(model);
         this.baseUrl = clean(baseUrl);
+        this.relay = RELAY.equals(this.provider) && this.apiKey.isEmpty();
     }
 
-    /** 키·모델·접속 주소가 모두 있어야 AI를 쓸 수 있다. */
+    /** 키 없이 AI 중계 서버 주소로 보내는 설정. 모델은 중계 서버가 정한다. */
+    public static AiConfig relay(String serverUrl) {
+        return new AiConfig(RELAY, "", RELAY, serverUrl);
+    }
+
+    /** 키 방식은 키·모델·접속 주소가 모두, 중계 방식은 주소가 있어야 AI를 쓸 수 있다. */
     public boolean isEnabled() {
+        if (relay) return !baseUrl.isEmpty();
         return !apiKey.isEmpty() && !model.isEmpty() && !baseUrl.isEmpty();
+    }
+
+    /** 중계 서버 방식인지 */
+    public boolean isRelay() {
+        return relay;
     }
 
     /** 키 없는 설정(AI 꺼짐) */
