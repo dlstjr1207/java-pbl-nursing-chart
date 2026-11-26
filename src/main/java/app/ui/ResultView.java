@@ -118,6 +118,8 @@ public class ResultView {
         List<String> recs = new ArrayList<>();
         for (SbarRecommendation x : r.recommendations()) {
             String t = ((x.time() == null ? "" : x.time().strip()) + " " + (x.intervention() == null ? "" : x.intervention().strip())).strip();
+            // R 행끼리 쉼표로 이으므로 행 끝 마침표는 뗀다 ("바랍니다., 23:30" 방지). 마지막에 한 번 붙인다
+            t = t.replaceAll("[.。]+$", "").strip();
             if (!t.isEmpty()) recs.add(t);
         }
         if (!recs.isEmpty()) parts.add(sentence(String.join(", ", recs)));

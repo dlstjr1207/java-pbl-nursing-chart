@@ -152,6 +152,14 @@ class FinalFeaturesTest {
     }
 
     @Test
+    void R_행_끝_마침표는_쉼표와_겹치지_않는다() {
+        assertEquals("상황. 배경. 평가. 18:30 탄산리튬 투약 확인 바랍니다, 23:30 관찰 바랍니다.",
+                ResultView.handoffParagraph(new app.domain.SbarReport("상황", "배경", "평가", List.of(
+                        new app.domain.SbarRecommendation("18:30", "탄산리튬 투약 확인 바랍니다."),
+                        new app.domain.SbarRecommendation("23:30", "관찰 바랍니다.")))));
+    }
+
+    @Test
     void 예전_기록은_5원칙_없음으로_보인다() {
         assertEquals("5 Rights: 기록 없음 (이 기능 전에 저장한 기록)", FiveRights.text(null));
         assertEquals("5 Rights: 약물 ✓ · 용량 ✗ · 대상자 ✓ · 경로 ✓ · 시간 ✓",
