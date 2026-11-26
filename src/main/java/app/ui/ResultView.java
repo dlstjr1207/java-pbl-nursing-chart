@@ -99,6 +99,12 @@ public class ResultView {
         return sb.toString();
     }
 
+    /** 구강 확인 표시: "구강 확인 ✓", 체크하지 않았으면 "구강 확인 ✗", 기록이 없으면 "구강 확인 기록 없음" */
+    static String oralText(Boolean oralCheck) {
+        if (oralCheck == null) return "구강 확인 기록 없음";
+        return oralCheck ? "구강 확인 ✓" : "구강 확인 ✗";
+    }
+
     /** 실제 인계 기록 형태 안내 (D38, B5) */
     public static final String HANDOFF_NOTICE = "실제 인계 기록은 칸을 나누지 않고 이 순서로 한 문단으로 씁니다.";
 
@@ -144,9 +150,12 @@ public class ResultView {
         sb.append("\n[투약 기록]\n");
         i = 1;
         for (MedicationRecord m : a.medicationRecords()) {
-            sb.append(i++).append(". ").append(m.drugName()).append(' ').append(m.dose()).append(' ')
+            // 용량에 단위를 붙이고(예: 1mg) 구강 확인 상태를 함께 보인다
+            sb.append(i++).append(". ").append(m.drugName()).append(' ').append(m.dose())
+                    .append(m.unit() == null ? "" : m.unit().strip()).append(' ')
                     .append(m.route()).append(' ').append(m.administeredTime()).append(' ')
                     .append(m.result() == null ? "" : MedicationController.resultLabel(m.result()))
+                    .append(" · ").append(oralText(m.oralCheck()))
                     .append(" | ").append(app.domain.FiveRights.text(m.rights())).append(" | 서명 ").append(sign).append('\n');
         }
         if (a.medicationRecords().isEmpty()) sb.append("(없음)\n");

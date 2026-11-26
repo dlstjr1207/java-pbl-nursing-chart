@@ -130,6 +130,24 @@ class FinalFeaturesTest {
     }
 
     @Test
+    void 결과의_투약_줄은_단위와_구강_확인을_보인다() {
+        // Windows 실습 검토: "Lorazepam 1 PO 09:30 투여"처럼 단위가 빠지던 것을 "1mg"로, 구강 확인 상태를 함께
+        AppState state = practice();
+        assertTrue(new MedicationController(state).save(prn(), "1", "mg", "PO", "09:30", MedicationResult.GIVEN, "불안",
+                "PRN 처방", true, null, FiveRights.ALL).saved());
+        var s = pc01.modelAnswer().sbarReport();
+        var r = new SbarController(state, new InMemoryAttemptRepository(), () -> 1L)
+                .submit(s.situation(), s.background(), s.assessment(), s.recommendations());
+        assertTrue(r.submitted(), r.message());
+        String line = "1. Lorazepam 1mg PO 09:30 투여 · 구강 확인 ✓ | 5 Rights: 약물 ✓ · 용량 ✓ · 대상자 ✓ · 경로 ✓ · 시간 ✓ | 서명 김간호";
+        assertTrue(ResultView.submittedText(r.attempt(), "김간호").contains(line), ResultView.submittedText(r.attempt(), "김간호"));
+        // 내보내기 파일도 같은 줄
+        assertTrue(app.export.ResultExporter.content(r.attempt(), "김간호").contains(line));
+        assertEquals("구강 확인 ✗", ResultView.oralText(false));
+        assertEquals("구강 확인 기록 없음", ResultView.oralText(null));
+    }
+
+    @Test
     void 예전_기록은_5원칙_없음으로_보인다() {
         assertEquals("5 Rights: 기록 없음 (이 기능 전에 저장한 기록)", FiveRights.text(null));
         assertEquals("5 Rights: 약물 ✓ · 용량 ✗ · 대상자 ✓ · 경로 ✓ · 시간 ✓",
