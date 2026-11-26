@@ -18,7 +18,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
 /**
- * "파일 → 근거·출처 보기" 창 (polish A-1). 학생 화면에서 숨긴 근거 번호·검토 상태·[검증필요] 표기를 원문 그대로 보여 준다.
+ * "파일 → 근거·출처 보기" 창 (polish A-1). 학생 화면에서 숨긴 근거 번호·검토 상태·검토 표시를 원문 그대로 보여 준다.
  * 실습 중이 아니면 기본 케이스(PC-01)의 근거를 보여 준다.
  */
 public class EvidenceDialog extends JDialog {
@@ -81,8 +81,8 @@ public class EvidenceDialog extends JDialog {
             sb.append("  - ").append(d.drug()).append(": ").append(d.itemName()).append(" (").append(d.company())
                     .append(", 품목기준코드 ").append(d.itemSeq()).append(")\n");
         }
-        sb.append("\n표기 안내: E-xx는 근거표 번호, [검증필요]·[확인필요]는 팀 검토가 끝나지 않은 값입니다. "
-                + "학생 화면에서는 이 표기를 숨깁니다.\n");
+        sb.append("\n표기 안내: E-xx는 근거표 번호입니다. 대괄호로 된 검토 표시가 남아 있으면 팀 검토가 끝나지 않은 값입니다(DEMO 케이스). "
+                + "학생 화면에서는 근거 번호와 검토 표시를 숨깁니다.\n");
         return sb.toString();
     }
 }

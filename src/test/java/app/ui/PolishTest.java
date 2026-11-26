@@ -33,6 +33,8 @@ class PolishTest {
 
     @Test
     void PC01_환자_정보와_처방에_개발용_표기가_보이지_않는다() {
+        // 비고의 허가 외 사용 설명은 근거 창에서만 보이고, 학생 화면 비고에는 남지 않는다 (D37)
+        for (Medication m : pc01.orders()) assertFalse(StudentText.note(m.note()).contains("허가 외"), m.note());
         for (PatientInfoView.Section s : PatientInfoView.sections(pc01)) {
             for (String line : s.lines()) assertFalse(StudentText.hasMarks(line), s.title() + ": " + line);
         }
@@ -51,7 +53,8 @@ class PolishTest {
         String t = EvidenceDialog.text(pc01);
         assertTrue(t.contains("E-20"));
         assertTrue(t.contains("검토 상태: 팀 확정 초안"));
-        assertTrue(t.contains("[확인필요]"));
+        assertTrue(t.contains("허가 외 사용을 반영한 교육용 예시")); // 표시 정리(D37): 옛 검토 표시 대신 확인된 문장
+        assertFalse(t.contains("[확인필요]") || t.contains("[검증필요]"));
     }
 
     @Test

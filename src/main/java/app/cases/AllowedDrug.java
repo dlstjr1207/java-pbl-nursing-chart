@@ -17,7 +17,7 @@ import java.util.List;
  * @param timesPerDay  정규 처방의 1일 횟수 (예: 리튬 3회 분할). 비어 있으면 횟수는 검사하지 않는다
  * @param prnDoses     PRN 처방에서 허용하는 1회 용량 목록
  * @param evidenceId   근거표 ID (예: E-20)
- * @param note         비고 (예: [검증필요])
+ * @param note         비고 (예: 허가 외 사용 설명)
  */
 public record AllowedDrug(
         String name,

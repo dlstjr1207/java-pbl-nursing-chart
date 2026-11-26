@@ -7,7 +7,7 @@
     "PRN 투약 정보를 정확히 기록한다",
     "재평가를 관찰·투약 기록과 SBAR 인계에 연결한다"
   ],
-  "reviewStatus": "팀 확정 초안(용량 원문 확인, 적응증 검토 대기)",
+  "reviewStatus": "팀 확정 초안(용량·효능효과 원문 확인, 허가 외 사용은 교육용 예시)",
   "source": "FIXED",
   "patient": {
     "name": "김하늘",
@@ -27,7 +27,7 @@
   "orders": [
     {
       "orderId": "PC01-ARI", "type": "REGULAR", "drugName": "Aripiprazole", "dose": "10", "unit": "mg", "route": "PO",
-      "frequency": "1일 1회", "scheduleTimes": ["08:30"], "note": "E-20. 적응증(정신분열병) [검증필요]"
+      "frequency": "1일 1회", "scheduleTimes": ["08:30"], "note": "E-20 허가 효능효과: 조현병, 양극성 장애 급성 조증 등(허가정보 API 2026-11-23 확인); 조현정동장애는 허가 적응증에 명시되지 않음 — 임상에서 흔한 허가 외 사용을 반영한 교육용 예시"
     },
     {
       "orderId": "PC01-LI", "type": "REGULAR", "drugName": "Lithium carbonate (탄산리튬)", "dose": "300", "unit": "mg", "route": "PO",
@@ -35,18 +35,18 @@
     },
     {
       "orderId": "PC01-LZP-PRN", "type": "PRN", "drugName": "Lorazepam", "dose": "1", "unit": "mg", "route": "PO",
-      "frequency": "필요 시", "prnIndication": "불안·초조 시", "note": "1일 최대 4mg. E-29. PRN 불안·초조 적응증 [검증필요]"
+      "frequency": "필요 시", "prnIndication": "불안·초조 시", "note": "1일 최대 4mg. E-29 허가 효능효과: 신경증의 불안·긴장 등, 1일 1~4mg; 불안 시 PRN 1회 0.5 또는 1mg은 1일 범위 안; '초조'에 쓰는 것은 허가 외 사용을 반영한 교육용 예시"
     },
     {
-      "orderId": "PC01-OLZ-PAST", "type": "PAST", "drugName": "Olanzapine", "dose": "15", "unit": "mg", "route": "[확인필요]",
-      "frequency": "[확인필요]", "note": "2024-11 Aripiprazole로 교체 (E-28)"
+      "orderId": "PC01-OLZ-PAST", "type": "PAST", "drugName": "Olanzapine", "dose": "15", "unit": "mg", "route": "PO",
+      "frequency": "1일 1회", "note": "2024-11 Aripiprazole로 교체 (E-28)"
     }
   ],
   "regimenHistory": [
-    { "date": "2024-11", "description": "Olanzapine 15mg → Aripiprazole로 교체", "reason": "[확인필요]" }
+    { "date": "2024-11", "description": "Olanzapine 15mg → Aripiprazole로 교체", "reason": "주치의 판단" }
   ],
   "lithiumLevel": [
-    { "time": "[확인필요]", "value": "0.78", "unit": "mEq/L" }
+    { "time": "2026-10-17 07:00 (투약 전 최저 농도, 전날 18:30 투약 후 약 12.5시간)", "value": "0.78", "unit": "mEq/L" }
   ],
   "vitals": [
     { "measurementId": "PC01-V1130", "time": "11:30", "systolic": 118, "diastolic": 76, "pulse": 82, "respiration": 18, "temperature": 36.6, "spo2": 99 },

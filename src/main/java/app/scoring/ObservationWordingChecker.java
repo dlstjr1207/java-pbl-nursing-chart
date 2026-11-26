@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 /**
  * R1 환자 발언과 관찰 구분. 관찰 서술에 환자 발언을 따옴표로 인용했는지 점검한다(배점 대상).
- * 판단 표현 목록이 있으면 "관찰한 행동으로 바꿔 쓰세요"로 피드백만 준다(배점 없음, E-04 등급 C라 [검증필요] 교육용 예시).
+ * 판단 표현 목록이 있으면 "관찰한 행동으로 바꿔 쓰세요"로 피드백만 준다(E-04 등급 C라 교육용 피드백 예시, 배점 없음).
  */
 public final class ObservationWordingChecker {
     public static final String RULE = "R1";
@@ -42,7 +42,7 @@ public final class ObservationWordingChecker {
             for (String w : JUDGMENT_WORDS) {
                 if (containsWord(compact, w.replaceAll("\\s+", ""))) {
                     out.add(new CheckResult(RULE, CheckTarget.OBSERVATION, ref, CheckStatus.FEEDBACK,
-                            "'" + w + "'은(는) 판단 표현입니다. 관찰한 행동으로 바꿔 쓰세요. [검증필요 교육용 예시, 배점 없음]", null));
+                            "'" + w + "'은(는) 판단 표현입니다. 관찰한 행동으로 바꿔 쓰세요. (교육용 피드백 예시, 배점 없음)", null));
                 }
             }
         }

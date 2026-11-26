@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
  * 시각순 병합(출처 구분), 활력징후 추이 차트 데이터를 맡는다 (S3, F-03·F-04).
  */
 public class ObservationController {
-    /** 관찰 분류 태그. 화면 시안의 태그 예시이며 최종 목록은 팀 결정 전이다 [확인필요]. */
+    /** 관찰 분류 태그. 화면 시안의 태그 예시다. */
     public static final List<String> TAGS = List.of("안정 회복", "불안 급증", "PRN 투여", "기타");
 
     private static final Pattern TIME = Pattern.compile("([01]\\d|2[0-3]):[0-5]\\d");
