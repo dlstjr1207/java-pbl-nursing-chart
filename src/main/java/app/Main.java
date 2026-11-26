@@ -2,6 +2,8 @@ package app;
 
 import app.ai.AiClient;
 import app.ai.AiConfig;
+import app.ai.AiConnection;
+import app.ai.AiServerSettings;
 import app.ai.JdkHttpTransport;
 import app.auth.AuthService;
 import app.cases.AllowedDrugs;
@@ -86,7 +88,17 @@ public class Main {
         frame.register(Screen.SIGNUP, new SignupPanel(form, frame::refresh, login::showInfo));
         frame.setLogoutAction(auth::logout);
 
-        AiClient ai = new AiClient(AiConfig.load(aiConfig), new JdkHttpTransport());
+        // AI 설정: 키 파일(기존 방식) → 메뉴에서 저장한 AI 서버 주소(중계 서버) → 꺼짐. 중계 서버는 연결을 확인한 뒤 켠다.
+        JdkHttpTransport transport = new JdkHttpTransport();
+        AiClient ai = new AiClient(AiConfig.disabled(), transport);
+        AiConnection aiConnection = new AiConnection(ai, AiConfig.load(aiConfig),
+                new AiServerSettings(dataDir.resolve(AiServerSettings.FILE_NAME)), transport);
+        boolean checkRelay = !aiConnection.usesKeyFile() && !aiConnection.serverUrl().isEmpty();
+        if (checkRelay) {
+            state.setAiNotice(AiConnection.STATUS_CHECKING); // 연결 확인은 창을 띄운 뒤 백그라운드에서
+        } else {
+            state.setAiNotice(aiConnection.connect()); // 키 파일 또는 꺼짐: 네트워크를 쓰지 않는다
+        }
         CaseGenerator generator = new CaseGenerator(ai, new CaseValidator(AllowedDrugs.load()),
                 new CaseLoader(), CaseGenerator.DEFAULT_MAX_ATTEMPTS);
         // 개인 메인의 평가지표·과거 기록은 로그인한 사용자의 기록만 조회한다.
@@ -106,7 +118,63 @@ public class Main {
                 () -> auth.currentUser().orElseThrow().id(), ai), frame::show);
         frame.register(Screen.SBAR, sbar);
         frame.addDraftCheck(sbar::hasDraft);
+        frame.setAiServerAction(() -> askAiServer(frame, state, aiConnection, home));
+        if (checkRelay) {
+            connectInBackground(frame, state, aiConnection, home, false);
+        }
         frame.refresh();
         return frame;
+    }
+
+    /** 중계 서버 연결 확인은 네트워크를 쓰므로 백그라운드에서 하고, 끝나면 상단 배지와 홈 화면 AI 버튼을 고친다. */
+    private static void connectInBackground(MainFrame frame, AppState state, AiConnection c, HomePanel home, boolean showResult) {
+        new javax.swing.SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() {
+                return c.connect();
+            }
+
+            @Override
+            protected void done() {
+                state.setAiNotice(c.status());
+                home.reload();
+                frame.refresh();
+                if (showResult) {
+                    javax.swing.JOptionPane.showMessageDialog(frame, c.detail(), "AI 서버 주소",
+                            c.status().equals(AiConnection.STATUS_RELAY_OK) ? javax.swing.JOptionPane.INFORMATION_MESSAGE
+                                    : javax.swing.JOptionPane.WARNING_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    /** 메뉴 '설정 > AI 서버 주소': 주소를 받아 저장하고 연결을 확인한다. 빈칸이면 주소를 지운다. */
+    private static void askAiServer(MainFrame frame, AppState state, AiConnection c, HomePanel home) {
+        if (c.usesKeyFile()) {
+            javax.swing.JOptionPane.showMessageDialog(frame, "이 PC에는 config/ai.properties 키가 있어 키를 사용합니다.\n"
+                    + "AI 서버 주소는 키가 없는 PC에서 씁니다.", "AI 서버 주소", javax.swing.JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        Object in = javax.swing.JOptionPane.showInputDialog(frame,
+                "팀에서 받은 AI 서버 주소를 넣으세요 (예: https://….trycloudflare.com).\n"
+                        + "비우고 확인을 누르면 주소를 지우고 AI 기능을 끕니다.\n지금 상태: " + c.status(),
+                "AI 서버 주소", javax.swing.JOptionPane.PLAIN_MESSAGE, null, null, c.serverUrl());
+        if (in == null) return; // 취소
+        String url = in.toString().trim();
+        String problem = AiServerSettings.problem(url);
+        if (problem != null) {
+            javax.swing.JOptionPane.showMessageDialog(frame, problem, "AI 서버 주소", javax.swing.JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        try {
+            c.saveUrl(url);
+        } catch (java.io.IOException e) {
+            javax.swing.JOptionPane.showMessageDialog(frame, "주소를 저장하지 못했습니다: " + e.getMessage(), "AI 서버 주소",
+                    javax.swing.JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        state.setAiNotice(url.isEmpty() ? AiConnection.STATUS_OFF : AiConnection.STATUS_CHECKING);
+        frame.refresh();
+        connectInBackground(frame, state, c, home, true);
     }
 }

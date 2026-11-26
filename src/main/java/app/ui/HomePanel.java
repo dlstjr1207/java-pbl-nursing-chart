@@ -23,6 +23,10 @@ public class HomePanel extends JPanel implements Reloadable {
     private final HomeController controller;
     private final Runnable onChanged;
     private final JLabel messageLabel = new JLabel(" ");
+    /** AI 생성 버튼과 꺼짐 이유 (AI 서버 주소를 바꾸면 reload에서 다시 맞춘다) */
+    private final JButton aiButton = new JButton("AI로 새 케이스 생성");
+    private final JLabel aiReason = new JLabel(" ");
+    private boolean generating;
     private final Supplier<ResultView> resultViewSupplier;
     private final JTextArea metricsArea = new JTextArea(5, 40);
     /** 과거 기록을 누르면 결과 화면으로 연다 (polish B-4). Main에서 정한다. */
@@ -60,12 +64,13 @@ public class HomePanel extends JPanel implements Reloadable {
             onChanged.run();
         });
         area.add(start);
-        JButton ai = new JButton("AI로 새 케이스 생성");
+        JButton ai = aiButton;
         ai.setEnabled(controller.aiGenerationAvailable());
         // AI 호출은 수 초~수십 초가 걸릴 수 있어 SwingWorker로 백그라운드에서 실행한다.
         ai.addActionListener(e -> {
             start.setEnabled(false);
             ai.setEnabled(false);
+            generating = true;
             messageLabel.setText("AI가 새 케이스를 만드는 중입니다. 잠시 기다려 주세요…");
             new javax.swing.SwingWorker<app.cases.CaseGenerator.Result, Void>() {
                 @Override
@@ -75,6 +80,7 @@ public class HomePanel extends JPanel implements Reloadable {
 
                 @Override
                 protected void done() {
+                    generating = false;
                     start.setEnabled(true);
                     ai.setEnabled(controller.aiGenerationAvailable());
                     try {
@@ -89,8 +95,15 @@ public class HomePanel extends JPanel implements Reloadable {
             }.execute();
         });
         area.add(ai);
-        if (!controller.aiGenerationAvailable()) area.add(new JLabel(controller.aiGenerationReason()));
+        area.add(aiReason);
+        refreshAiButton();
         return area;
+    }
+
+    /** AI 생성 버튼과 이유 문구를 지금 AI 상태에 맞춘다. */
+    public void refreshAiButton() {
+        if (!generating) aiButton.setEnabled(controller.aiGenerationAvailable());
+        aiReason.setText(controller.aiGenerationAvailable() ? " " : controller.aiGenerationReason());
     }
 
     /** 기록을 눌렀을 때 할 일을 정한다 (결과 화면 열기). */
@@ -124,7 +137,10 @@ public class HomePanel extends JPanel implements Reloadable {
     }
 
     @Override
-    public void reload() { refreshRecords(); }
+    public void reload() {
+        refreshAiButton();
+        refreshRecords();
+    }
 
     /** 로그인한 사용자의 저장 기록으로 평가지표와 목록을 갱신한다. 로그인 전이면 안내만 둔다. */
     public void refreshRecords() {

@@ -60,4 +60,5 @@ macOS에서 JDK가 여러 개면 `export JAVA_HOME=$(/usr/libexec/java_home -v 2
 - `config/` 안에서는 `*.example`만 Git에 올라간다(`.gitignore`). 편집기 백업 파일도 함께 제외된다.
 - 코드와 로그에서 키 값을 출력하지 않는다. 키 파일을 읽어 내용을 보여 주지 않는다. 항목 이름은 example 기준으로만 안내한다.
 - 키가 없거나 비어 있으면 AI 기능을 끄고 규칙 점검만으로 동작한다.
+- 키가 없는 PC는 메뉴 설정 > AI 서버 주소로 맥미니의 AI 중계 서버(`app.ai.AiRelayServer`, D35)를 쓴다. 키는 맥미니에만 둔다. 켜고 끄기는 `scripts/share-start.sh`·`share-stop.sh`(`docs/공유-하루열기.md`). 스크립트와 중계 서버는 키를 출력하지 않는다.
 - `config/db.properties`(DB 접속 정보)도 같은 규칙을 따른다. DB 비밀번호를 출력하거나 커밋하지 않는다. DB 계정 생성처럼 root 비밀번호가 필요한 작업은 사용자가 터미널에서 직접 실행하게 안내한다.

@@ -19,7 +19,8 @@ public final class AiClient {
     public static final String STATUS_FAILED = "FAILED";
     public static final String STATUS_NONE = "NONE";
 
-    private final AiConfig config;
+    /** 실행 중에 AI 서버 주소를 바꿀 수 있어 volatile로 둔다 (화면 스레드에서 바꾸고 작업 스레드에서 읽는다). */
+    private volatile AiConfig config;
     private final AiTransport transport;
 
     public AiClient(AiConfig config, AiTransport transport) {
@@ -27,9 +28,44 @@ public final class AiClient {
         this.transport = transport;
     }
 
-    /** 키가 없으면 false. 이때 AI 기능(해설·생성)은 꺼진다. */
+    /** 키나 중계 서버 주소가 없으면 false. 이때 AI 기능(해설·생성)은 꺼진다. */
     public boolean isEnabled() {
         return config.isEnabled();
+    }
+
+    /** 지금 쓰는 설정 (키는 꺼낼 수 없다). */
+    public AiConfig config() {
+        return config;
+    }
+
+    /** 설정을 바꾼다 (메뉴에서 AI 서버 주소를 바꿨을 때). */
+    public void setConfig(AiConfig config) {
+        this.config = config == null ? AiConfig.disabled() : config;
+    }
+
+    /**
+     * 중계 서버가 켜져 있는지 확인한다 (GET {주소}/health). 남은 오늘 사용량을 돌려준다(모르면 -1).
+     *
+     * @throws IOException 연결 실패·거절
+     */
+    public static int checkRelay(AiTransport transport, String serverUrl) throws IOException {
+        String raw = transport.get(serverRoot(serverUrl) + "/health");
+        try {
+            JsonObject o = JsonParser.parseString(raw).getAsJsonObject();
+            if (!o.has("ok") || !o.get("ok").getAsBoolean()) throw new IOException("AI 서버 응답이 올바르지 않습니다.");
+            return o.has("remainingToday") ? o.get("remainingToday").getAsInt() : -1;
+        } catch (RuntimeException e) {
+            throw new IOException("AI 중계 서버가 아닌 주소입니다.", e);
+        }
+    }
+
+    /** 주소 끝의 / 와 /v1, /chat/completions를 떼어 서버 뿌리 주소를 만든다. */
+    static String serverRoot(String url) {
+        String s = url == null ? "" : url.trim();
+        while (s.endsWith("/")) s = s.substring(0, s.length() - 1);
+        if (s.endsWith("/chat/completions")) s = s.substring(0, s.length() - "/chat/completions".length());
+        if (s.endsWith("/v1")) s = s.substring(0, s.length() - 3);
+        return s;
     }
 
     /** 해설 지시: 교육용이라 없는 사실을 보여 주면 안 된다 (시연 3회차에서 지어낸 발언이 나온 뒤 추가). */
@@ -68,16 +104,17 @@ public final class AiClient {
      * @throws IOException 통신 실패 또는 응답 구조가 chat completions 형식이 아님
      */
     public String complete(String system, String user) throws IOException {
-        if (!isEnabled()) {
-            throw new IOException("AI 키가 설정되지 않았습니다.");
+        AiConfig c = config; // 요청 중에 설정이 바뀌어도 한 요청은 같은 설정을 쓴다
+        if (!c.isEnabled()) {
+            throw new IOException("AI 키나 AI 서버 주소가 설정되지 않았습니다.");
         }
         JsonObject body = new JsonObject();
-        body.addProperty("model", config.model());
+        body.addProperty("model", c.model()); // 중계 방식이면 서버가 자기 모델로 바꾼다
         JsonArray messages = new JsonArray();
         messages.add(message("system", system));
         messages.add(message("user", user));
         body.add("messages", messages);
-        String raw = transport.post(endpoint(), config.apiKey(), body.toString());
+        String raw = transport.post(endpoint(c), c.apiKey(), body.toString());
         try {
             JsonObject root = JsonParser.parseString(raw).getAsJsonObject();
             return root.getAsJsonArray("choices").get(0).getAsJsonObject()
@@ -166,9 +203,14 @@ public final class AiClient {
         return m;
     }
 
-    /** baseUrl 뒤에 /chat/completions를 붙인다. */
+    /** baseUrl 뒤에 /chat/completions를 붙인다. 중계 서버는 {주소}/v1/chat/completions로 보낸다. */
     String endpoint() {
-        String base = config.baseUrl();
+        return endpoint(config);
+    }
+
+    private static String endpoint(AiConfig c) {
+        if (c.isRelay()) return serverRoot(c.baseUrl()) + "/v1/chat/completions";
+        String base = c.baseUrl();
         while (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }

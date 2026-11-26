@@ -40,3 +40,6 @@ attempts/
 
 # Loop run logs (local only)
 loop/logs/
+
+# AI 공유 스크립트 실행 파일 (pid·주소·접속 기록)
+.share/
