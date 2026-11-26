@@ -66,21 +66,22 @@ class CaseGeneratorTest {
     private static String caseJson(String drug, String dose) {
         return """
             {"id":"GEN-1","title":"합성 생성","source":"FIXED",
-             "patient":{"name":"가상환자","age":35,"room":"합성-1호","diagnosis":"합성 진단"},
+             "patient":{"name":"가상환자","age":35,"room":"합성-1호","diagnosis":"합성 진단","admissionDate":"2026-10-11","hospitalDay":10},
              "briefing":"08:00 데이룸에서 서성이며 \\"무서워요\\"라고 말함.",
              "vitals":[{"time":"09:30","pulse":80},{"time":"10:30","pulse":82}],
              "observationLog":[{"time":"09:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"},
                                {"time":"10:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"}],
              "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%1$s","dose":"%2$s","unit":"mg","route":"PO","scheduleTimes":["08:00"]}],
-             "task":"합성 과제",
-             "rawNotes":[{"time":"07:10","text":"인계. 합성 진단, 정규약 아침"},
-                         {"time":"08:00","text":"데이룸 왔다갔다 \\"무, 무서워요… 무서워\\""},
-                         {"time":"08:00","text":"%1$s %2$smg PO 줌"},
-                         {"time":"08:40","text":"재평가 안정, 불안 줄어듦"},
-                         {"time":"08:20","text":"데이룸 구석. \\"여기… 여기 있어도 돼요?\\""},
-                         {"time":"09:00","text":"다음 근무 관찰 부탁"},
-                         {"time":"12:00","text":"점심 배식","irrelevant":true,"cues":["점심","배식"]},
-                         {"time":"13:00","text":"보호자 전화 면회 문의","irrelevant":true,"cues":["보호자","면회"]}],
+             "task":"2026-10-20 Day 근무. 합성 과제",
+             "rawNotes":[{"time":"07:10","kind":"HANDOFF","text":"인계. 합성 진단, 정규약 아침"},
+                         {"time":"07:50","kind":"EVENT","text":"데이룸 왔다갔다 \\"무, 무서워요… 무서워\\""},
+                         {"time":"08:00","kind":"PRN","text":"%1$s %2$smg PO 줌"},
+                         {"time":"08:40","kind":"REASSESS","text":"재평가 안정, 불안 줄어듦"},
+                         {"time":"07:55","kind":"SPEECH","text":"데이룸 구석. \\"여기… 여기 있어도 돼요?\\""},
+                         {"time":"07:58","kind":"INTERVENTION","text":"데이룸 옆 조용한 곳에서 1:1 대화"},
+                         {"time":"09:00","kind":"NEXT_SHIFT","text":"다음 근무 관찰 부탁"},
+                         {"time":"12:00","kind":"IRRELEVANT","text":"점심 배식","irrelevant":true,"cues":["점심","배식"]},
+                         {"time":"13:00","kind":"IRRELEVANT","text":"보호자 전화 면회 문의","irrelevant":true,"cues":["보호자","면회"]}],
              "answerKey":{"observationElements":["장소=데이룸","발언 인용=무서워","투약=%1$s|TestDrugA&%2$smg|%2$s mg&PO|경구"],
                           "medicationElements":["약명=%1$s|TestDrugA","용량=%2$s","단위=mg","경로=PO|경구","시각=08:00"],
                           "sbarElements":{"situation":["불안 사건=불안"],"background":["진단=합성 진단"],
@@ -349,6 +350,11 @@ class CaseGeneratorTest {
         // D34: 식사 시간대와 리튬 고정
         assertTrue(prompt.contains("아침 06:30~09:00, 점심 11:00~13:30, 저녁 17:00~19:30"));
         assertTrue(prompt.contains("정규 300mg PO 1일 3회"));
+        // D36: 메모 종류·사건 흐름·날짜
+        assertTrue(prompt.contains("EVENT ≤ SPEECH ≤ INTERVENTION ≤ PRN < REASSESS"));
+        assertTrue(prompt.contains("투약 30분 뒤 재평가"));
+        assertTrue(prompt.contains("patient.admissionDate + (patient.hospitalDay − 1)"));
+        assertTrue(prompt.contains("(종류)를 붙인다"));
         assertTrue(prompt.contains("Day 07:00~15:30, Evening 15:00~23:30, Night 23:00~07:30"));
         assertFalse(prompt.contains("\\\"id\\\":\\\"GEN-1\\\"")); // 견본에 ID를 주지 않는다
     }

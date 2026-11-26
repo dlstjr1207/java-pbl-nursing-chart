@@ -92,6 +92,7 @@ public class ObservationController {
      */
     public SaveResult save(String time, Shift shift, List<String> tags, String narrative,
                            String intervention, Map<Metric, String> vitalTexts) {
+        if (state.isReviewing()) return new SaveResult(false, new Errors(Map.of("readonly", AppState.REVIEW_LOCKED)));
         Map<String, String> errors = new LinkedHashMap<>();
         String t = time == null ? "" : time.trim();
         if (t.isEmpty()) errors.put("time", "시각을 입력하세요. (예: 14:30)");

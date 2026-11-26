@@ -65,6 +65,7 @@ public class CaseValidator {
         checkBriefingMatchesKey(p, c);
         checkRawNotes(p, c);
         checkLithium(p, c);
+        checkDates(p, c);
         for (int i = 0; i < c.vitals().size(); i++) {
             VitalSign v = c.vitals().get(i);
             if (v == null || v.time() == null || !v.time().matches(TIME)) {
@@ -162,7 +163,120 @@ public class CaseValidator {
         checkRawSpeech(p, rel);
         checkIrrelevantInShift(p, c);
         checkMealTimes(p, c);
+        checkFlow(p, c);
         checkModelAgainstNotes(p, c);
+    }
+
+    /**
+     * 날짜 (D36): 근무 날짜(task의 yyyy-MM-dd) = 입원일 + (입원 일수 − 1)이어야 한다(입원한 날이 1일째).
+     * 메모에 "입원 N일째/차"가 있으면 N도 입원 일수와 같아야 한다.
+     */
+    private static void checkDates(List<String> p, PatientCase c) {
+        var pt = c.patient();
+        java.time.LocalDate shift = CaseGenerator.taskDate(c.task());
+        if (pt == null) return;
+        if (shift == null) {
+            if (c.hasRawNotes()) p.add("task(과제 안내)에 근무 날짜(yyyy-MM-dd)가 없음");
+            return;
+        }
+        java.time.LocalDate admission;
+        try {
+            admission = java.time.LocalDate.parse(pt.admissionDate() == null ? "" : pt.admissionDate().trim());
+        } catch (java.time.format.DateTimeParseException e) {
+            p.add("patient.admissionDate(입원일)가 yyyy-MM-dd가 아님: " + pt.admissionDate());
+            return;
+        }
+        if (pt.hospitalDay() == null || pt.hospitalDay() < 1) {
+            p.add("patient.hospitalDay(입원 일수) 누락");
+            return;
+        }
+        java.time.LocalDate expected = admission.plusDays(pt.hospitalDay() - 1L);
+        if (!expected.equals(shift)) {
+            p.add("날짜가 맞지 않음: 입원일 " + admission + " + (입원 " + pt.hospitalDay() + "일째 − 1) = " + expected
+                    + "인데 근무 날짜는 " + shift);
+        }
+        var m = java.util.regex.Pattern.compile("입원\\s*(\\d+)\\s*일\\s*(째|차)").matcher("");
+        for (var n : c.rawNotes()) {
+            if (n == null || n.text() == null) continue;
+            m.reset(n.text());
+            while (m.find()) {
+                if (Integer.parseInt(m.group(1)) != pt.hospitalDay()) {
+                    p.add("메모 '" + m.group() + "'이(가) 입원 일수 " + pt.hospitalDay() + "일째와 다름");
+                }
+            }
+        }
+    }
+
+    /** 사건 흐름에 꼭 있어야 하는 메모 종류 (시각 순서대로) */
+    static final List<String> FLOW = List.of(app.domain.RawNote.EVENT, app.domain.RawNote.SPEECH,
+            app.domain.RawNote.INTERVENTION, app.domain.RawNote.PRN, app.domain.RawNote.REASSESS);
+    /** 재평가는 PRN 투약 몇 분 뒤인지 (포함 범위) */
+    static final int REASSESS_MIN = 20;
+    static final int REASSESS_MAX = 60;
+
+    /**
+     * 메모 종류와 사건 흐름 (D36). 모든 메모에 알려진 종류가 있어야 하고, 관련 없음 종류와 irrelevant 표시가 맞아야 한다.
+     * 각 종류의 가장 이른 시각이 사건 관찰 ≤ 환자 말 ≤ 간호 중재 ≤ PRN 투약 &lt; 재평가 순서이고,
+     * 재평가는 PRN 투약 20~60분 뒤, PRN 투약 메모 시각은 정답 키의 투약 시각과 같아야 한다.
+     * 메모 목록의 배열 순서는 섞여 있어도 된다(학생 화면 순서). 실제 시각만 본다.
+     */
+    private static void checkFlow(List<String> p, PatientCase c) {
+        java.util.Map<String, Integer> first = new java.util.HashMap<>();
+        for (int i = 0; i < c.rawNotes().size(); i++) {
+            app.domain.RawNote n = c.rawNotes().get(i);
+            if (n == null) continue;
+            String k = n.kind();
+            if (k == null || !app.domain.RawNote.KIND_NAMES.containsKey(k)) {
+                p.add("rawNotes[" + i + "](" + n.time() + ") 메모 종류(kind)가 없거나 알 수 없음: " + k);
+                continue;
+            }
+            if (k.equals(app.domain.RawNote.IRRELEVANT) != n.irrelevant()) {
+                p.add("rawNotes[" + i + "](" + n.time() + ") 종류 " + k + "와 irrelevant 표시가 맞지 않음");
+            }
+            if (n.time() == null || !n.time().matches(TIME)) continue;
+            int t = minutes(n.time());
+            first.merge(k, t, Math::min);
+        }
+        for (String k : FLOW) {
+            if (!first.containsKey(k)) p.add("rawNotes에 '" + app.domain.RawNote.KIND_NAMES.get(k) + "'(" + k + ") 메모가 없음");
+        }
+        for (int i = 1; i < FLOW.size(); i++) {
+            Integer a = first.get(FLOW.get(i - 1));
+            Integer b = first.get(FLOW.get(i));
+            if (a == null || b == null) continue;
+            boolean strict = FLOW.get(i).equals(app.domain.RawNote.REASSESS);
+            if (strict ? a >= b : a > b) {
+                // 고치는 법: 앞 종류 메모를 뒤 종류보다 앞 시각으로 옮긴다 (AI가 같은 실수를 되풀이하지 않게 구체적인 시각을 준다)
+                Integer before = i >= 2 ? first.get(FLOW.get(i - 2)) : null;
+                int target = strict ? b - 1 : b;
+                int suggest = before == null ? target - 3 : Math.max(before, Math.min(target, (before + target + 1) / 2));
+                p.add("사건 흐름이 어색함: " + app.domain.RawNote.KIND_NAMES.get(FLOW.get(i - 1)) + "(" + hhmm(a) + ") "
+                        + (strict ? "<" : "≤") + " " + app.domain.RawNote.KIND_NAMES.get(FLOW.get(i)) + "(" + hhmm(b) + ")이어야 함"
+                        + " (고치는 법: " + FLOW.get(i - 1) + " 메모 time을 " + hhmm(suggest) + "로 바꾸고, 그 메모 글은 "
+                        + app.domain.RawNote.KIND_NAMES.get(FLOW.get(i)) + " 전에 한 일로 쓴다)");
+            }
+        }
+        Integer prn = first.get(app.domain.RawNote.PRN);
+        Integer re = first.get(app.domain.RawNote.REASSESS);
+        if (prn != null && re != null && (re - prn < REASSESS_MIN || re - prn > REASSESS_MAX)) {
+            p.add("재평가(" + hhmm(re) + ")는 PRN 투약(" + hhmm(prn) + ") " + REASSESS_MIN + "~" + REASSESS_MAX + "분 뒤여야 함 (현재 "
+                    + (re - prn) + "분)");
+        }
+        if (prn != null && c.answerKey() != null) {
+            var time = app.scoring.ElementPattern.parseAll(c.answerKey().medicationElements()).stream()
+                    .filter(e -> e.label().equals("시각")).findFirst().orElse(null);
+            if (time != null && !time.equalsValue(hhmm(prn))) {
+                p.add("PRN 투약 메모 시각(" + hhmm(prn) + ")이 정답 키 투약 시각(" + time.expected() + ")과 다름");
+            }
+        }
+    }
+
+    private static int minutes(String hhmm) {
+        return Integer.parseInt(hhmm.substring(0, 2)) * 60 + Integer.parseInt(hhmm.substring(3, 5));
+    }
+
+    private static String hhmm(int m) {
+        return String.format("%02d:%02d", m / 60, m % 60);
     }
 
     /**
@@ -198,6 +312,14 @@ public class CaseValidator {
         return t >= w[0] && t <= w[1] ? "" : meal;
     }
 
+    /** 그 시각이 들어가는 식사 이름 (없으면 null) */
+    static String mealAt(String time) {
+        if (time == null || !time.matches(TIME)) return null;
+        int t = Integer.parseInt(time.substring(0, 2)) * 60 + Integer.parseInt(time.substring(3, 5));
+        for (var e : MEAL_HOURS.entrySet()) if (t >= e.getValue()[0] && t <= e.getValue()[1]) return e.getKey();
+        return null;
+    }
+
     /** 원자료 메모의 식사(배식·식사) 시각이 식사 시간대와 맞아야 한다 (D34, 예: 08:10 점심 배식 거부). */
     private static void checkMealTimes(List<String> p, PatientCase c) {
         for (int i = 0; i < c.rawNotes().size(); i++) {
@@ -206,8 +328,11 @@ public class CaseValidator {
             String meal = mealMismatch(n.time(), n.text());
             if (meal != null && !meal.isEmpty()) {
                 int[] w = MEAL_HOURS.get(meal);
+                String fitting = mealAt(n.time());
                 p.add("rawNotes[" + i + "](" + n.time() + ") " + meal + " 배식·식사 메모의 시각이 " + meal + " 시간대("
-                        + String.format("%02d:%02d~%02d:%02d", w[0] / 60, w[0] % 60, w[1] / 60, w[1] % 60) + ") 밖임");
+                        + String.format("%02d:%02d~%02d:%02d", w[0] / 60, w[0] % 60, w[1] / 60, w[1] % 60) + ") 밖임"
+                        + (fitting != null ? " (고치는 법: 이 시각이면 '" + fitting + " 배식'으로 쓴다)"
+                                : " (고치는 법: 이 시각에는 식사 시간대가 없으니 배식·식사가 아닌 다른 관련 없는 일, 예: 비품 정리·다른 환자 채혈 지원으로 바꾼다)"));
             }
         }
     }

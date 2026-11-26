@@ -84,8 +84,12 @@ public class MedicationPanel extends JPanel implements Reloadable {
         reload();
     }
 
+    /** 입력 영역 (제출한 기록 보기 중에는 숨긴다) */
+    private JPanel formPanel;
+
     private JPanel buildForm(Consumer<Screen> onNavigate) {
         JPanel form = new JPanel(new GridLayout(0, 1, 2, 2));
+        formPanel = form;
         form.setBorder(BorderFactory.createTitledBorder("투약 입력"));
 
         JPanel r1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -219,6 +223,7 @@ public class MedicationPanel extends JPanel implements Reloadable {
         PatientCase c = state.currentCase();
         if (c != null) controller.selectableOrders().forEach(orderBox::addItem);
         errorLabel.setText(" ");
+        if (formPanel != null) formPanel.setVisible(!state.isReviewing()); // 읽기 전용: 제출한 투약 기록만 보인다
         showSelectedOrder();
         updateReasonHint();
         showDrugInfo();

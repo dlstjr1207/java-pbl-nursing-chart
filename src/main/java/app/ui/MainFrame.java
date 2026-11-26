@@ -30,6 +30,8 @@ public class MainFrame extends JFrame {
     private final AppState state;
     private final CardLayout cards = new CardLayout();
     private final JPanel content = new JPanel(cards);
+    /** 제출한 기록 보기 중 안내 줄 ("결과로 돌아가기" 버튼 포함). 환자 정보·관찰·투약·SBAR 화면 위에만 보인다. */
+    private final JPanel reviewBar = new JPanel(new BorderLayout(8, 0));
     private final Map<Screen, JScrollPane> scrolls = new EnumMap<>(Screen.class);
     private final Map<Screen, JPanel> panels = new EnumMap<>(Screen.class);
     /** 마지막으로 보여 준 화면. 화면이 바뀔 때만 패널을 다시 채운다(입력 중인 내용 보호). */
@@ -63,7 +65,10 @@ public class MainFrame extends JFrame {
         add(buildStatusBar(), BorderLayout.NORTH);
         sideMenu = buildSideMenu();
         add(sideMenu, BorderLayout.WEST);
-        add(content, BorderLayout.CENTER);
+        JPanel center = new JPanel(new BorderLayout());
+        center.add(buildReviewBar(), BorderLayout.NORTH);
+        center.add(content, BorderLayout.CENTER);
+        add(center, BorderLayout.CENTER);
         for (Screen s : Screen.values()) register(s, placeholder(s));
         refresh();
         setSize(new Dimension(1280, 820));
@@ -93,7 +98,7 @@ public class MainFrame extends JFrame {
 
     /** 실습 중 작성한 기록(관찰·투약·SBAR 입력)이 있는지. */
     boolean hasUnsavedWork() {
-        if (state.currentCase() == null) return false;
+        if (state.currentCase() == null || state.isReviewing()) return false; // 제출한 기록 보기는 저장할 것이 없다
         if (state.hasStudentRecords()) return true;
         for (java.util.function.BooleanSupplier c : draftChecks) if (c.getAsBoolean()) return true;
         return false;
@@ -140,6 +145,7 @@ public class MainFrame extends JFrame {
             if (sp != null) javax.swing.SwingUtilities.invokeLater(() -> sp.getVerticalScrollBar().setValue(0)); // 새 화면은 맨 위부터
         }
         sideMenu.setVisible(state.showSideMenu());
+        reviewBar.setVisible(state.isReviewing() && now != Screen.RESULT && now.needsCase());
         screenLabel.setText(state.screenLabel());
         patientLabel.setText(state.patientLabel());
         userLabel.setText(state.userLabel());
@@ -216,6 +222,23 @@ public class MainFrame extends JFrame {
         }
         badgePanel.revalidate();
         badgePanel.repaint();
+    }
+
+    /** 제출한 기록 보기 중 안내 줄: 읽기 전용임을 알리고 결과 화면으로 돌아가는 버튼을 둔다. */
+    private JPanel buildReviewBar() {
+        reviewBar.setBackground(Theme.ORANGE_BG);
+        reviewBar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, Theme.LINE), BorderFactory.createEmptyBorder(8, 16, 8, 16)));
+        JLabel label = new JLabel(AppState.REVIEW_BANNER + " — 결과를 보며 원자료 메모·처방·활력징후를 다시 확인할 수 있습니다. 기록은 고칠 수 없습니다.");
+        label.setForeground(Theme.ORANGE);
+        label.setFont(Theme.font(java.awt.Font.BOLD, 13f));
+        JButton back = new JButton("결과로 돌아가기");
+        back.setName("backToResult");
+        back.addActionListener(e -> show(Screen.RESULT));
+        reviewBar.add(label, BorderLayout.CENTER);
+        reviewBar.add(back, BorderLayout.EAST);
+        reviewBar.setVisible(false);
+        return reviewBar;
     }
 
     /** 왼쪽 메뉴: 실습 순서대로 화면 이동, 맨 아래 로그아웃. 현재 화면은 남색으로 강조한다. */

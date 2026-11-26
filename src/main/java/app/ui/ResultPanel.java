@@ -58,9 +58,30 @@ public class ResultPanel extends JPanel implements Reloadable {
         body.repaint();
     }
 
+    /**
+     * 제출한 기록 다시 보기: 피드백을 보며 원자료 메모·처방·활력징후와 제출한 기록을 읽기 전용으로 다시 연다.
+     * 왼쪽 메뉴로도 같은 화면에 갈 수 있다.
+     */
+    private JPanel reviewCard() {
+        JPanel card = Theme.cardPanel("제출한 기록 다시 보기 (읽기 전용)", new BorderLayout(0, 6));
+        card.add(text("피드백을 보면서 원자료 메모·처방·활력징후와 내가 제출한 기록을 다시 확인할 수 있습니다. 기록은 고칠 수 없습니다.",
+                Theme.MUTED), BorderLayout.NORTH);
+        JPanel buttons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 6, 0));
+        buttons.setOpaque(false);
+        for (Screen s : new Screen[] {Screen.PATIENT, Screen.OBSERVATION, Screen.MEDICATION, Screen.SBAR}) {
+            JButton b = new JButton(s.title() + " 보기");
+            b.setName("review-" + s.name());
+            b.addActionListener(e -> onNavigate.accept(s));
+            buttons.add(b);
+        }
+        card.add(buttons, BorderLayout.CENTER);
+        return card;
+    }
+
     private void build(Attempt a) {
         ResultView.Groups g = ResultView.groups(a.checks());
         addCard(header(a));
+        if (state.isReviewing() && state.resultAttempt() == a) addCard(reviewCard());
         JPanel bars = Theme.cardPanel("항목별 점수", new BorderLayout());
         RuleBarsPanel chart = new RuleBarsPanel();
         boolean d30 = Scorer.scoredUnderD30(a.checks());

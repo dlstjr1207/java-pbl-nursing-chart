@@ -219,6 +219,9 @@ class RawNotesTest {
         RawNote n = notes.get(i);
         notes.set(i, new RawNote("08:10", "점심 배식 준비.", true, List.of("점심", "배식")));
         assertTrue(has(problems(notes), "(08:10) 점심 배식·식사 메모의 시각이 점심 시간대(11:00~13:30) 밖임"), problems(notes).toString());
+        assertTrue(has(problems(notes), "(고치는 법: 이 시각이면 '아침 배식'으로 쓴다)"));
+        notes.set(i, new RawNote("20:00", "저녁 배식 잔반 정리.", true, List.of("잔반")));
+        assertTrue(has(problems(notes), "식사 시간대가 없으니"), problems(notes).toString());
         notes.set(i, new RawNote("12:10", "점심 배식 준비.", true, List.of("점심", "배식")));
         assertFalse(has(problems(notes), "시간대"));
         // 다른 식사·표기
@@ -257,6 +260,120 @@ class RawNotesTest {
         List<RawNote> notes = new ArrayList<>(pc01.rawNotes());
         notes.add(new RawNote("15:20", "인계: 리튬 600mg 저녁 투약", false, List.of()));
         assertTrue(has(problems(notes), "리튬 용량 '리튬 600mg'이(가) 300mg이 아님"), problems(notes).toString());
+    }
+
+    // ---- D36: 날짜와 사건 흐름 ----
+
+    private PatientCase withPatientTask(app.domain.Patient pt, String task) {
+        PatientCase c = pc01;
+        return new PatientCase(c.id(), c.title(), c.difficulty(), c.objectives(), c.reviewStatus(), c.source(), pt,
+                c.adr(), c.riskTier(), c.orders(), c.regimenHistory(), c.lithiumLevel(), c.vitals(), c.observationLog(),
+                c.safetyRounds(), c.briefing(), c.sbarReference(), c.answerKey(), c.modelAnswer(), c.rawNotes(), task);
+    }
+
+    private static app.domain.Patient admitted(app.domain.Patient p, String date, Integer day) {
+        return new app.domain.Patient(p.name(), p.age(), p.sex(), p.patientNo(), p.room(), p.diagnosis(), p.admissionType(), date, day);
+    }
+
+    @Test
+    void PC01_날짜는_입원일_더하기_입원일수_빼기_1이_근무_날짜다() {
+        assertEquals("2026-10-04", pc01.patient().admissionDate());
+        assertEquals(14, pc01.patient().hospitalDay());
+        assertEquals(java.time.LocalDate.parse("2026-10-17"), CaseGenerator.taskDate(pc01.task()));
+        assertFalse(has(validator.check(pc01), "날짜"));
+    }
+
+    @Test
+    void 입원_전에_근무한_날짜는_거부한다() {
+        // 실제 예: 근무 2026-05-09, 입원 2026-05-12, 28일차
+        var bad = withPatientTask(admitted(pc01.patient(), "2026-05-12", 28), "2026-05-09 Day 근무. 과제");
+        assertTrue(has(validator.check(bad), "날짜가 맞지 않음: 입원일 2026-05-12 + (입원 28일째 − 1) = 2026-06-08인데 근무 날짜는 2026-05-09"),
+                validator.check(bad).toString());
+        assertTrue(has(validator.check(withPatientTask(admitted(pc01.patient(), "10월 4일", 14), pc01.task())), "yyyy-MM-dd"));
+        assertTrue(has(validator.check(withPatientTask(admitted(pc01.patient(), "2026-10-04", null), pc01.task())), "hospitalDay"));
+        assertTrue(has(validator.check(withPatientTask(pc01.patient(), "Day 근무. 과제")), "근무 날짜"));
+        // 메모의 입원 일수도 같아야 한다 (PC-01 메모는 "14일째")
+        List<RawNote> notes = new ArrayList<>(pc01.rawNotes());
+        notes.add(new RawNote("07:25", "추가 인계: 입원 15일째", false, List.of(), RawNote.HANDOFF));
+        assertTrue(has(problems(notes), "'입원 15일째'이(가) 입원 일수 14일째와 다름"), problems(notes).toString());
+    }
+
+    @Test
+    void 생성기는_입원일을_근무_날짜와_입원_일수로_다시_계산한다() {
+        var p = CaseGenerator.tidyDates(admitted(pc01.patient(), "2026-05-12", 28), "2026-05-09 Day 근무(07:00~15:30). …");
+        assertEquals("2026-04-12", p.admissionDate()); // 05-09 − 27일
+        assertEquals(28, p.hospitalDay());
+        var fixed = withPatientTask(p, "2026-05-09 Day 근무. 과제");
+        assertFalse(has(validator.check(fixed), "날짜"), validator.check(fixed).toString());
+        // 근무 날짜나 입원 일수가 없으면 그대로 둔다 (검사기가 알린다)
+        assertEquals("x", CaseGenerator.tidyDates(admitted(pc01.patient(), "x", null), "2026-05-09").admissionDate());
+        assertEquals("x", CaseGenerator.tidyDates(admitted(pc01.patient(), "x", 3), "날짜 없음").admissionDate());
+    }
+
+    @Test
+    void PC01_메모에는_모두_종류가_있고_사건_흐름_검사를_통과한다() {
+        java.util.Map<String, String> kinds = new java.util.LinkedHashMap<>();
+        for (RawNote n : pc01.rawNotes()) kinds.put(n.time(), n.kind());
+        assertEquals(java.util.Map.ofEntries(java.util.Map.entry("07:20", "HANDOFF"), java.util.Map.entry("08:05", "IRRELEVANT"),
+                java.util.Map.entry("09:25", "EVENT"), java.util.Map.entry("09:26", "SPEECH"), java.util.Map.entry("10:00", "REASSESS"),
+                java.util.Map.entry("09:27", "INTERVENTION"), java.util.Map.entry("12:10", "IRRELEVANT"), java.util.Map.entry("09:30", "PRN"),
+                java.util.Map.entry("11:30", "VITALS"), java.util.Map.entry("13:20", "IRRELEVANT"), java.util.Map.entry("14:00", "VITALS"),
+                java.util.Map.entry("15:10", "NEXT_SHIFT")), kinds);
+        assertTrue(validator.check(pc01).isEmpty(), validator.check(pc01).toString());
+        // 학생 화면에는 종류를 보여 주지 않는다
+        String shown = app.ui.RawNotesView.text(pc01);
+        for (String k : RawNote.KIND_NAMES.keySet()) {
+            if (k.equals(RawNote.PRN)) continue; // 'PRN'은 메모 글 자체에 있다
+            assertFalse(shown.contains(k), k);
+        }
+    }
+
+    /** PC-01 메모에서 한 메모의 시각만 바꾼다 */
+    private List<RawNote> retime(String from, String to) {
+        List<RawNote> notes = new ArrayList<>();
+        for (RawNote n : pc01.rawNotes()) {
+            notes.add(n.time().equals(from) ? new RawNote(to, n.text(), n.irrelevant(), n.cues(), n.kind()) : n);
+        }
+        return notes;
+    }
+
+    @Test
+    void 간호_중재가_투약_뒤_몇_시간_늦으면_거부한다() {
+        // 실제 예: 10:40 PRN 뒤 14:30 1:1 중재
+        List<String> p = problems(retime("09:27", "14:30"));
+        assertTrue(has(p, "사건 흐름이 어색함: 간호 중재(14:30) ≤ PRN 투약(09:30)이어야 함"), p.toString());
+        // 같은 실수를 되풀이하지 않게 구체적인 시각을 알려 준다 (환자 말 09:26과 PRN 09:30 사이)
+        assertTrue(has(p, "(고치는 법: INTERVENTION 메모 time을 09:28로 바꾸고"), p.toString());
+        assertTrue(has(problems(retime("09:26", "09:20")), "사건 관찰(09:25) ≤ 환자 말(09:20)"));
+    }
+
+    @Test
+    void 재평가는_PRN_투약_20_60분_뒤이고_PRN_시각은_정답_키와_같아야_한다() {
+        assertTrue(has(problems(retime("10:00", "11:00")), "재평가(11:00)는 PRN 투약(09:30) 20~60분 뒤여야 함 (현재 90분)"));
+        assertTrue(has(problems(retime("10:00", "09:40")), "20~60분 뒤"));
+        assertFalse(has(problems(retime("10:00", "09:50")), "분 뒤"));  // 20분 경계
+        assertFalse(has(problems(retime("10:00", "10:30")), "분 뒤"));  // 60분 경계
+        List<String> p = problems(retime("09:30", "09:35"));
+        assertTrue(has(p, "PRN 투약 메모 시각(09:35)이 정답 키 투약 시각(09:30)과 다름"), p.toString());
+    }
+
+    @Test
+    void 메모_종류가_없거나_틀리면_거부한다() {
+        List<RawNote> notes = new ArrayList<>(pc01.rawNotes());
+        notes.replaceAll(n -> n.kind().equals(RawNote.SPEECH) ? n.withKind(null) : n);
+        List<String> p = problems(notes);
+        assertTrue(has(p, "(09:26) 메모 종류(kind)가 없거나 알 수 없음"), p.toString());
+        assertTrue(has(p, "'환자 말'(SPEECH) 메모가 없음"), p.toString());
+        List<RawNote> wrong = new ArrayList<>(pc01.rawNotes());
+        wrong.replaceAll(n -> n.time().equals("08:05") ? n.withKind(RawNote.VITALS) : n);
+        assertTrue(has(problems(wrong), "(08:05) 종류 VITALS와 irrelevant 표시가 맞지 않음"));
+        // 생성기 정리: 한국어 이름·소문자는 코드로, 관련 없는 메모에 종류가 없으면 IRRELEVANT
+        assertEquals("REASSESS", RawNote.normalizeKind("재평가"));
+        assertEquals("NEXT_SHIFT", RawNote.normalizeKind("next-shift"));
+        assertEquals("PRN", RawNote.normalizeKind("PRN 투약"));
+        var tidy = CaseGenerator.tidyKinds(List.of(new RawNote("12:00", "점심 배식", true, List.of("점심")),
+                new RawNote("09:00", "데이룸", false, List.of(), "사건 관찰")));
+        assertEquals(List.of("IRRELEVANT", "EVENT"), tidy.stream().map(RawNote::kind).toList());
     }
 
     private static int indexOfIrrelevant(List<RawNote> notes) {

@@ -83,6 +83,7 @@ public class MedicationController {
     public SaveResult save(Medication order, String dose, String unit, String route, String time,
                            MedicationResult result, String reason, String orderBasis,
                            Boolean oralCheck, String reassessmentPlan) {
+        if (state.isReviewing()) return new SaveResult(false, new Errors(Map.of("readonly", AppState.REVIEW_LOCKED)));
         Map<String, String> errors = new LinkedHashMap<>();
         if (order == null) errors.put("order", "처방을 선택하세요.");
         if (blank(dose)) errors.put("dose", "용량을 입력하세요.");

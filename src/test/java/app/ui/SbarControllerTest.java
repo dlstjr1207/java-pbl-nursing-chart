@@ -66,7 +66,10 @@ class SbarControllerTest {
         assertEquals(1, repo.findByUser(7L).size());
         assertTrue(repo.findByUser(8L).isEmpty());
         assertEquals(Screen.RESULT, state.current()); // 제출하면 결과 화면 (polish B-3)
-        assertEquals(null, state.currentCase());
+        // 실습은 끝났고(시작 시각 없음, 작성 중 기록 없음) 제출한 기록을 읽기 전용으로 볼 수 있다
+        assertEquals(null, state.practiceStartedAt());
+        org.junit.jupiter.api.Assertions.assertTrue(state.isReviewing());
+        org.junit.jupiter.api.Assertions.assertFalse(state.hasStudentRecords());
     }
 
     @Test
