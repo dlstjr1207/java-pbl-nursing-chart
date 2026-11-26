@@ -32,7 +32,7 @@ public class PatientInfoPanel extends JPanel implements Reloadable {
     }
 
     /**
-     * 현재 케이스로 내용을 다시 그린다. 위에는 환자 배너, 그 아래 상황 브리핑(과제), 그 아래 구역 카드를 두 열로 둔다.
+     * 현재 케이스로 내용을 다시 그린다. 위에는 환자 배너, 그 아래 원자료 메모(과제), 그 아래 구역 카드를 두 열로 둔다.
      * 카드는 내용 높이만큼만 차지한다(빈 여백 없음, polish 9).
      */
     @Override
@@ -44,8 +44,9 @@ public class PatientInfoPanel extends JPanel implements Reloadable {
         } else {
             body.add(banner(c));
             body.add(javax.swing.Box.createVerticalStrut(10));
-            if (c.briefing() != null && !c.briefing().isBlank()) {
-                JPanel brief = fitHeight(briefingCard(c.briefing()));
+            String notes = RawNotesView.text(c);
+            if (!notes.isBlank()) {
+                JPanel brief = fitHeight(briefingCard(RawNotesView.title(c), notes));
                 brief.setAlignmentX(LEFT_ALIGNMENT);
                 body.add(brief);
                 body.add(javax.swing.Box.createVerticalStrut(10));
@@ -77,11 +78,15 @@ public class PatientInfoPanel extends JPanel implements Reloadable {
         body.repaint();
     }
 
-    /** 상황 브리핑(과제) 카드. 큰 글씨, 줄바꿈으로 전체가 보이게 한다. 관찰 화면과 같은 카드. */
-    static JPanel briefingCard(String text) {
-        JPanel p = Theme.cardPanel("상황 브리핑 (과제)", new BorderLayout());
+    /**
+     * 원자료 메모(과제 안내 포함) 카드. 원자료가 없는 예전 케이스는 상황 브리핑 카드. 큰 글씨, 줄바꿈으로 전체가 보이게 한다.
+     * 관찰 화면과 같은 카드이고, 글은 복사할 수 없다.
+     */
+    static JPanel briefingCard(String title, String text) {
+        JPanel p = Theme.cardPanel(title, new BorderLayout());
         JTextArea area = new JTextArea(text);
-        area.setEditable(false);
+        area.setName("rawNotes");
+        RawNotesView.protect(area);
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
         area.setOpaque(false);

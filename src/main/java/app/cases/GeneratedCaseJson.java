@@ -18,7 +18,7 @@ import java.util.Map;
 final class GeneratedCaseJson {
 
     /** 문자열이어야 하는 칸 (최상위). */
-    private static final List<String> TEXT_FIELDS = List.of("id", "title", "difficulty", "briefing", "sbarReference", "riskTier");
+    private static final List<String> TEXT_FIELDS = List.of("id", "title", "difficulty", "briefing", "sbarReference", "riskTier", "task");
 
     private GeneratedCaseJson() {
     }

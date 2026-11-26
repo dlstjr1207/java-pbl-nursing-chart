@@ -63,6 +63,8 @@ public class CaseValidator {
         checkKeyLanguages(p, c);
         checkModelTimes(p, c);
         checkBriefingMatchesKey(p, c);
+        checkRawNotes(p, c);
+        checkLithium(p, c);
         for (int i = 0; i < c.vitals().size(); i++) {
             VitalSign v = c.vitals().get(i);
             if (v == null || v.time() == null || !v.time().matches(TIME)) {
@@ -91,6 +93,335 @@ public class CaseValidator {
                         + fmt(VITAL_LIMITS[k][0]) + "~" + fmt(VITAL_LIMITS[k][1]) + ") 밖");
             }
         }
+    }
+
+    /** 원자료 메모 최소 개수 */
+    public static final int MIN_RAW_NOTES = 8;
+    /** 관련 없는 메모 최소 개수 */
+    public static final int MIN_IRRELEVANT = 2;
+
+    /**
+     * 원자료 메모 검사. 학생은 메모만 보고 기록하므로, 정답 키의 모든 요소(관찰·투약·SBAR)를
+     * 관련 있는 메모 안에서 찾을 수 있어야 한다("필요한 내용은 전부 있다"). 또 메모 8개 이상, 관련 없는 메모 2개 이상,
+     * 시각이 완전히 정렬돼 있지 않아야 한다(두서없는 메모). 관련 없는 메모의 낱말(cues)은 그 메모에만 있고
+     * 모범 기록에는 없어야 한다(모범 기록이 '관련 없는 정보' 피드백을 받지 않게). 모범 기록이 원자료를 그대로 옮긴 글이어도 안 된다.
+     */
+    private static void checkRawNotes(List<String> p, PatientCase c) {
+        List<app.domain.RawNote> notes = c.rawNotes();
+        if (notes.size() < MIN_RAW_NOTES) {
+            p.add("rawNotes(원자료 메모) " + MIN_RAW_NOTES + "개 이상 필요 (현재 " + notes.size() + "개)");
+        }
+        if (notes.isEmpty()) return;
+        if (blank(c.task())) p.add("task(과제 안내) 누락");
+        List<String> times = new ArrayList<>();
+        StringBuilder relevant = new StringBuilder();
+        int irrelevantCount = 0;
+        for (int i = 0; i < notes.size(); i++) {
+            app.domain.RawNote n = notes.get(i);
+            if (n == null || blank(n.text())) {
+                p.add("rawNotes[" + i + "].text 누락");
+                continue;
+            }
+            if (n.time() == null || !n.time().matches(TIME)) {
+                p.add("rawNotes[" + i + "].time 형식 오류 (HH:mm): " + n.time());
+            } else {
+                times.add(n.time());
+            }
+            if (n.irrelevant()) {
+                irrelevantCount++;
+                if (n.cues().isEmpty()) p.add("rawNotes[" + i + "] 관련 없는 메모에 cues(알아볼 낱말)가 없음");
+                for (String cue : n.cues()) {
+                    if (blank(cue) || !squash(n.text()).contains(squash(cue))) {
+                        p.add("rawNotes[" + i + "].cues '" + cue + "'이(가) 그 메모 글에 없음");
+                    }
+                }
+            } else {
+                relevant.append(n.time()).append(' ').append(n.text()).append('\n');
+            }
+        }
+        if (irrelevantCount < MIN_IRRELEVANT) {
+            p.add("rawNotes 관련 없는 메모(irrelevant) " + MIN_IRRELEVANT + "개 이상 필요 (현재 " + irrelevantCount + "개)");
+        }
+        boolean sorted = true;
+        for (int i = 1; i < times.size(); i++) {
+            if (times.get(i).compareTo(times.get(i - 1)) < 0) sorted = false;
+        }
+        if (sorted && times.size() > 1) p.add("rawNotes 시각이 모두 순서대로 정렬돼 있음 (일부 순서를 섞어야 함)");
+        String rel = relevant.toString();
+        String relSquashed = squash(rel);
+        for (app.domain.RawNote n : notes) {
+            if (n == null || !n.irrelevant()) continue;
+            for (String cue : n.cues()) {
+                if (!blank(cue) && relSquashed.contains(squash(cue))) {
+                    p.add("rawNotes cues '" + cue + "'이(가) 관련 있는 메모에도 있음 (관련 없는 메모에만 있는 낱말이어야 함)");
+                }
+            }
+        }
+        checkKeyInNotes(p, c, rel);
+        checkUnlabeledNotes(p, c);
+        checkRawSpeech(p, rel);
+        checkIrrelevantInShift(p, c);
+        checkMealTimes(p, c);
+        checkModelAgainstNotes(p, c);
+    }
+
+    /**
+     * 식사 시간대 (D34, 교육용 병동 일과 가정이며 임상 값이 아니다). 분 단위 [시작, 끝].
+     * 아침 06:30~09:00, 점심 11:00~13:30, 저녁 17:00~19:30.
+     */
+    static final java.util.Map<String, int[]> MEAL_HOURS = mealHours();
+
+    private static java.util.Map<String, int[]> mealHours() {
+        java.util.Map<String, int[]> m = new java.util.LinkedHashMap<>();
+        m.put("아침", new int[] {6 * 60 + 30, 9 * 60});
+        m.put("점심", new int[] {11 * 60, 13 * 60 + 30});
+        m.put("저녁", new int[] {17 * 60, 19 * 60 + 30});
+        return java.util.Collections.unmodifiableMap(m);
+    }
+
+    /** "점심 배식", "아침식사", "저녁 식사 도움"처럼 식사 이름 바로 뒤(2글자 안)에 배식·식사가 오는 표현. 1번 묶음이 식사 이름. */
+    static final java.util.regex.Pattern MEAL = java.util.regex.Pattern.compile("(아침|조식|점심|중식|저녁|석식)\\s{0,2}(배식|식사)");
+
+    /** 식사 표현이 든 메모 시각이 그 식사 시간대 안인지. 식사 표현이 없으면 null(검사 안 함), 맞으면 "", 틀리면 식사 이름. */
+    static String mealMismatch(String time, String text) {
+        if (time == null || !time.matches(TIME) || text == null) return null;
+        var m = MEAL.matcher(text);
+        if (!m.find()) return null;
+        String meal = switch (m.group(1)) {
+            case "조식" -> "아침";
+            case "중식" -> "점심";
+            case "석식" -> "저녁";
+            default -> m.group(1);
+        };
+        int[] w = MEAL_HOURS.get(meal);
+        int t = Integer.parseInt(time.substring(0, 2)) * 60 + Integer.parseInt(time.substring(3, 5));
+        return t >= w[0] && t <= w[1] ? "" : meal;
+    }
+
+    /** 원자료 메모의 식사(배식·식사) 시각이 식사 시간대와 맞아야 한다 (D34, 예: 08:10 점심 배식 거부). */
+    private static void checkMealTimes(List<String> p, PatientCase c) {
+        for (int i = 0; i < c.rawNotes().size(); i++) {
+            app.domain.RawNote n = c.rawNotes().get(i);
+            if (n == null) continue;
+            String meal = mealMismatch(n.time(), n.text());
+            if (meal != null && !meal.isEmpty()) {
+                int[] w = MEAL_HOURS.get(meal);
+                p.add("rawNotes[" + i + "](" + n.time() + ") " + meal + " 배식·식사 메모의 시각이 " + meal + " 시간대("
+                        + String.format("%02d:%02d~%02d:%02d", w[0] / 60, w[0] % 60, w[1] / 60, w[1] % 60) + ") 밖임");
+            }
+        }
+    }
+
+    /** 리튬 처방 고정값 (D34): PC-01과 같은 300mg PO 1일 3회 08:30·12:30·18:30. 새 임상 값을 만들지 않기 위해서다. */
+    static final String LITHIUM_DOSE = "300";
+    static final List<String> LITHIUM_TIMES = List.of("08:30", "12:30", "18:30");
+    private static final java.util.regex.Pattern LITHIUM = java.util.regex.Pattern.compile("(?i)리튬|lithium");
+    /** 글 속 리튬 용량: "리튬 600mg", "Lithium carbonate (탄산리튬) 300 mg" (숫자를 건너뛰지 않는다) */
+    private static final java.util.regex.Pattern LITHIUM_MG =
+            java.util.regex.Pattern.compile("(?i)(리튬|lithium)[^\\d\\n]{0,15}(\\d+(?:\\.\\d+)?)\\s*(mg|밀리그램)");
+
+    /** 리튬은 처방도, 메모·브리핑·관찰 로그·모범 기록 글의 용량도 PC-01과 같아야 한다 (D34). */
+    private static void checkLithium(List<String> p, PatientCase c) {
+        for (int i = 0; i < c.orders().size(); i++) {
+            Medication m = c.orders().get(i);
+            if (m == null || m.drugName() == null || !LITHIUM.matcher(m.drugName()).find()) continue;
+            String dose = app.scoring.ElementPattern.trimZeroDecimal(m.dose());
+            List<String> times = m.scheduleTimes() == null ? List.of()
+                    : m.scheduleTimes().stream().map(t -> t == null ? "" : t.trim()).sorted().toList();
+            boolean ok = m.type() == app.domain.OrderType.REGULAR && LITHIUM_DOSE.equals(dose)
+                    && "mg".equalsIgnoreCase(m.unit() == null ? "" : m.unit().trim())
+                    && "PO".equalsIgnoreCase(m.route() == null ? "" : m.route().trim())
+                    && m.frequency() != null && m.frequency().replaceAll("\\s+", "").contains("1일3회")
+                    && LITHIUM_TIMES.equals(times);
+            if (!ok) {
+                p.add("orders[" + i + "] 리튬은 PC-01과 같은 정규 300mg PO 1일 3회(08:30·12:30·18:30)로만 처방 (현재 "
+                        + m.type() + " " + m.dose() + m.unit() + " " + m.route() + " " + m.frequency() + " " + m.scheduleTimes() + ")");
+            }
+        }
+        List<String> texts = new ArrayList<>();
+        texts.add(c.briefing());
+        for (var n : c.rawNotes()) if (n != null) texts.add(n.text());
+        for (var o : c.observationLog()) if (o != null) texts.add(o.narrative());
+        var ma = c.modelAnswer();
+        if (ma != null) {
+            texts.add(ma.observation());
+            texts.add(ma.medication());
+            texts.add(ma.sbar());
+            if (ma.sbarReport() != null) {
+                texts.add(ma.sbarReport().background());
+                for (var r : ma.sbarReport().recommendations()) if (r != null) texts.add(r.intervention());
+            }
+        }
+        for (String t : texts) {
+            if (t == null) continue;
+            var mm = LITHIUM_MG.matcher(t);
+            while (mm.find()) {
+                if (!LITHIUM_DOSE.equals(app.scoring.ElementPattern.trimZeroDecimal(mm.group(2)))) {
+                    p.add("리튬 용량 '" + mm.group() + "'이(가) 300mg이 아님 (리튬은 300mg 1일 3회로 고정)");
+                }
+            }
+        }
+    }
+
+    /** 근무 시간 (D33): Day 07:00~15:30, Evening 15:00~23:30, Night 23:00~07:30(다음 날). 분 단위 [시작, 끝]. */
+    static final java.util.Map<app.domain.Shift, int[]> SHIFT_HOURS = java.util.Map.of(
+            app.domain.Shift.DAY, new int[] {7 * 60, 15 * 60 + 30},
+            app.domain.Shift.EVENING, new int[] {15 * 60, 23 * 60 + 30},
+            app.domain.Shift.NIGHT, new int[] {23 * 60, 7 * 60 + 30});
+
+    /** HH:mm이 그 근무 시간 안인지 (Night는 자정을 넘는다). */
+    static boolean inShift(app.domain.Shift shift, String time) {
+        if (shift == null || time == null || !time.matches(TIME)) return true;
+        int m = Integer.parseInt(time.substring(0, 2)) * 60 + Integer.parseInt(time.substring(3, 5));
+        int[] w = SHIFT_HOURS.get(shift);
+        return w[0] <= w[1] ? m >= w[0] && m <= w[1] : m >= w[0] || m <= w[1];
+    }
+
+    /**
+     * 관련 없는 메모의 시각은 케이스 근무(관찰 로그·모범 기록의 근무) 시간 안이어야 한다 (D33).
+     * 관찰 로그에 근무가 여럿이면 그중 하나에만 들어가도 된다. 근무를 알 수 없으면 검사하지 않는다.
+     */
+    private static void checkIrrelevantInShift(List<String> p, PatientCase c) {
+        java.util.Set<app.domain.Shift> shifts = caseShifts(c);
+        if (shifts.isEmpty()) return;
+        for (int i = 0; i < c.rawNotes().size(); i++) {
+            app.domain.RawNote n = c.rawNotes().get(i);
+            if (n == null || !n.irrelevant() || n.time() == null || !n.time().matches(TIME)) continue;
+            boolean ok = shifts.stream().anyMatch(s -> inShift(s, n.time()));
+            if (!ok) {
+                p.add("rawNotes[" + i + "](" + n.time() + ") 관련 없는 메모의 시각이 근무(" + shiftText(shifts)
+                        + ") 시간 밖임");
+            }
+        }
+    }
+
+    /** 케이스 근무: 관찰 로그의 근무들, 없으면 모범 기록 관찰의 근무. */
+    static java.util.Set<app.domain.Shift> caseShifts(PatientCase c) {
+        java.util.Set<app.domain.Shift> out = java.util.EnumSet.noneOf(app.domain.Shift.class);
+        for (var o : c.observationLog()) {
+            if (o != null && o.shift() != null) out.add(o.shift());
+        }
+        if (out.isEmpty() && c.modelAnswer() != null && c.modelAnswer().observationRecord() != null
+                && c.modelAnswer().observationRecord().shift() != null) {
+            out.add(c.modelAnswer().observationRecord().shift());
+        }
+        return out;
+    }
+
+    private static String shiftText(java.util.Set<app.domain.Shift> shifts) {
+        List<String> parts = new ArrayList<>();
+        for (app.domain.Shift s : shifts) {
+            int[] w = SHIFT_HOURS.get(s);
+            parts.add(s + " " + String.format("%02d:%02d~%02d:%02d", w[0] / 60, w[0] % 60, w[1] / 60, w[1] % 60));
+        }
+        return String.join(", ", parts);
+    }
+
+    /**
+     * 환자 말이 정리되지 않은 원문인지 (PC-01 수준): 관련 있는 메모의 따옴표 안 환자 말 전체에 끊김(… 또는 ...)이 2번 이상,
+     * 한 메모의 환자 말 안에서 같은 낱말 되풀이가 1번 이상 있어야 한다.
+     * (환자 말이 든 메모를 2~3개 두라는 것은 생성 지시로만 요구한다. 실제 AI가 한 메모에 몰아 쓰는 일이 잦아 검사로 막으면 생성이 자주 실패한다.)
+     */
+    private static void checkRawSpeech(List<String> p, String rel) {
+        boolean repeated = false;
+        for (String line : rel.split("\n")) {
+            String said = quoted(line);
+            if (!said.isBlank() && hasRepeatedWord(said)) repeated = true;
+        }
+        String speech = quoted(rel);
+        int pauses = 0;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("…|\\.\\.\\.").matcher(speech);
+        while (m.find()) pauses++;
+        if (pauses < 2) p.add("rawNotes 환자 말이 정리돼 있음: 말 끊김(…)이 2번 이상 필요 (현재 " + pauses + "번)");
+        if (!repeated) p.add("rawNotes 환자 말이 정리돼 있음: 같은 낱말을 되풀이하는 말이 필요 (예: \"계속, 계속 봐요\")");
+    }
+
+    /** 메모 하나의 환자 말 안에서 같은 낱말(2글자 이상)이 두 번 이상 나오는지. */
+    static boolean hasRepeatedWord(String said) {
+        java.util.Map<String, Integer> count = new java.util.HashMap<>();
+        for (String w : said.split("[^\\p{L}\\p{N}]+")) {
+            if (w.length() >= 2 && count.merge(w, 1, Integer::sum) >= 2) return true;
+        }
+        return false;
+    }
+
+    /**
+     * irrelevant 표시가 없는 메모는 이번 사건과 이어져야 한다: 정답 키 요소(관찰·투약·SBAR 아무 영역)의 동의어,
+     * 케이스 활력징후 혈압 값(예: 118/76), 따옴표 안 환자 말 중 하나라도 있어야 한다. 없으면 표시 없이 섞인 관련 없는 메모로 본다.
+     */
+    private static void checkUnlabeledNotes(List<String> p, PatientCase c) {
+        var key = c.answerKey();
+        if (key == null) return;
+        List<app.scoring.ElementPattern> all = new ArrayList<>();
+        all.addAll(app.scoring.ElementPattern.parseAll(key.observationElements()));
+        all.addAll(app.scoring.ElementPattern.parseAll(key.medicationElements()));
+        var s = key.sbarElements();
+        if (s != null) {
+            for (List<String> l : List.of(s.situation(), s.background(), s.assessment(), s.recommendation())) {
+                all.addAll(app.scoring.ElementPattern.parseAll(l));
+            }
+        }
+        List<String> bp = new ArrayList<>();
+        for (var v : c.vitals()) {
+            if (v != null && v.systolic() != null && v.diastolic() != null) bp.add(v.systolic() + "/" + v.diastolic());
+        }
+        for (int i = 0; i < c.rawNotes().size(); i++) {
+            app.domain.RawNote n = c.rawNotes().get(i);
+            if (n == null || n.irrelevant() || blank(n.text())) continue;
+            String text = n.text();
+            // 환자 말(따옴표)이 든 메모는 이번 환자의 사건 메모로 본다
+            boolean linked = !quoted(text).isBlank()
+                    || all.stream().anyMatch(e -> e.foundIn(text)) || bp.stream().anyMatch(text::contains);
+            if (!linked) {
+                p.add("rawNotes[" + i + "](" + n.time() + ") 관련 표시인데 정답 키·활력징후와 이어지는 내용이 없음"
+                        + " (이번 사건과 관계없는 메모면 \"irrelevant\":true와 cues를 붙임)");
+            }
+        }
+    }
+
+    /** 정답 키의 모든 요소가 관련 있는 메모에 있는지. 발언 인용은 메모의 따옴표 안 환자 말에 있어야 한다. */
+    private static void checkKeyInNotes(List<String> p, PatientCase c, String rel) {
+        var key = c.answerKey();
+        if (key == null) return;
+        for (var e : app.scoring.ElementPattern.parseAll(key.observationElements())) {
+            String where = e.label().equals("발언 인용") ? quoted(rel) : rel;
+            if (!e.foundIn(where)) {
+                p.add("answerKey 관찰 요소 '" + e.label() + "'(" + e.example() + ")을(를) 원자료 메모에서 찾을 수 없음"
+                        + (e.label().equals("발언 인용") ? " (따옴표 안 환자 말)" : ""));
+            }
+        }
+        for (var e : app.scoring.ElementPattern.parseAll(key.medicationElements())) {
+            if (!e.foundIn(rel)) {
+                p.add("answerKey 투약 요소 '" + e.label() + "'(" + e.example() + ")을(를) 원자료 메모에서 찾을 수 없음");
+            }
+        }
+        var s = key.sbarElements();
+        if (s == null) return;
+        String[] areas = {"S", "B", "A", "R"};
+        List<List<String>> lists = List.of(s.situation(), s.background(), s.assessment(), s.recommendation());
+        for (int k = 0; k < 4; k++) {
+            for (var e : app.scoring.ElementPattern.parseAll(lists.get(k))) {
+                if (!e.foundIn(rel)) {
+                    p.add("answerKey SBAR " + areas[k] + " 요소 '" + e.label() + "'(" + e.example() + ")을(를) 원자료 메모에서 찾을 수 없음");
+                }
+            }
+        }
+    }
+
+    /** 모범 기록은 원자료를 그대로 옮기지 않고, 관련 없는 정보도 넣지 않아야 한다 (R10 점검을 모두 통과해야 한다). */
+    private static void checkModelAgainstNotes(List<String> p, PatientCase c) {
+        var m = c.modelAnswer();
+        if (m == null || m.observationRecord() == null) return;
+        var fb = app.scoring.RawNotesChecker.check(c, List.of(m.observationRecord()),
+                m.medicationRecord() == null ? List.of() : List.of(m.medicationRecord()), m.sbarReport());
+        for (var f : fb) {
+            if (f.status() == app.domain.CheckStatus.PASS) continue;
+            p.add("모범 기록이 원자료 정리 점검에 걸림: " + f.message());
+        }
+    }
+
+    private static String squash(String s) {
+        return s == null ? "" : s.replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
     }
 
     /**

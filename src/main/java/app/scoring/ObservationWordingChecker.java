@@ -16,7 +16,7 @@ public final class ObservationWordingChecker {
     public static final String RULE = "R1";
 
     /** 판단 표현 예시 목록 (기획안 '점검 기준', 시나리오 V1). */
-    public static final List<String> JUDGMENT_WORDS = List.of("협조적", "비협조적", "이상한", "정상적", "잘 지냄", "문제없음");
+    public static final List<String> JUDGMENT_WORDS = List.of("협조적", "비협조적", "이상한", "정상적", "잘 지냄", "문제없음", "불안해 보임");
 
     /** 따옴표 쌍: "…", “…”, '…', ‘…’, 「…」 */
     private static final Pattern QUOTE = Pattern.compile("\"[^\"]+\"|“[^”]+”|'[^']+'|‘[^’]+’|「[^」]+」");

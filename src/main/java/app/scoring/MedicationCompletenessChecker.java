@@ -12,8 +12,8 @@ import java.util.List;
 
 /**
  * R6 투약 기록 완결성 점검. 각 기록의 약명·용량·경로·시각·처방 근거가 있는지,
- * PRN 처방이거나 결과가 거부·보류이면 사유가 있는지 본다.
- * 값이 처방과 맞는지는 보지 않는다(R7 범위 밖). 점수는 가중치 미정이라 null이다.
+ * PRN 처방이거나 결과가 거부·보류이면 사유가 있는지, PRN을 투여(GIVEN)했으면 구강 확인을 체크했는지(D33) 본다.
+ * 값이 처방과 맞는지는 보지 않는다(R7 범위 밖).
  * 기록이 0건인 경우는 R8이 알리므로 여기서는 결과를 만들지 않는다.
  */
 public final class MedicationCompletenessChecker {
@@ -38,15 +38,28 @@ public final class MedicationCompletenessChecker {
             if (reasonRequired(r, orders)) {
                 out.add(item(p + "reason", !blank(r.reason()), label + "사유", "PRN·거부·보류는 사유가 필수입니다."));
             }
+            if (oralCheckRequired(r, orders)) {
+                out.add(item(p + "oralCheck", Boolean.TRUE.equals(r.oralCheck()), label + "구강 확인",
+                        "PRN을 투여했으면 삼켰는지 구강 확인을 체크하세요."));
+            }
         }
         return out;
+    }
+
+    /** 구강 확인 필수 여부: PRN 처방을 투여(GIVEN)한 기록. 거부·보류는 해당 없음. */
+    static boolean oralCheckRequired(MedicationRecord r, List<Medication> orders) {
+        return r.result() == MedicationResult.GIVEN && isPrn(r, orders);
+    }
+
+    private static boolean isPrn(MedicationRecord r, List<Medication> orders) {
+        if (orders == null || r.orderId() == null) return false;
+        return orders.stream().anyMatch(o -> r.orderId().equals(o.orderId()) && o.type() == OrderType.PRN);
     }
 
     /** 사유 필수 여부: 참조한 처방이 PRN이거나 결과가 거부·보류. */
     static boolean reasonRequired(MedicationRecord r, List<Medication> orders) {
         if (r.result() == MedicationResult.REFUSED || r.result() == MedicationResult.HELD) return true;
-        if (orders == null || r.orderId() == null) return false;
-        return orders.stream().anyMatch(o -> r.orderId().equals(o.orderId()) && o.type() == OrderType.PRN);
+        return isPrn(r, orders);
     }
 
     private static CheckResult item(String ref, boolean ok, String name, String hint) {

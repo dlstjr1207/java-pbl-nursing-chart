@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * R8 필수 입력 점검. 관찰 분류·서술, 투약 기록 유무, SBAR S·B·A·R이 비어 있지 않은지 본다.
- * 값이 맞는지는 보지 않는다(R7 범위 밖). 점수는 가중치 미정이라 null이다.
+ * 값이 맞는지는 보지 않는다(R7 범위 밖). 결과만 보이고 점수에는 넣지 않는다(D33).
  */
 public final class RequiredInputChecker {
     public static final String RULE = "R8";

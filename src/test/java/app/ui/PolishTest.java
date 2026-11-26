@@ -69,7 +69,7 @@ class PolishTest {
     }
 
     @Test
-    void 결과_묶음은_고칠점_피드백_잘한점으로_나누고_R9는_피드백이다() {
+    void 결과_묶음은_고칠점_피드백_잘한점으로_나누고_R9_누락은_고칠점이다() {
         List<CheckResult> checks = List.of(
                 new CheckResult("R8", CheckTarget.SBAR, "situation", CheckStatus.MISSING, "S 누락", null),
                 new CheckResult("R7", CheckTarget.MEDICATION, "medication[1].용량", CheckStatus.MISMATCH, "다름", null),
@@ -77,9 +77,10 @@ class PolishTest {
                 new CheckResult("R1", CheckTarget.OBSERVATION, "observation[1].narrative", CheckStatus.FEEDBACK, "판단", null),
                 new CheckResult("R6", CheckTarget.MEDICATION, "medication[1].dose", CheckStatus.PASS, "있음", null));
         ResultView.Groups g = ResultView.groups(checks);
-        assertEquals(1, g.missing().size());
+        // R9는 배점이 생겨(D33) 누락이면 고칠 점으로 간다
+        assertEquals(List.of("R8", "R9"), g.missing().stream().map(CheckResult::ruleId).toList());
         assertEquals(1, g.mismatch().size());
-        assertEquals(List.of("R9", "R1"), g.feedback().stream().map(CheckResult::ruleId).toList());
+        assertEquals(List.of("R1"), g.feedback().stream().map(CheckResult::ruleId).toList());
         assertEquals(1, g.passed().size());
     }
 

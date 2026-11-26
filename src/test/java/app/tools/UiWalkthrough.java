@@ -813,7 +813,7 @@ public final class UiWalkthrough {
         app.domain.Attempt a = shownAttempt();
         var rs = app.scoring.Scorer.score(a.checks()).ruleScores();
         StringBuilder rules = new StringBuilder();
-        for (String r : List.of("R7", "R2", "R8", "R6", "R1", "R4")) {
+        for (String r : app.scoring.Scorer.WEIGHTS.keySet()) {
             Double v = rs.get(r);
             if (rules.length() > 0) rules.append(" · ");
             rules.append(r).append(' ').append(v == null ? "-" : fmt(v)).append('/').append(app.scoring.Scorer.WEIGHTS.get(r));

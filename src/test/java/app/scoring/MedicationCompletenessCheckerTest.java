@@ -37,8 +37,31 @@ class MedicationCompletenessCheckerTest {
     @Test
     void 보류와_PRN도_사유가_필수다() {
         assertEquals(1, missing(MedicationCompletenessChecker.check(List.of(rec("reg", MedicationResult.HELD, null)), ORDERS)).size());
-        assertEquals(1, missing(MedicationCompletenessChecker.check(List.of(rec("prn", MedicationResult.GIVEN, null)), ORDERS)).size());
-        assertTrue(missing(MedicationCompletenessChecker.check(List.of(rec("prn", MedicationResult.GIVEN, "불안 호소")), ORDERS)).isEmpty());
+        var prnNoReason = missing(MedicationCompletenessChecker.check(List.of(rec("prn", MedicationResult.GIVEN, null)), ORDERS));
+        assertTrue(prnNoReason.stream().anyMatch(r -> r.targetRef().equals("medication[1].reason")), prnNoReason.toString());
+        // rec()의 구강 확인은 비어 있어(null) PRN 투여에서는 구강 확인도 함께 누락이다
+        assertEquals(List.of("medication[1].oralCheck"),
+                missing(MedicationCompletenessChecker.check(List.of(rec("prn", MedicationResult.GIVEN, "불안 호소")), ORDERS))
+                        .stream().map(r -> r.targetRef()).toList());
+    }
+
+    @Test
+    void PRN을_투여했으면_구강_확인을_체크해야_한다() {
+        var given = new MedicationRecord("prn", "약", "1", "mg", "PO", "09:30", MedicationResult.GIVEN, "불안", "PRN", true, null);
+        assertTrue(missing(MedicationCompletenessChecker.check(List.of(given), ORDERS)).isEmpty());
+        var unchecked = new MedicationRecord("prn", "약", "1", "mg", "PO", "09:30", MedicationResult.GIVEN, "불안", "PRN", false, null);
+        var m = missing(MedicationCompletenessChecker.check(List.of(unchecked), ORDERS));
+        assertEquals(1, m.size());
+        assertEquals("medication[1].oralCheck", m.get(0).targetRef());
+        assertTrue(m.get(0).message().contains("구강 확인"));
+        // 거부·보류와 정규 투약은 해당 없음
+        for (var r : List.of(
+                new MedicationRecord("prn", "약", "1", "mg", "PO", "09:30", MedicationResult.REFUSED, "거부", "PRN", false, null),
+                new MedicationRecord("prn", "약", "1", "mg", "PO", "09:30", MedicationResult.HELD, "보류", "PRN", null, null),
+                new MedicationRecord("reg", "약", "1", "mg", "PO", "09:30", MedicationResult.GIVEN, null, "정규", false, null))) {
+            assertTrue(MedicationCompletenessChecker.check(List.of(r), ORDERS).stream()
+                    .noneMatch(x -> x.targetRef().endsWith("oralCheck")), r.toString());
+        }
     }
 
     @Test

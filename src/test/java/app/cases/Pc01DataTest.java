@@ -60,7 +60,7 @@ class Pc01DataTest {
         PatientCase bad = new PatientCase(pc01.id(), pc01.title(), pc01.difficulty(), pc01.objectives(), pc01.reviewStatus(),
                 pc01.source(), pc01.patient(), pc01.adr(), pc01.riskTier(), orders, pc01.regimenHistory(),
                 pc01.lithiumLevel(), pc01.vitals(), pc01.observationLog(), pc01.safetyRounds(), pc01.briefing(),
-                pc01.sbarReference(), pc01.answerKey(), pc01.modelAnswer());
+                pc01.sbarReference(), pc01.answerKey(), pc01.modelAnswer(), pc01.rawNotes(), pc01.task());
         String all = String.join("\n", new CaseValidator(allowed).check(bad));
         assertTrue(all.contains("orders[0] 1일 총량 40.0"), all);
         assertTrue(all.contains("orders[1] 1일 2회"), all);

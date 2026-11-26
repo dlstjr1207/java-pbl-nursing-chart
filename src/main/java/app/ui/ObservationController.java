@@ -134,13 +134,13 @@ public class ObservationController {
         return d == null ? null : (int) Math.round(d);
     }
 
-    /** 기존 로그와 학생 기록을 시각순으로 합친다. 같은 시각이면 기존 기록이 앞에 온다. */
+    /**
+     * 화면에 보일 관찰 기록 목록: 학생 기록만 시각순으로 둔다.
+     * 케이스의 기존 관찰 로그(observationLog)는 정리된 문장이라 원자료 메모를 대신 정리해 주는 셈이므로 학생 화면에 보이지 않는다.
+     * 데이터는 지우지 않고 AI 해설의 사실 자료로 계속 쓴다(SbarController.explainPrompt).
+     */
     public List<TimelineRow> timeline() {
         List<TimelineRow> rows = new ArrayList<>();
-        PatientCase c = state.currentCase();
-        if (c != null) {
-            for (ObservationEntry e : c.observationLog()) rows.add(new TimelineRow(e.time(), true, e));
-        }
         for (ObservationEntry e : state.studentObservations()) rows.add(new TimelineRow(e.time(), false, e));
         rows.sort((a, b) -> a.time().compareTo(b.time())); // 안정 정렬: 같은 시각이면 입력 순서 유지
         return rows;

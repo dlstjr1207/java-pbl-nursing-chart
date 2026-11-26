@@ -56,11 +56,20 @@ public class SbarController {
         if (pc != null && pc.briefing() != null) {
             p.append("[케이스 사실(이 안의 발언·수치·사건만 사실로 쓸 것)]\n").append(pc.briefing()).append('\n');
         }
+        // 학생은 원자료 메모를 보고 기록한다. 메모의 발언·행동도 사실이다(브리핑에 없는 메모를 "지어냈다"고 지적하지 않게).
+        // 관련 없는 메모는 따로 표시해, 학생이 그 내용을 기록에 넣었으면 해설에서 짚을 수 있게 한다.
+        if (pc != null && pc.hasRawNotes()) {
+            for (app.domain.RawNote n : pc.rawNotes()) {
+                if (n == null) continue;
+                p.append(n.irrelevant() ? "[원자료 메모·이번 사건과 관련 없음] " : "[원자료 메모] ")
+                        .append(n.time()).append(' ').append(n.text()).append('\n');
+            }
+        }
         // 환자 기본 정보·알레르기·처방도 사실이다. 빠지면 학생이 B에 쓴 진단·약을 "케이스에 없다"고 잘못 지적한다.
         if (pc != null) {
             for (String line : caseFactLines(pc)) p.append(line).append('\n');
         }
-        // 학생이 환자 정보 화면에서 본 활력징후·관찰 로그도 사실이다. 빠지면 AI가 실제 수치를 "지어냈다"고 잘못 지적한다.
+        // 활력징후와 케이스 관찰 로그(학생 화면에는 숨김, 같은 내용이 원자료 메모에 있음)도 사실이다. 빠지면 AI가 실제 수치를 "지어냈다"고 잘못 지적한다.
         if (pc != null) {
             for (app.domain.VitalSign v : pc.vitals()) {
                 p.append("[케이스 활력징후] ").append(v.time()).append(' ').append(vitalText(v)).append('\n');
@@ -189,7 +198,7 @@ public class SbarController {
         List<SbarRecommendation> kept = new ArrayList<>();
         for (SbarRecommendation r : rows) kept.add(new SbarRecommendation(r.time().trim(), r.intervention()));
         SbarReport report = new SbarReport(s, b, a, kept);
-        // 제출 당시 규칙 점검(R1·R2·R4·R6·R7·R8·R9)과 점수(D30)를 함께 저장한다.
+        // 제출 당시 규칙 점검(R1·R2·R4·R6~R10)과 점수(D33)를 함께 저장한다.
         app.scoring.Scorer.Result scored = app.scoring.Scorer.evaluate(state.currentCase(),
                 state.studentObservations(), state.studentMedications(), report);
         List<CheckResult> checks = scored.checks();
