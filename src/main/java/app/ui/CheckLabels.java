@@ -28,7 +28,8 @@ public final class CheckLabels {
     private static final Map<String, String> AREAS = Map.of(
             "observation", "관찰 기록", "medication", "투약 기록", "situation", "SBAR S(상황)",
             "background", "SBAR B(배경)", "assessment", "SBAR A(평가)", "rec", "SBAR R(권고)",
-            "recommendation", "SBAR R(권고)", "reassessment", "재평가 계획");
+            "recommendation", "SBAR R(권고)", "reassessment", "재평가 계획",
+            "rawNotes.copied", "원자료 정리 · 그대로 옮김", "rawNotes.irrelevant", "원자료 정리 · 관련 없는 정보");
 
     /** 영역[번호].필드 / 영역.fact[이름] / rec번호.필드 / 영역.element[번호] */
     private static final Pattern INDEXED = Pattern.compile("^([a-z]+)\\[(\\d+)\\](?:\\.(.+))?$");

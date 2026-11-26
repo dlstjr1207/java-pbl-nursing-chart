@@ -45,8 +45,9 @@ class RawNotesTest {
         return Scorer.evaluate(pc01, o, List.of(m.medicationRecord()), m.sbarReport());
     }
 
+    /** R10에서 걸린 점검(불일치)만 */
     private static List<CheckResult> r10(Scorer.Result r) {
-        return r.checks().stream().filter(c -> c.ruleId().equals(RawNotesChecker.RULE)).toList();
+        return r.checks().stream().filter(c -> c.ruleId().equals(RawNotesChecker.RULE) && c.status() != CheckStatus.PASS).toList();
     }
 
     // ---- PC-01 ----
@@ -71,11 +72,15 @@ class RawNotesTest {
     }
 
     @Test
-    void 모범_기록은_여전히_100점이고_R10_피드백이_없다() {
+    void 모범_기록은_여전히_100점이고_R10_두_점검을_통과한다() {
         ModelAnswer m = pc01.modelAnswer();
         Scorer.Result r = score(List.of(m.observationRecord()));
         assertEquals(100.0, r.score());
         assertEquals(List.of(), r10(r));
+        // R10은 점검 2개(그대로 옮김·관련 없는 정보)를 하나씩 센다 (D33)
+        assertEquals(List.of(RawNotesChecker.REF_COPIED, RawNotesChecker.REF_IRRELEVANT), r.checks().stream()
+                .filter(c -> c.ruleId().equals("R10")).map(CheckResult::targetRef).toList());
+        assertEquals(10.0, r.ruleScores().get("R10"));
     }
 
     @Test
@@ -97,23 +102,23 @@ class RawNotesTest {
         assertTrue(r.checks().stream().noneMatch(c -> c.ruleId().equals("R1") && c.status() == CheckStatus.FEEDBACK));
     }
 
-    // ---- R10 피드백 ----
+    // ---- R10 원자료 정리 (배점 10, 점검 2개) ----
 
     @Test
-    void 원자료를_통째로_붙여_넣으면_그대로_옮겼다는_피드백만_준다() {
+    void 원자료를_통째로_붙여_넣으면_그대로_옮김_점검이_불일치이고_5점이_빠진다() {
         ObservationEntry model = pc01.modelAnswer().observationRecord();
         String pasted = RawNotesChecker.allNotes(pc01.rawNotes().stream().filter(n -> !n.irrelevant()).toList());
         Scorer.Result r = score(List.of(obs(model, pasted)));
         List<CheckResult> fb = r10(r);
-        assertTrue(fb.stream().anyMatch(c -> c.message().startsWith("원자료를 그대로 옮겼습니다. 필요한 사실만 골라 정리하세요")), fb.toString());
-        assertTrue(fb.stream().allMatch(c -> c.status() == CheckStatus.FEEDBACK));
+        assertEquals(1, fb.size(), fb.toString());
+        assertEquals(RawNotesChecker.REF_COPIED, fb.get(0).targetRef());
+        assertEquals(CheckStatus.MISMATCH, fb.get(0).status());
+        assertTrue(fb.get(0).message().startsWith("원자료를 그대로 옮겼습니다 (관찰 기록 1). 필요한 사실만 골라 정리하세요"), fb.toString());
         // 판단 표현('협조적')도 함께 옮겨 와 기존 R1 피드백이 나온다
         assertTrue(r.checks().stream().anyMatch(c -> c.ruleId().equals("R1") && c.message().contains("협조적")));
-        // R10은 점수에 들어가지 않는다: R10을 빼고 계산해도 점수가 같다
-        List<CheckResult> without = new ArrayList<>(r.checks());
-        without.removeIf(c -> c.ruleId().equals("R10"));
-        assertEquals(Scorer.score(without).score(), r.score());
-        assertFalse(r.ruleScores().containsKey("R10"));
+        // R10 10점 중 점검 1개(5점)가 빠진다
+        assertEquals(5.0, r.ruleScores().get("R10"));
+        assertEquals(95.0, r.score());
     }
 
     @Test
@@ -125,14 +130,14 @@ class RawNotesTest {
     }
 
     @Test
-    void 관련_없는_메모_내용을_넣으면_피드백만_주고_점수는_그대로다() {
+    void 관련_없는_메모_내용을_넣으면_관련_없는_정보_점검이_불일치이고_5점이_빠진다() {
         ObservationEntry model = pc01.modelAnswer().observationRecord();
         Scorer.Result r = score(List.of(obs(model, model.narrative() + " 13:20 어머니가 전화로 면회 시간을 문의함.")));
         List<CheckResult> fb = r10(r);
         assertEquals(1, fb.size(), fb.toString());
-        assertTrue(fb.get(0).message().startsWith("관련 없는 정보가 들어갔습니다"));
-        assertTrue(fb.get(0).message().contains("어머니") && fb.get(0).message().contains("면회"));
-        assertEquals(100.0, r.score()); // 배점 없음
+        assertEquals(RawNotesChecker.REF_IRRELEVANT, fb.get(0).targetRef());
+        assertTrue(fb.get(0).message().startsWith("관련 없는 정보가 들어갔습니다 (관찰 기록 1 '어머니', '면회')"), fb.toString());
+        assertEquals(95.0, r.score());
     }
 
     @Test
@@ -144,8 +149,12 @@ class RawNotesTest {
                 med.reassessmentPlan());
         SbarReport s = m.sbarReport();
         SbarReport s2 = new SbarReport(s.situation(), s.background(), s.assessment() + " 원무과 안내함.", s.recommendations());
-        List<CheckResult> fb = RawNotesChecker.check(pc01, List.of(m.observationRecord()), List.of(med2), s2);
-        assertEquals(List.of("medication[1].reason", "assessment"), fb.stream().map(CheckResult::targetRef).toList());
+        List<CheckResult> fb = RawNotesChecker.check(pc01, List.of(m.observationRecord()), List.of(med2), s2).stream()
+                .filter(c -> c.status() != CheckStatus.PASS).toList();
+        // 여러 곳에서 걸려도 점검은 하나이고, 어디서 걸렸는지 메시지에 모두 적는다
+        assertEquals(1, fb.size(), fb.toString());
+        assertTrue(fb.get(0).message().contains("투약 기록 1 '점심'") && fb.get(0).message().contains("SBAR A '원무과'"),
+                fb.get(0).message());
     }
 
     @Test
@@ -166,6 +175,36 @@ class RawNotesTest {
     }
 
     // ---- 검사기: 메모 조건 ----
+
+    @Test
+    void 관련_없는_메모의_시각이_근무_시간_밖이면_거부한다() {
+        assertFalse(has(problems(pc01.rawNotes()), "근무"), problems(pc01.rawNotes()).toString()); // PC-01은 Day 안
+        List<RawNote> notes = new ArrayList<>(pc01.rawNotes());
+        int i = indexOfIrrelevant(notes);
+        RawNote n = notes.get(i);
+        notes.set(i, new RawNote("18:10", n.text(), true, n.cues()));
+        assertTrue(has(problems(notes), "(18:10) 관련 없는 메모의 시각이 근무(DAY 07:00~15:30) 시간 밖임"), problems(notes).toString());
+        // 경계값(15:30)은 안
+        notes.set(i, new RawNote("15:30", n.text(), true, n.cues()));
+        assertFalse(has(problems(notes), "시간 밖"));
+    }
+
+    @Test
+    void 근무_시간은_Night가_자정을_넘는다() {
+        assertTrue(CaseValidator.inShift(app.domain.Shift.NIGHT, "23:40"));
+        assertTrue(CaseValidator.inShift(app.domain.Shift.NIGHT, "03:00"));
+        assertTrue(CaseValidator.inShift(app.domain.Shift.NIGHT, "07:30"));
+        assertFalse(CaseValidator.inShift(app.domain.Shift.NIGHT, "12:00"));
+        assertTrue(CaseValidator.inShift(app.domain.Shift.EVENING, "15:00"));
+        assertFalse(CaseValidator.inShift(app.domain.Shift.EVENING, "14:59"));
+        assertFalse(CaseValidator.inShift(app.domain.Shift.DAY, "06:59"));
+        assertEquals(java.util.Set.of(app.domain.Shift.DAY), CaseValidator.caseShifts(pc01));
+    }
+
+    private static int indexOfIrrelevant(List<RawNote> notes) {
+        for (int i = 0; i < notes.size(); i++) if (notes.get(i).irrelevant()) return i;
+        throw new IllegalStateException();
+    }
 
     private List<String> problems(List<RawNote> notes) {
         return validator.check(withNotes(pc01, notes));

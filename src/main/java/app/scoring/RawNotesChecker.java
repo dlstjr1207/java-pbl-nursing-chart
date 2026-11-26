@@ -15,19 +15,23 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
- * R10 원자료 정리 (피드백만, 배점 없음). 학생이 원자료 메모를 보고 필요한 사실만 골라 정리했는지 본다.
- * <ul>
- *   <li>관찰 기록이 원자료 메모와 거의 같으면(메모 문장을 길게 그대로 이어 붙이면) "원자료를 그대로 옮겼습니다".</li>
- *   <li>관련 없는 메모의 낱말(cues)이 관찰·투약·SBAR 기록에 들어가면 "관련 없는 정보가 들어갔습니다".</li>
- * </ul>
+ * R10 원자료 정리 (배점 10, D33). 학생이 원자료 메모를 보고 필요한 사실만 골라 정리했는지 점검 2개로 본다.
+ * <ol>
+ *   <li>그대로 옮김: 관찰 기록이 원자료 메모와 거의 같으면(메모 문장을 길게 그대로 이어 붙이면) 불일치.</li>
+ *   <li>관련 없는 정보: 관련 없는 메모의 낱말(cues)이 관찰·투약·SBAR 기록에 들어가면 불일치.</li>
+ * </ol>
+ * 점검마다 통과·불일치 하나만 내고, 어느 기록에서 걸렸는지는 메시지에 적는다.
  * 환자 발언은 따옴표로 그대로 인용하는 것이 맞으므로(R1) 따옴표 안의 말은 비교에서 뺀다.
- * 원자료 메모가 없는 케이스(예전 케이스)는 아무것도 내지 않는다.
+ * 원자료 메모가 없는 케이스(예전 케이스)는 아무것도 내지 않는다(미산출, 배점에서 빠진다).
  */
 public final class RawNotesChecker {
     public static final String RULE = "R10";
 
-    public static final String COPIED = "원자료를 그대로 옮겼습니다. 필요한 사실만 골라 정리하세요. (배점 없음)";
+    public static final String COPIED = "원자료를 그대로 옮겼습니다";
     public static final String IRRELEVANT = "관련 없는 정보가 들어갔습니다";
+    /** 점검 위치 표기 (결과 화면에서 "원자료 정리 · …"로 보인다) */
+    public static final String REF_COPIED = "rawNotes.copied";
+    public static final String REF_IRRELEVANT = "rawNotes.irrelevant";
 
     /** 메모와 같은 글자가 이만큼 이어지면 '공통 구간'으로 센다 (띄어쓰기·문장부호 제외 글자 수). */
     static final int RUN = 10;
@@ -43,57 +47,63 @@ public final class RawNotesChecker {
     private RawNotesChecker() {
     }
 
-    /** 제출한 기록을 원자료 메모와 비교해 피드백을 돌려준다. 모두 FEEDBACK 상태라 점수에 들어가지 않는다. */
+    /** 제출한 기록을 원자료 메모와 비교해 점검 2개(그대로 옮김·관련 없는 정보)의 결과를 돌려준다. */
     public static List<CheckResult> check(PatientCase c, List<ObservationEntry> observations,
                                           List<MedicationRecord> medications, SbarReport sbar) {
         List<CheckResult> out = new ArrayList<>();
         if (c == null || !c.hasRawNotes()) return out;
         String notes = compact(withoutQuotes(allNotes(c.rawNotes())));
         List<ObservationEntry> obs = observations == null ? List.of() : observations;
+        List<String> copiedAt = new ArrayList<>();
         for (int i = 0; i < obs.size(); i++) {
             ObservationEntry o = obs.get(i);
             if (o == null) continue;
             String text = nz(o.narrative()) + " " + nz(o.intervention());
-            if (copied(compact(withoutQuotes(text)), notes)) {
-                out.add(new CheckResult(RULE, CheckTarget.OBSERVATION, "observation[" + (i + 1) + "].narrative",
-                        CheckStatus.FEEDBACK, COPIED, null));
-            }
+            if (copied(compact(withoutQuotes(text)), notes)) copiedAt.add("관찰 기록 " + (i + 1));
         }
+        out.add(copiedAt.isEmpty()
+                ? new CheckResult(RULE, CheckTarget.OBSERVATION, REF_COPIED, CheckStatus.PASS,
+                        "원자료를 그대로 옮기지 않고 정리했습니다.", null)
+                : new CheckResult(RULE, CheckTarget.OBSERVATION, REF_COPIED, CheckStatus.MISMATCH,
+                        COPIED + " (" + String.join(", ", copiedAt) + "). 필요한 사실만 골라 정리하세요.", null));
+
         List<RawNote> irrelevant = c.rawNotes().stream().filter(RawNote::irrelevant).toList();
-        if (irrelevant.isEmpty()) return out;
+        if (irrelevant.isEmpty()) return out; // 관련 없는 메모가 없는 케이스는 이 점검을 하지 않는다
+        List<String> hits = new ArrayList<>();
         for (int i = 0; i < obs.size(); i++) {
             ObservationEntry o = obs.get(i);
             if (o == null) continue;
-            irrelevantFeedback(out, CheckTarget.OBSERVATION, "observation[" + (i + 1) + "].narrative",
-                    nz(o.narrative()) + " " + nz(o.intervention()), irrelevant);
+            hit(hits, "관찰 기록 " + (i + 1), nz(o.narrative()) + " " + nz(o.intervention()), irrelevant);
         }
         List<MedicationRecord> meds = medications == null ? List.of() : medications;
         for (int i = 0; i < meds.size(); i++) {
             MedicationRecord m = meds.get(i);
             if (m == null) continue;
-            irrelevantFeedback(out, CheckTarget.MEDICATION, "medication[" + (i + 1) + "].reason",
+            hit(hits, "투약 기록 " + (i + 1),
                     String.join(" ", nz(m.reason()), nz(m.orderBasis()), nz(m.reassessmentPlan())), irrelevant);
         }
         if (sbar != null) {
-            irrelevantFeedback(out, CheckTarget.SBAR, "situation", sbar.situation(), irrelevant);
-            irrelevantFeedback(out, CheckTarget.SBAR, "background", sbar.background(), irrelevant);
-            irrelevantFeedback(out, CheckTarget.SBAR, "assessment", sbar.assessment(), irrelevant);
+            hit(hits, "SBAR S", sbar.situation(), irrelevant);
+            hit(hits, "SBAR B", sbar.background(), irrelevant);
+            hit(hits, "SBAR A", sbar.assessment(), irrelevant);
             StringBuilder r = new StringBuilder();
             for (SbarRecommendation x : sbar.recommendations()) {
                 if (x != null) r.append(nz(x.intervention())).append(' ');
             }
-            irrelevantFeedback(out, CheckTarget.SBAR, "recommendation", r.toString(), irrelevant);
+            hit(hits, "SBAR R", r.toString(), irrelevant);
         }
+        out.add(hits.isEmpty()
+                ? new CheckResult(RULE, CheckTarget.OBSERVATION, REF_IRRELEVANT, CheckStatus.PASS,
+                        "관련 없는 정보를 넣지 않았습니다.", null)
+                : new CheckResult(RULE, CheckTarget.OBSERVATION, REF_IRRELEVANT, CheckStatus.MISMATCH,
+                        IRRELEVANT + " (" + String.join(", ", hits) + "). 이번 사건과 관련된 사실만 기록하세요.", null));
         return out;
     }
 
-    /** 관련 없는 메모의 낱말이 글에 있으면 피드백 1건 (어떤 낱말인지 함께 알린다). */
-    private static void irrelevantFeedback(List<CheckResult> out, CheckTarget target, String ref, String text,
-                                           List<RawNote> irrelevant) {
-        List<String> hits = irrelevantCues(text, irrelevant);
-        if (hits.isEmpty()) return;
-        out.add(new CheckResult(RULE, target, ref, CheckStatus.FEEDBACK,
-                IRRELEVANT + " ('" + String.join("', '", hits) + "'). 이번 사건과 관련된 사실만 기록하세요. (배점 없음)", null));
+    /** 관련 없는 메모의 낱말이 글에 있으면 "어디('낱말', …)"를 모은다. */
+    private static void hit(List<String> hits, String where, String text, List<RawNote> irrelevant) {
+        List<String> cues = irrelevantCues(text, irrelevant);
+        if (!cues.isEmpty()) hits.add(where + " '" + String.join("', '", cues) + "'");
     }
 
     /** 글에 들어 있는 관련 없는 메모의 낱말 목록. */

@@ -159,7 +159,62 @@ public class CaseValidator {
         checkKeyInNotes(p, c, rel);
         checkUnlabeledNotes(p, c);
         checkRawSpeech(p, rel);
+        checkIrrelevantInShift(p, c);
         checkModelAgainstNotes(p, c);
+    }
+
+    /** 근무 시간 (D33): Day 07:00~15:30, Evening 15:00~23:30, Night 23:00~07:30(다음 날). 분 단위 [시작, 끝]. */
+    static final java.util.Map<app.domain.Shift, int[]> SHIFT_HOURS = java.util.Map.of(
+            app.domain.Shift.DAY, new int[] {7 * 60, 15 * 60 + 30},
+            app.domain.Shift.EVENING, new int[] {15 * 60, 23 * 60 + 30},
+            app.domain.Shift.NIGHT, new int[] {23 * 60, 7 * 60 + 30});
+
+    /** HH:mm이 그 근무 시간 안인지 (Night는 자정을 넘는다). */
+    static boolean inShift(app.domain.Shift shift, String time) {
+        if (shift == null || time == null || !time.matches(TIME)) return true;
+        int m = Integer.parseInt(time.substring(0, 2)) * 60 + Integer.parseInt(time.substring(3, 5));
+        int[] w = SHIFT_HOURS.get(shift);
+        return w[0] <= w[1] ? m >= w[0] && m <= w[1] : m >= w[0] || m <= w[1];
+    }
+
+    /**
+     * 관련 없는 메모의 시각은 케이스 근무(관찰 로그·모범 기록의 근무) 시간 안이어야 한다 (D33).
+     * 관찰 로그에 근무가 여럿이면 그중 하나에만 들어가도 된다. 근무를 알 수 없으면 검사하지 않는다.
+     */
+    private static void checkIrrelevantInShift(List<String> p, PatientCase c) {
+        java.util.Set<app.domain.Shift> shifts = caseShifts(c);
+        if (shifts.isEmpty()) return;
+        for (int i = 0; i < c.rawNotes().size(); i++) {
+            app.domain.RawNote n = c.rawNotes().get(i);
+            if (n == null || !n.irrelevant() || n.time() == null || !n.time().matches(TIME)) continue;
+            boolean ok = shifts.stream().anyMatch(s -> inShift(s, n.time()));
+            if (!ok) {
+                p.add("rawNotes[" + i + "](" + n.time() + ") 관련 없는 메모의 시각이 근무(" + shiftText(shifts)
+                        + ") 시간 밖임");
+            }
+        }
+    }
+
+    /** 케이스 근무: 관찰 로그의 근무들, 없으면 모범 기록 관찰의 근무. */
+    static java.util.Set<app.domain.Shift> caseShifts(PatientCase c) {
+        java.util.Set<app.domain.Shift> out = java.util.EnumSet.noneOf(app.domain.Shift.class);
+        for (var o : c.observationLog()) {
+            if (o != null && o.shift() != null) out.add(o.shift());
+        }
+        if (out.isEmpty() && c.modelAnswer() != null && c.modelAnswer().observationRecord() != null
+                && c.modelAnswer().observationRecord().shift() != null) {
+            out.add(c.modelAnswer().observationRecord().shift());
+        }
+        return out;
+    }
+
+    private static String shiftText(java.util.Set<app.domain.Shift> shifts) {
+        List<String> parts = new ArrayList<>();
+        for (app.domain.Shift s : shifts) {
+            int[] w = SHIFT_HOURS.get(s);
+            parts.add(s + " " + String.format("%02d:%02d~%02d:%02d", w[0] / 60, w[0] % 60, w[1] / 60, w[1] % 60));
+        }
+        return String.join(", ", parts);
     }
 
     /**
@@ -253,14 +308,15 @@ public class CaseValidator {
         }
     }
 
-    /** 모범 기록은 원자료를 그대로 옮기지 않고, 관련 없는 정보도 넣지 않아야 한다 (R10 피드백이 없어야 한다). */
+    /** 모범 기록은 원자료를 그대로 옮기지 않고, 관련 없는 정보도 넣지 않아야 한다 (R10 점검을 모두 통과해야 한다). */
     private static void checkModelAgainstNotes(List<String> p, PatientCase c) {
         var m = c.modelAnswer();
         if (m == null || m.observationRecord() == null) return;
         var fb = app.scoring.RawNotesChecker.check(c, List.of(m.observationRecord()),
                 m.medicationRecord() == null ? List.of() : List.of(m.medicationRecord()), m.sbarReport());
         for (var f : fb) {
-            p.add("모범 기록 " + f.targetRef() + "이(가) 원자료 정리 점검에 걸림: " + f.message());
+            if (f.status() == app.domain.CheckStatus.PASS) continue;
+            p.add("모범 기록이 원자료 정리 점검에 걸림: " + f.message());
         }
     }
 

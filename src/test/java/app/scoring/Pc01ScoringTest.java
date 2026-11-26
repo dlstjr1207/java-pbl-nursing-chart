@@ -17,7 +17,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * PC-01 정답 키로 채점을 검증한다 (단계 4, 시나리오 V1~V7, D30 배점).
+ * PC-01 정답 키로 채점을 검증한다 (단계 4, 시나리오 V1~V7, D33 배점).
  * 모범 기록은 만점이고, 변형마다 해당 규칙이 지적된다.
  */
 class Pc01ScoringTest {
@@ -91,20 +91,65 @@ class Pc01ScoringTest {
                 "데이룸에서 서성이며 손톱을 물어뜯는 모습이 관찰됨. 환자는 \"누가 나를 감시하는 것 같아요\"라고 말함. "
                         + "조용한 곳으로 이동해 1:1로 지지적 대화를 함. 09:30 로라제팜 1mg PO 투여함.",
                 obs.intervention(), null);
-        MedicationRecord noPlanMed = new MedicationRecord(med.orderId(), med.drugName(), med.dose(), med.unit(), med.route(),
-                med.administeredTime(), med.result(), med.reason(), med.orderBasis(), med.oralCheck(), null);
-        Scorer.Result r = evaluate(noPlan, noPlanMed, sbar);
+        Scorer.Result r = evaluate(noPlan, medPlan(null), sbar);
         assertTrue(flagged(r, "R4"));
+        assertEquals(0.0, r.ruleScores().get("R4"));
         // 투약 기록에만 계획이 있으면 통과
         assertFalse(flagged(evaluate(noPlan, med, sbar), "R4"));
     }
 
+    private MedicationRecord medPlan(String plan) {
+        return new MedicationRecord(med.orderId(), med.drugName(), med.dose(), med.unit(), med.route(),
+                med.administeredTime(), med.result(), med.reason(), med.orderBasis(), med.oralCheck(), plan);
+    }
+
+    private ObservationEntry noPlanObs() {
+        return obsWith(obs.narrative().replace("10:00(투여 30분 후) 불안 정도 재평가 예정.", ""));
+    }
+
     @Test
-    void V5_B가_비면_R8을_지적한다() {
+    void R4는_재평가_낱말과_시각이_함께_있어야_통과한다() {
+        ObservationEntry o = noPlanObs();
+        for (String ok : List.of("10:00 불안 VAS·RASS 재평가", "30분 후 재평가", "1시간 뒤 불안 정도 재사정",
+                "재측정 예정(10:30)", "11시 재확인")) {
+            assertFalse(flagged(evaluate(o, medPlan(ok), sbar), "R4"), ok);
+        }
+        for (String bad : List.of("재평가", "추후 재평가 예정", "10:00 활력징후 측정", "불안 재사정 필요")) {
+            assertTrue(flagged(evaluate(o, medPlan(bad), sbar), "R4"), bad);
+        }
+    }
+
+    @Test
+    void R4는_부정_표현이_붙으면_통과하지_않는다() {
+        ObservationEntry o = noPlanObs();
+        for (String bad : List.of("10:00 재평가 안 함", "재평가 하지 않음(10:00)", "10:00 재평가 계획 없음",
+                "30분 후 재사정 생략", "10:00 재평가안함")) {
+            assertTrue(flagged(evaluate(o, medPlan(bad), sbar), "R4"), bad);
+        }
+        // 재평가 결과를 적은 "이상 없음"은 부정이 아니다
+        assertFalse(flagged(evaluate(o, medPlan("10:00 재평가 이상 없음"), sbar), "R4"));
+        // 한 문장은 부정이어도 다른 문장에 시각 있는 계획이 있으면 통과
+        assertFalse(flagged(evaluate(o, medPlan("09:45 재평가 생략. 10:00 재평가 예정"), sbar), "R4"));
+    }
+
+    @Test
+    void PRN_투여에_구강_확인을_체크하지_않으면_R6을_지적한다() {
+        MedicationRecord unchecked = new MedicationRecord(med.orderId(), med.drugName(), med.dose(), med.unit(), med.route(),
+                med.administeredTime(), med.result(), med.reason(), med.orderBasis(), false, med.reassessmentPlan());
+        Scorer.Result r = evaluate(obs, unchecked, sbar);
+        assertEquals(List.of("medication[1].oralCheck"), of(r, "R6", CheckStatus.MISSING).stream().map(CheckResult::targetRef).toList());
+        assertEquals(98.1, r.score()); // R6 15점 중 1/8 감점
+    }
+
+    @Test
+    void V5_B가_비면_R8을_지적하지만_R8은_점수에_넣지_않는다() {
         SbarReport noB = new SbarReport(sbar.situation(), "", sbar.assessment(), sbar.recommendations());
         Scorer.Result r = evaluate(obs, med, noB);
         assertTrue(r.checks().stream().anyMatch(c -> c.ruleId().equals("R8")
                 && c.targetRef().equals("background") && c.status() == CheckStatus.MISSING));
+        assertFalse(r.ruleScores().containsKey("R8"));
+        // B 칸의 R9 필수 요소(진단·입원 14일·현재 처방) 3개가 빠져 R9 10점 중 3/9가 빠진다
+        assertEquals(96.7, r.score());
     }
 
     @Test
@@ -115,14 +160,58 @@ class Pc01ScoringTest {
     }
 
     @Test
-    void V7_R_행의_시각이_빠지면_R9를_지적한다() {
+    void V7_R_행의_시각이_빠지면_R8과_R9_요소를_지적한다() {
         SbarReport noTime = new SbarReport(sbar.situation(), sbar.background(), sbar.assessment(),
                 List.of(new SbarRecommendation("", "탄산리튬 300mg PO 투약"), sbar.recommendations().get(1)));
         Scorer.Result r = evaluate(obs, med, noTime);
-        assertTrue(r.checks().stream().anyMatch(c -> c.ruleId().equals("R9")
+        assertTrue(r.checks().stream().anyMatch(c -> c.ruleId().equals("R8")
                 && c.targetRef().equals("rec1.time") && c.status() == CheckStatus.MISSING));
-        // R9는 피드백만: 점수에 들어가지 않는다 (R8의 시각 누락만 반영)
-        assertFalse(r.ruleScores().containsKey("R9"));
+        // 시각이 빠져 R 요소 '18:30 리튬 투약'을 찾지 못한다 (R9 10점 중 1/9)
+        assertTrue(r.checks().stream().anyMatch(c -> c.ruleId().equals("R9")
+                && c.targetRef().equals("rec.element[1]") && c.status() == CheckStatus.MISSING));
+        assertEquals(98.9, r.score());
+    }
+
+    @Test
+    void SBAR_R에_18시30분_리튬이_빠지면_R9에서_감점된다() {
+        SbarReport noLithium = new SbarReport(sbar.situation(), sbar.background(), sbar.assessment(),
+                List.of(new SbarRecommendation("16:00", "불안·초조 재발 여부 관찰")));
+        Scorer.Result r = evaluate(obs, med, noLithium);
+        assertEquals(8.9, r.ruleScores().get("R9"));
+        assertEquals(98.9, r.score());
+    }
+
+    @Test
+    void 대표_기록_6가지의_점수() {
+        java.util.Map<String, Double> expected = new java.util.LinkedHashMap<>();
+        expected.put("모범 기록", 100.0);
+        expected.put("메모 통째로 붙여 넣기", 95.0);
+        expected.put("관련 없는 정보 포함", 95.0);
+        expected.put("재평가 안 함", 90.0);
+        expected.put("구강 확인 미체크", 98.1);
+        expected.put("SBAR R에 18:30 리튬 누락", 98.9);
+        java.util.Map<String, Double> actual = new java.util.LinkedHashMap<>();
+        app.tools.ScoreTable.records(pc01).forEach((name, rec) ->
+                actual.put(name, Scorer.evaluate(pc01, List.of(rec.obs()), List.of(rec.med()), rec.sbar()).score()));
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    void 관찰_투약_기록_없이_SBAR만_제출하면_R8_누락이_남지만_점수는_다른_규칙에서_깎인다() {
+        // 화면은 SBAR 칸의 빈칸만 막고, 관찰·투약 기록 0건 제출은 막지 않는다 (R8이 항상 만점은 아니다)
+        Scorer.Result r = Scorer.evaluate(pc01, List.of(), List.of(), sbar);
+        assertTrue(r.checks().stream().anyMatch(c -> c.ruleId().equals("R8") && c.targetRef().equals("observation")));
+        assertTrue(r.checks().stream().anyMatch(c -> c.ruleId().equals("R8") && c.targetRef().equals("medication")));
+        assertFalse(r.ruleScores().containsKey("R8"));
+        assertEquals(0.0, r.ruleScores().get("R2"));
+        assertEquals(0.0, r.ruleScores().get("R7"));
+        assertEquals(23.5, r.score()); // R9·R10만 통과 (20 / 85)
+    }
+
+    @Test
+    void 배점은_D33이고_R8은_빠진다() {
+        assertEquals(java.util.Map.of("R7", 25, "R2", 20, "R6", 15, "R1", 10, "R4", 10, "R9", 10, "R10", 10), Scorer.WEIGHTS);
+        assertEquals(100, Scorer.WEIGHTS.values().stream().mapToInt(Integer::intValue).sum());
     }
 
     @Test
@@ -140,6 +229,7 @@ class Pc01ScoringTest {
         Scorer.Result r = Scorer.evaluate(demo, List.of(obs), List.of(med), sbar);
         assertFalse(r.ruleScores().containsKey("R7"));
         assertFalse(r.ruleScores().containsKey("R2"));
-        assertEquals(100.0, r.score()); // 남은 규칙(R8·R6·R1·R4)을 모두 통과
+        assertEquals(100.0, r.score()); // 남은 규칙(R6·R1·R4)을 모두 통과 (원자료·SBAR 요소가 없어 R10·R9도 빠진다)
+        assertFalse(r.ruleScores().containsKey("R10"));
     }
 }

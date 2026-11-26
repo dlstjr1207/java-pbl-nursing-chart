@@ -125,8 +125,8 @@ public class ResultView {
     }
 
     /**
-     * 결과 화면의 묶음 (polish B-3). 고칠 점(누락·불일치)이 맨 위, 그다음 피드백(R1 판단 표현·R9 SBAR 구성·미산출),
-     * 마지막에 잘 작성한 내용. R9는 배점이 없으므로 누락이어도 피드백으로 보낸다.
+     * 결과 화면의 묶음 (polish B-3). 고칠 점(누락·불일치)이 맨 위, 그다음 피드백(R1 판단 표현·미산출),
+     * 마지막에 잘 작성한 내용. R9·R10도 배점이 있으므로(D33) 누락·불일치는 고칠 점으로 보낸다.
      */
     public record Groups(List<CheckResult> missing, List<CheckResult> mismatch, List<CheckResult> feedback,
                          List<CheckResult> passed) {
@@ -138,11 +138,10 @@ public class ResultView {
         List<CheckResult> feedback = new ArrayList<>();
         List<CheckResult> passed = new ArrayList<>();
         for (CheckResult c : checks == null ? List.<CheckResult>of() : checks) {
-            boolean feedbackOnly = "R9".equals(c.ruleId());
             switch (c.status()) {
                 case PASS -> passed.add(c);
-                case MISSING -> (feedbackOnly ? feedback : missing).add(c);
-                case MISMATCH -> (feedbackOnly ? feedback : mismatch).add(c);
+                case MISSING -> missing.add(c);
+                case MISMATCH -> mismatch.add(c);
                 default -> feedback.add(c); // FEEDBACK, NOT_SCORED
             }
         }
@@ -168,7 +167,7 @@ public class ResultView {
         return sb.toString();
     }
 
-    /** 규칙별 점수 요약 (D30 배점). 제출 당시 점검 결과로 다시 계산해 보여 준다. */
+    /** 규칙별 점수 요약 (D33 배점). 제출 당시 점검 결과로 다시 계산해 보여 준다. */
     public static String ruleScoreText(List<CheckResult> checks) {
         if (checks == null || checks.isEmpty()) return "";
         var r = app.scoring.Scorer.score(checks);
@@ -176,7 +175,7 @@ public class ResultView {
         StringBuilder sb = new StringBuilder("[항목별 점수]\n");
         r.ruleScores().forEach((rule, v) -> sb.append("  ").append(rule).append(' ')
                 .append(v).append(" / ").append(app.scoring.Scorer.WEIGHTS.get(rule)).append('\n'));
-        sb.append("  R9 SBAR 구성은 피드백만 (배점 없음)\n\n");
+        sb.append("  R8 필수 입력은 점수에 넣지 않음 (빈칸은 화면에서 막음)\n\n");
         return sb.toString();
     }
 

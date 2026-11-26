@@ -6,7 +6,7 @@ import app.domain.*;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** R9 SBAR 구성(구조) 테스트 (S5, V7). 합성 값만 쓴다. */
+/** R9 SBAR 구성(필수 요소) 테스트 (S5, D33). 합성 값만 쓴다. */
 class SbarStructureCheckerTest {
     private static CheckResult find(List<CheckResult> rs, String ref) {
         return rs.stream().filter(r -> r.targetRef().equals(ref)).findFirst().orElseThrow();
@@ -18,7 +18,7 @@ class SbarStructureCheckerTest {
         var rs = SbarStructureChecker.check(sbar, null);
         assertEquals(CheckStatus.NOT_SCORED, find(rs, "situation").status());
         assertEquals(CheckStatus.NOT_SCORED, find(rs, "rec.element").status());
-        assertEquals(CheckStatus.PASS, find(rs, "rec1.time").status());
+        assertEquals(4, rs.size()); // 영역마다 미산출 1개, R 행 점검은 R8이 한다
         assertTrue(rs.stream().allMatch(r -> r.ruleId().equals("R9") && r.points() == null));
     }
 
@@ -35,24 +35,25 @@ class SbarStructureCheckerTest {
     }
 
     @Test
-    void R_행의_시각_또는_중재_누락과_잘못된_시각을_알린다() {
-        var sbar = new SbarReport("s", "b", "a", List.of(
-                new SbarRecommendation("", "중재"),
-                new SbarRecommendation("25:99", "중재"),
-                new SbarRecommendation("11:00", " ")));
-        var rs = SbarStructureChecker.check(sbar, null);
-        assertEquals(CheckStatus.MISSING, find(rs, "rec1.time").status());
-        assertEquals(CheckStatus.MISSING, find(rs, "rec2.time").status());
-        assertEquals(CheckStatus.MISSING, find(rs, "rec3.intervention").status());
-        assertEquals(CheckStatus.PASS, find(rs, "rec1.intervention").status());
+    void R_행의_시각_중재_빈칸은_R9에서_세지_않는다() {
+        // 빈칸·형식 오류는 화면이 제출 전에 막고 R8이 점검한다. R9는 S·B·A·R 필수 요소만 센다 (D33).
+        var el = new SbarElements(List.of(), List.of(), List.of(), List.of("18:30&리튬"));
+        var sbar = new SbarReport("s", "b", "a", List.of(new SbarRecommendation("", "중재"),
+                new SbarRecommendation("18:30", "리튬 투약")));
+        var rs = SbarStructureChecker.check(sbar, el);
+        assertTrue(rs.stream().noneMatch(r -> r.targetRef().startsWith("rec1") || r.targetRef().startsWith("rec2")));
+        assertEquals(CheckStatus.PASS, find(rs, "rec.element[1]").status()); // 시각과 중재를 이어 붙인 글에서 찾는다
+        var noLithium = SbarStructureChecker.check(new SbarReport("s", "b", "a",
+                List.of(new SbarRecommendation("16:00", "관찰"))), el);
+        assertEquals(CheckStatus.MISSING, find(noLithium, "rec.element[1]").status());
     }
 
     @Test
     void R_행이_없거나_SBAR가_null이어도_예외_없이_누락을_알린다() {
-        assertEquals(CheckStatus.MISSING, find(SbarStructureChecker.check(null, null), "rec").status());
         var el = new SbarElements(List.of("x"), List.of(), List.of(), List.of("y"));
         var rs = SbarStructureChecker.check(null, el);
         assertEquals(CheckStatus.MISSING, find(rs, "situation.element[1]").status());
         assertEquals(CheckStatus.MISSING, find(rs, "rec.element[1]").status());
+        assertEquals(CheckStatus.NOT_SCORED, find(SbarStructureChecker.check(null, null), "rec.element").status());
     }
 }

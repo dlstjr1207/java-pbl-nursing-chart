@@ -341,6 +341,12 @@ class CaseGeneratorTest {
         assertTrue(prompt.contains("말줄임표(…)를 3번 이상"));
         assertTrue(prompt.contains("같은 낱말(2글자 이상)을 2~3번 되풀이"));
         assertTrue(prompt.contains("하나도 빠짐없이 반드시"));
+        // D33: 모범 기록이 새 R4·R6·R9 기준을 만족하도록, 관련 없는 메모는 근무 시간대에 맞게
+        assertTrue(prompt.contains("'재평가' 낱말과 시각을 한 문장에 함께"));
+        assertTrue(prompt.contains("oralCheck true"));
+        assertTrue(prompt.contains("sbarElements 해당 영역의 모든 요소 동의어"));
+        assertTrue(prompt.contains("Evening에 점심 배식"));
+        assertTrue(prompt.contains("Day 07:00~15:30, Evening 15:00~23:30, Night 23:00~07:30"));
         assertFalse(prompt.contains("\\\"id\\\":\\\"GEN-1\\\"")); // 견본에 ID를 주지 않는다
     }
 

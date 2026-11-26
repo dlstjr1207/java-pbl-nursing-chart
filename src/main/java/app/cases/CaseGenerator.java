@@ -379,7 +379,13 @@ public class CaseGenerator {
                 + "모범 기록(modelAnswer의 모든 문장과 구조화된 기록)은 학생에게 보여 줄 자연스러운 문장이며 정답 키 기호(| &)를 쓰지 않는다. "
                 + "observationRecord.narrative에는 observationElements 각 요소(장소·행동·발언 인용·간호·투약·재평가)의 동의어 중 하나를 글자 그대로 넣고, "
                 + "sbarReport의 S·B·A·R 각 칸에는 sbarElements 해당 영역 요소의 동의어를 글자 그대로 넣는다. "
-                + "sbarReport.recommendations의 time도 반드시 HH:mm 시각이다(예: 16:00). DAY·EVENING·NIGHT 같은 근무 이름이나 '다음 근무'를 time에 쓰지 않는다.\n"
+                + "sbarReport.recommendations의 time도 반드시 HH:mm 시각이다(예: 16:00). DAY·EVENING·NIGHT 같은 근무 이름이나 '다음 근무'를 time에 쓰지 않는다. "
+                + "모범 기록은 다음 채점 기준도 만족해야 한다: "
+                + "재평가 계획은 '재평가' 낱말과 시각을 한 문장에 함께 쓰고(예: '10:00(투여 30분 후) 불안 정도 재평가 예정', "
+                + "medicationRecord.reassessmentPlan '10:00 불안 VAS 재평가'), '재평가 안 함·없음·생략' 같은 부정 표현을 쓰지 않는다. "
+                + "PRN을 투여한 medicationRecord는 result GIVEN, oralCheck true, reason을 채운다. "
+                + "sbarReport의 S·B·A·R 각 칸과 recommendations(시각+중재 글)에 sbarElements 해당 영역의 모든 요소 동의어가 하나씩 들어가야 한다"
+                + "(R 요소가 '18:30&리튬'처럼 시각과 약을 함께 요구하면 그 시각 행의 중재에 약명을 쓴다).\n"
                 + RAW_NOTES_RULES
                 + "견본:\n" + TEMPLATE;
     }
@@ -410,6 +416,10 @@ public class CaseGenerator {
             + "(예: 점심 배식, 보호자 전화로 면회 시간 문의, 다른 환자 채혈 지원). 관련 없는 메모에는 임상 수치를 쓰지 않는다. "
             + "cues 낱말은 그 메모에만 있는 구체적인 명사(예: 배식, 원무과, 면회, 혈당)로 고르고, "
             + "관련 있는 메모와 모범 기록 어디에도 쓰지 않는다(측정·침상·지원·확인·환자 같은 흔한 말 금지).\n"
+            + "관련 없는 메모의 시각도 케이스 근무 시간 안이어야 한다(Day 07:00~15:30, Evening 15:00~23:30, Night 23:00~07:30). "
+            + "식사·투약 같은 일과는 그 근무 시간대에 맞는 것만 쓴다: Day는 아침(07~09시)·점심(11~13시) 배식, "
+            + "Evening은 저녁 배식(17~19시)·취침 전 약, Night는 배식 없이 수면·라운딩. "
+            + "Evening에 점심 배식, Night에 식사 배식, Day에 저녁 배식을 쓰지 않는다.\n"
             + "(e) 판단 표현(예: 협조적, 불안해 보임)은 메모에 써도 되지만 모범 기록에는 쓰지 않는다.\n"
             + "메모는 짧은 메모체(예: '데이룸. 왔다 갔다 계속 서성거림, 손톱 물어뜯음')로 쓴다. "
             + "모범 기록은 메모 문장을 그대로 옮기지 말고 필요한 사실만 골라 자연스러운 문장으로 새로 쓴다(환자 말 인용은 그대로 가능). "

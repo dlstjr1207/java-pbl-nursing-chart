@@ -13,12 +13,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 제출한 기록 전체를 점검하고 점수를 낸다 (D30).
- * 배점: R7 25, R2 20, R8 20, R6 15, R1 10, R4 10. R9·R10은 피드백만, R5는 제외.
- * 규칙마다 (통과 수 / 산출된 점검 수) × 배점을 더하고, 산출할 수 없는 규칙은 배점에서 빼 100점 비율로 환산한다.
+ * 제출한 기록 전체를 점검하고 점수를 낸다 (D33, D30을 바꿈).
+ * 배점: R7 25, R2 20, R6 15, R1 10, R4 10, R9 10, R10 10. R5는 제외.
+ * R8(필수 입력)은 점검 결과만 남기고 점수에서 뺀다: 화면이 빈칸 제출을 막아 거의 항상 만점이라 변별력이 없다.
+ * 규칙마다 (통과 수 / 산출된 점검 수) × 배점을 더하고, 산출할 수 없는 규칙(예: 원자료 메모가 없는 예전 케이스의 R10)은
+ * 배점에서 빼 100점 비율로 환산한다.
  */
 public final class Scorer {
-    /** 규칙별 배점 (D30). 여기에 없는 규칙(R9 등)은 점수에 들어가지 않는다. */
+    /** 규칙별 배점 (D33). 여기에 없는 규칙(R8)은 점수에 들어가지 않는다. */
     public static final Map<String, Integer> WEIGHTS = weights();
 
     private Scorer() {
@@ -28,10 +30,11 @@ public final class Scorer {
         Map<String, Integer> w = new LinkedHashMap<>();
         w.put("R7", 25);
         w.put("R2", 20);
-        w.put("R8", 20);
         w.put("R6", 15);
         w.put("R1", 10);
         w.put("R4", 10);
+        w.put("R9", 10);
+        w.put("R10", 10);
         return java.util.Collections.unmodifiableMap(w);
     }
 
@@ -43,14 +46,14 @@ public final class Scorer {
                                   List<MedicationRecord> medications, SbarReport sbar) {
         AnswerKey key = c == null ? null : c.answerKey();
         List<CheckResult> checks = new ArrayList<>();
-        checks.addAll(RequiredInputChecker.check(observations, medications, sbar));
+        checks.addAll(RequiredInputChecker.check(observations, medications, sbar)); // R8 결과만 (배점 없음)
         checks.addAll(MedicationCompletenessChecker.check(medications, c == null ? List.of() : c.orders()));
         checks.addAll(ValueMatchChecker.check(medications, key));
         checks.addAll(KeyFactChecker.check(observations, key));
         checks.addAll(ObservationWordingChecker.check(observations));
         checks.addAll(ReassessmentChecker.check(observations, medications));
         checks.addAll(SbarStructureChecker.check(sbar, key == null ? null : key.sbarElements()));
-        checks.addAll(RawNotesChecker.check(c, observations, medications, sbar)); // R10 피드백만 (배점 없음)
+        checks.addAll(RawNotesChecker.check(c, observations, medications, sbar)); // R10 (원자료 메모가 없으면 미산출)
         return score(checks);
     }
 

@@ -198,7 +198,7 @@ public class SbarController {
         List<SbarRecommendation> kept = new ArrayList<>();
         for (SbarRecommendation r : rows) kept.add(new SbarRecommendation(r.time().trim(), r.intervention()));
         SbarReport report = new SbarReport(s, b, a, kept);
-        // 제출 당시 규칙 점검(R1·R2·R4·R6·R7·R8·R9)과 점수(D30)를 함께 저장한다.
+        // 제출 당시 규칙 점검(R1·R2·R4·R6~R10)과 점수(D33)를 함께 저장한다.
         app.scoring.Scorer.Result scored = app.scoring.Scorer.evaluate(state.currentCase(),
                 state.studentObservations(), state.studentMedications(), report);
         List<CheckResult> checks = scored.checks();

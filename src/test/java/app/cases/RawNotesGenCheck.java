@@ -83,12 +83,13 @@ public final class RawNotesGenCheck {
                 var m = c.modelAnswer();
                 var s = Scorer.evaluate(c, List.of(m.observationRecord()), List.of(m.medicationRecord()), m.sbarReport());
                 modelScore = String.valueOf(s.score());
-                modelR10 = s.checks().stream().anyMatch(x -> x.ruleId().equals("R10")) ? "있음" : "없음";
+                modelR10 = s.checks().stream().anyMatch(x -> x.ruleId().equals("R10") && x.status() != app.domain.CheckStatus.PASS) ? "있음" : "없음";
+                modelScore += " " + s.ruleScores();
                 String pasted = RawNotesChecker.allNotes(c.rawNotes().stream().filter(x -> !x.irrelevant()).toList());
                 var o = m.observationRecord();
                 var po = new app.domain.ObservationEntry(o.time(), o.shift(), o.tags(), pasted, o.intervention(), o.vitals());
                 var ps = Scorer.evaluate(c, List.of(po), List.of(m.medicationRecord()), m.sbarReport());
-                pasteR10 = ps.checks().stream().filter(x -> x.ruleId().equals("R10")).map(x -> x.message().split("\\.")[0])
+                pasteR10 = ps.score() + "점, " + ps.checks().stream().filter(x -> x.ruleId().equals("R10") && x.status() != app.domain.CheckStatus.PASS).map(x -> x.message().split("\\.")[0])
                         .distinct().reduce((a, b) -> a + "; " + b).orElse("없음");
                 md.append("\n## 환자\n\n").append(c.id()).append(" · ").append(c.patient().name()).append(", ")
                         .append(c.patient().age()).append("세 ").append(c.patient().sex()).append(", ").append(c.patient().diagnosis())
