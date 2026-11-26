@@ -168,9 +168,49 @@ public class CaseGenerator {
         // 정답 키는 PC-01과 같은 규칙으로 채점하기 위해 쓴다(검사기가 처방과 맞는지 확인). 모범 기록은 제출 후 참고용.
         // 출처·검토 상태는 프로그램이 정한다.
         return new PatientCase("GEN-검사중", c.title(), c.difficulty(), c.objectives(), "AI_GENERATED",
-                CaseSource.AI_GENERATED, c.patient(), c.adr(), c.riskTier(), tidyOrders(c.orders()), c.regimenHistory(),
+                CaseSource.AI_GENERATED, tidyDates(c.patient(), c.task()), c.adr(), c.riskTier(), tidyOrders(c.orders()), c.regimenHistory(),
                 c.lithiumLevel(), c.vitals(), c.observationLog(), c.safetyRounds(), c.briefing(),
-                c.sbarReference(), tidyKey(c.answerKey()), tidyModel(c.modelAnswer()), tidyOrder(tidyCues(c.rawNotes())), c.task());
+                c.sbarReference(), tidyKey(c.answerKey()), tidyModel(c.modelAnswer()), tidyOrder(tidyKinds(tidyCues(c.rawNotes()))), c.task());
+    }
+
+    /** 과제 안내(task)의 근무 날짜 (첫 yyyy-MM-dd). 없으면 null. */
+    static java.time.LocalDate taskDate(String task) {
+        if (task == null) return null;
+        var m = java.util.regex.Pattern.compile("(\\d{4}-\\d{2}-\\d{2})").matcher(task);
+        if (!m.find()) return null;
+        try {
+            return java.time.LocalDate.parse(m.group(1));
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 입원일을 근무 날짜와 입원 일수로 다시 계산한다: 입원일 = 근무 날짜 − (입원 일수 − 1) (입원한 날이 1일째).
+     * AI가 날짜를 서로 맞지 않게 쓰는 일이 있어 프로그램이 맞춘다. 근무 날짜나 입원 일수가 없으면 그대로 두어 검사기가 알린다.
+     */
+    static app.domain.Patient tidyDates(app.domain.Patient p, String task) {
+        java.time.LocalDate shift = taskDate(task);
+        if (p == null || shift == null || p.hospitalDay() == null || p.hospitalDay() < 1) return p;
+        String admission = shift.minusDays(p.hospitalDay() - 1L).toString();
+        return new app.domain.Patient(p.name(), p.age(), p.sex(), p.patientNo(), p.room(), p.diagnosis(),
+                p.admissionType(), admission, p.hospitalDay());
+    }
+
+    /** 메모 종류 표기를 코드로 맞추고, 관련 없는 메모에 종류가 없으면 IRRELEVANT를 붙인다. */
+    static List<app.domain.RawNote> tidyKinds(List<app.domain.RawNote> notes) {
+        if (notes == null) return null;
+        List<app.domain.RawNote> out = new ArrayList<>();
+        for (app.domain.RawNote n : notes) {
+            if (n == null) {
+                out.add(null);
+                continue;
+            }
+            String k = app.domain.RawNote.normalizeKind(n.kind());
+            if (k == null && n.irrelevant()) k = app.domain.RawNote.IRRELEVANT;
+            out.add(n.withKind(k));
+        }
+        return out;
     }
 
     // ---- 용량 표기 정리: AI가 "1.0"으로 준 값을 "1"로 저장해 화면·정답 키·모범 기록을 같은 표기로 맞춘다 ----
@@ -227,7 +267,7 @@ public class CaseGenerator {
             List<String> keep = n.cues().stream().filter(c -> c != null && !c.isBlank())
                     .filter(c -> own.contains(squash(c)) && !relevant.contains(squash(c))).toList();
             if (keep.isEmpty()) keep = cuesFromText(n.text(), relevant);
-            out.add(keep.isEmpty() ? n : new app.domain.RawNote(n.time(), n.text(), true, keep));
+            out.add(keep.isEmpty() ? n : new app.domain.RawNote(n.time(), n.text(), true, keep, n.kind()));
         }
         return out;
     }
@@ -401,6 +441,14 @@ public class CaseGenerator {
             + "briefing은 학생에게 보이지 않는 정리된 사실(모범 기록·해설용)이다. rawNotes 조건:\n"
             + "(a) 담당 간호사(학생)가 근무 중에 적어 둔 짧은 메모 10~12개, 각각 {\"time\":\"HH:mm\",\"text\":\"…\"}. "
             + "배열 순서는 시간순이 아니게 2곳 이상 섞는다(예: 10:00 메모가 09:30 메모보다 앞).\n"
+            + "각 메모에 \"kind\"(종류)를 붙인다: HANDOFF(인계), EVENT(사건 관찰), SPEECH(환자 말), INTERVENTION(간호 중재), "
+            + "PRN(PRN 투약), REASSESS(재평가), VITALS(활력징후), NEXT_SHIFT(다음 근무 전달), IRRELEVANT(관련 없음, irrelevant:true와 함께). "
+            + "EVENT·SPEECH·INTERVENTION·PRN·REASSESS 메모는 각각 1개 이상 둔다. "
+            + "배열 순서는 섞어도 각 메모에 적는 실제 시각은 자연스러운 사건 흐름이어야 한다: "
+            + "관찰(EVENT) → 말 걸기(SPEECH) → 1:1·조용한 곳 같은 간호 중재(INTERVENTION) → 중재로 가라앉지 않으면 PRN 투약(PRN) → "
+            + "투약 30분 뒤 재평가(REASSESS). 즉 EVENT ≤ SPEECH ≤ INTERVENTION ≤ PRN < REASSESS이고(각 종류의 가장 이른 시각 기준), "
+            + "재평가는 PRN 투약 20~60분 뒤(보통 30분), PRN 메모 시각은 answerKey 투약 시각(medicationElements 시각=…)과 같다. "
+            + "간호 중재를 투약 뒤 몇 시간 늦게 쓰지 않는다.\n"
             + "(b) 환자 말은 정리하지 않은 원문 그대로 큰따옴표 안에 쓴다. 기본 케이스 수준으로 끊기고 반복되고 두서없게 쓴다: "
             + "환자 말(큰따옴표)이 들어간 관련 메모를 반드시 2~3개(한 메모에 몰지 말고 서로 다른 시각의 메모에 나눠서) 두고, 환자 말 전체에 말줄임표(…)를 3번 이상 넣고, "
             + "적어도 한 메모의 환자 말에서는 같은 낱말(2글자 이상)을 2~3번 되풀이한다"
@@ -431,6 +479,8 @@ public class CaseGenerator {
             + "(예: 메모에 '차분해짐'이라고 썼으면 재평가 결과=차분|안정, 메모에 '안정'이 없으면 '안정'을 동의어로 쓰지 않는다). "
             + "답하기 전에 observationElements·medicationElements·sbarElements의 요소 하나하나가 메모 글에 글자 그대로 있는지, "
             + "관계없는 메모마다 irrelevant:true와 cues가 있는지, 환자 말에 말줄임표와 낱말 되풀이가 있는지 확인한다.\n"
+            + "날짜: task의 근무 날짜(yyyy-MM-dd) = patient.admissionDate + (patient.hospitalDay − 1)일이다(입원한 날이 1일째). "
+            + "메모에 입원 일수를 쓰면 hospitalDay와 같아야 한다(예: hospitalDay 10이면 '입원 10일째').\n"
             + "task에는 근무 날짜·근무 구분·시간, '아래 메모에서 필요한 사실만 골라 (1) 사건의 관찰 기록 1건 (2) PRN 투약 기록 1건 "
             + "(3) 근무 끝 SBAR 인계를 작성' 안내만 쓰고, 사건 내용이나 정답은 쓰지 않는다.\n";
 
@@ -438,7 +488,7 @@ public class CaseGenerator {
     static final String TEMPLATE = """
             {"title":"짧은 제목","difficulty":"기본","objectives":["학습 목표"],
              "patient":{"name":"가상 이름","age":30,"sex":"F","patientNo":"SIM-G01","room":"000호",
-                        "diagnosis":"진단명","admissionType":"동의입원","admissionDate":"2026-10-01","hospitalDay":10},
+                        "diagnosis":"진단명","admissionType":"동의입원","admissionDate":"2026-10-11","hospitalDay":10},
              "adr":{"allergies":["없음"],"adverseReactions":[]},
              "orders":[{"orderId":"G-REG1","type":"REGULAR","drugName":"허용 약명","dose":"숫자","unit":"mg","route":"PO",
                         "frequency":"1일 N회","scheduleTimes":["08:30"]},
@@ -450,16 +500,16 @@ public class CaseGenerator {
                                {"time":"HH:mm","shift":"DAY","tags":["안정 회복"],"narrative":"재평가 결과 문장"}],
              "briefing":"사건 시각·장소·행동·환자 발언(큰따옴표)·담당 간호사인 학생이 한 간호(행동 그대로)·PRN 투약 시각을 담은 문장. 끝에 과제 안내",
              "task":"2026-10-20 Day 근무(07:00~15:30). 아래 메모에서 필요한 사실만 골라 (1) … (2) … (3) …",
-             "rawNotes":[{"time":"07:20","text":"인계 받음. 진단·입원 일수·현재 처방 메모"},
-                         {"time":"HH:mm","text":"장소. 관찰한 행동 메모"},
-                         {"time":"HH:mm","text":"말 걸었더니 → \\"두서없는 환자 말 원문\\""},
-                         {"time":"HH:mm","text":"재평가 시각·결과 메모 (시간 순서를 섞은 자리)"},
-                         {"time":"HH:mm","text":"간호 중재 메모 + 그때 한 환자 말 \\"끊기고… 되풀이되는, 되풀이되는 말 원문\\""},
-                         {"time":"HH:mm","text":"점심 배식 도움 같은 관련 없는 메모","irrelevant":true,"cues":["점심","배식"]},
-                         {"time":"HH:mm","text":"PRN 약명 용량 경로 투여, 사유, 구강 확인 메모"},
-                         {"time":"HH:mm","text":"활력징후 메모(vitals와 같은 값)"},
-                         {"time":"HH:mm","text":"보호자 전화 같은 관련 없는 메모","irrelevant":true,"cues":["보호자","면회"]},
-                         {"time":"HH:mm","text":"다음 근무에 넘길 일 메모(정규 투약 시각·관찰)"}],
+             "rawNotes":[{"time":"07:20","kind":"HANDOFF","text":"인계 받음. 진단·입원 일수·현재 처방 메모"},
+                         {"time":"09:25","kind":"EVENT","text":"장소. 관찰한 행동 메모"},
+                         {"time":"09:26","kind":"SPEECH","text":"말 걸었더니 → \\"두서없는 환자 말 원문\\""},
+                         {"time":"10:00","kind":"REASSESS","text":"투여 30분 뒤 재평가 결과 메모 (시간 순서를 섞은 자리)"},
+                         {"time":"09:27","kind":"INTERVENTION","text":"1:1로 조용한 곳에서 한 간호 중재 메모 + 그때 한 환자 말 \\"끊기고… 되풀이되는, 되풀이되는 말 원문\\""},
+                         {"time":"12:10","kind":"IRRELEVANT","text":"점심 배식 도움 같은 관련 없는 메모","irrelevant":true,"cues":["점심","배식"]},
+                         {"time":"09:30","kind":"PRN","text":"중재 뒤에도 계속되어 PRN 약명 용량 경로 투여, 사유, 구강 확인 메모"},
+                         {"time":"11:30","kind":"VITALS","text":"활력징후 메모(vitals와 같은 값)"},
+                         {"time":"13:20","kind":"IRRELEVANT","text":"보호자 전화 같은 관련 없는 메모","irrelevant":true,"cues":["보호자","면회"]},
+                         {"time":"15:10","kind":"NEXT_SHIFT","text":"다음 근무에 넘길 일 메모(정규 투약 시각·관찰)"}],
              "answerKey":{"observationElements":["장소=데이룸|휴게실","행동=서성|왔다 갔다|손톱","발언 인용=답답|무서워","간호=1:1|일대일|지지|조용한 곳","투약=로라제팜|Lorazepam&1mg|1 mg&PO|경구","재평가=30분|재평가"],
                           "medicationElements":["약명=영문약명|한글약명","용량=숫자","단위=mg","경로=PO|경구","시각=HH:mm"],
                           "sbarElements":{"situation":["불안 사건=불안|초조"],"background":["진단=진단명"],"assessment":["재평가 결과=안정|불안 감소"],"recommendation":["다음 근무 관찰=관찰"]}},

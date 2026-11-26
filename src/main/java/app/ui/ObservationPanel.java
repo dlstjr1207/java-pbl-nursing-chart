@@ -105,8 +105,12 @@ public class ObservationPanel extends JPanel implements Reloadable {
         return top;
     }
 
+    /** 입력 영역 (제출한 기록 보기 중에는 숨긴다) */
+    private JPanel formPanel;
+
     private JPanel buildForm(Consumer<Screen> onNavigate) {
         JPanel form = new JPanel(new GridLayout(0, 1, 2, 2));
+        formPanel = form;
         form.setBorder(BorderFactory.createTitledBorder("관찰 입력"));
 
         JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -206,6 +210,7 @@ public class ObservationPanel extends JPanel implements Reloadable {
         briefing.setText(RawNotesView.text(c));
         if (briefingCard != null) briefingCard.setBorder(Theme.card(RawNotesView.title(c)));
         errorLabel.setText(" ");
+        if (formPanel != null) formPanel.setVisible(!state.isReviewing()); // 읽기 전용: 제출한 관찰만 보인다
         refreshLists();
     }
 

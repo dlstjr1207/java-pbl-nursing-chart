@@ -61,7 +61,10 @@ class SbarBackgroundSubmitTest {
         c.finish(r.attempt());
         assertEquals(Screen.RESULT, state.current());
         assertEquals(r.attempt(), state.resultAttempt());
-        assertEquals(null, state.currentCase());
+        // 실습은 끝났고(시작 시각 없음, 작성 중 기록 없음) 제출한 기록을 읽기 전용으로 볼 수 있다
+        assertEquals(null, state.practiceStartedAt());
+        org.junit.jupiter.api.Assertions.assertTrue(state.isReviewing());
+        org.junit.jupiter.api.Assertions.assertFalse(state.hasStudentRecords());
     }
 
     @Test

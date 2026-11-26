@@ -39,6 +39,18 @@ public class AppState {
     /** 이번 실습의 시작 시각 (제출 시 Attempt에 저장). */
     private java.time.LocalDateTime practiceStartedAt;
 
+    /**
+     * 제출한 기록 보기 중인지. 결과 화면을 열면 그 기록의 환자(AI 환자면 그때 저장한 환자)와 제출한 관찰·투약을
+     * currentCase·학생 기록 목록에 채워 환자 정보·관찰·투약·SBAR 화면을 읽기 전용으로 다시 볼 수 있게 한다.
+     * 이 동안에는 기록을 추가·제출할 수 없다. 새 실습을 시작하거나 개인 메인으로 가면 끝난다.
+     */
+    private boolean reviewing;
+
+    /** 읽기 전용 화면에서 저장·제출을 막을 때 보이는 문구 */
+    public static final String REVIEW_LOCKED = "제출한 기록 보기 중에는 기록을 고치거나 다시 제출할 수 없습니다.";
+    /** 읽기 전용 화면 위 안내 */
+    public static final String REVIEW_BANNER = "제출한 기록 보기 중 (읽기 전용)";
+
     public Screen current() { return current; }
 
     /** 저장 방식 안내 문구를 정한다 (파일 저장 모드면 FILE_MODE_NOTICE, DB면 null). */
@@ -49,8 +61,11 @@ public class AppState {
 
     /** 실습 중에 학생이 작성해 둔 관찰·투약 기록이 있는지 (제출 전이라 이동하면 사라진다). */
     public boolean hasStudentRecords() {
-        return currentCase != null && (!studentObservations.isEmpty() || !studentMedications.isEmpty());
+        return !reviewing && currentCase != null && (!studentObservations.isEmpty() || !studentMedications.isEmpty());
     }
+
+    /** 제출한 기록 보기 중인지 (환자 정보·관찰·투약·SBAR가 읽기 전용) */
+    public boolean isReviewing() { return reviewing; }
 
     /** 이번 실습의 시작 시각. 실습 중이 아니면 null. */
     public java.time.LocalDateTime practiceStartedAt() { return practiceStartedAt; }
@@ -64,12 +79,20 @@ public class AppState {
 
     /**
      * 실습 기록의 결과 화면으로 간다. 진행 중이던 실습은 끝낸다(제출 직후이거나 개인 메인에서 연 경우).
+     * 그 기록의 환자와 제출한 관찰·투약을 채워 읽기 전용으로 다시 볼 수 있게 한다(케이스를 못 읽으면 결과만 본다).
      * 로그인 전이면 false.
      */
     public boolean showResult(app.domain.Attempt attempt) {
         if (userName == null || attempt == null) return false;
         endPractice();
         resultAttempt = attempt;
+        PatientCase c = ResultView.caseOf(attempt);
+        if (c != null) {
+            currentCase = c;
+            studentObservations.addAll(attempt.observationEntries());
+            studentMedications.addAll(attempt.medicationRecords());
+            reviewing = true;
+        }
         current = Screen.RESULT;
         return true;
     }
@@ -77,6 +100,7 @@ public class AppState {
     private void endPractice() {
         currentCase = null;
         practiceStartedAt = null;
+        reviewing = false;
         studentObservations.clear();
         studentMedications.clear();
     }
@@ -84,9 +108,7 @@ public class AppState {
     /** 로그인 처리. 로그인 직후 개인 메인으로 이동한다. */
     public void login(String name) {
         this.userName = name;
-        this.currentCase = null;
-        this.studentObservations.clear();
-        this.studentMedications.clear();
+        endPractice();
         this.current = Screen.HOME;
     }
 
@@ -94,16 +116,14 @@ public class AppState {
     public void logout() {
         this.userName = null;
         this.resultAttempt = null;
-        this.practiceStartedAt = null;
-        this.currentCase = null;
-        this.studentObservations.clear();
-        this.studentMedications.clear();
+        endPractice();
         this.current = Screen.LOGIN;
     }
 
     /** 실습 케이스를 정하고 환자 정보 화면으로 이동한다. */
     public void startPractice(PatientCase patientCase) {
         if (userName == null) throw new IllegalStateException("로그인이 필요합니다.");
+        this.reviewing = false; // 새 실습은 다시 입력할 수 있다
         this.currentCase = patientCase;
         this.practiceStartedAt = java.time.LocalDateTime.now();
         this.studentObservations.clear(); // 새 실습은 빈 기록으로 시작
@@ -118,6 +138,7 @@ public class AppState {
 
     /** 학생 관찰 기록을 추가한다. */
     public void addObservation(ObservationEntry entry) {
+        if (reviewing) throw new IllegalStateException(REVIEW_LOCKED);
         studentObservations.add(entry);
     }
 
@@ -128,6 +149,7 @@ public class AppState {
 
     /** 학생 투약 기록을 추가한다. */
     public void addMedication(MedicationRecord record) {
+        if (reviewing) throw new IllegalStateException(REVIEW_LOCKED);
         studentMedications.add(record);
     }
 
@@ -158,7 +180,7 @@ public class AppState {
             return "환자: " + name + " (" + resultAttempt.caseId() + ") · 결과 보기";
         }
         if (currentCase == null) return "환자: 선택 안 함";
-        return "환자: " + currentCase.patient().name() + " (" + currentCase.id() + ")";
+        return "환자: " + currentCase.patient().name() + " (" + currentCase.id() + ")" + (reviewing ? " · 제출한 기록 보기" : "");
     }
 
     /** 상단 상태줄의 '로그인 사용자' 문구. */

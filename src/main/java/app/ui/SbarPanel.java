@@ -1,6 +1,7 @@
 package app.ui;
 
 import app.domain.SbarRecommendation;
+import app.domain.SbarReport;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
@@ -39,6 +40,9 @@ public class SbarPanel extends JPanel implements Reloadable {
     private final JList<SbarRecommendation> rowList = new JList<>(rowModel);
     private final JLabel statusLabel = new JLabel(" ");
     private final JButton submitButton = new JButton("SBAR 제출");
+    /** R 행 입력칸 줄과 제출 버튼 줄 (제출한 기록 보기 중에는 숨긴다) */
+    private JPanel rowInput;
+    private JPanel buttonRow;
     /** 입력칸이 속한 실습(시작 시각). 새 실습이 시작되면 칸을 비운다. */
     private Object practiceKey;
 
@@ -59,6 +63,7 @@ public class SbarPanel extends JPanel implements Reloadable {
         JPanel south = new JPanel(new BorderLayout());
         south.add(statusLabel, BorderLayout.NORTH);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        buttonRow = buttons;
         submitButton.addActionListener(e -> submit());
         buttons.add(submitButton);
         for (Screen s : new Screen[] {Screen.PATIENT, Screen.OBSERVATION, Screen.MEDICATION}) {
@@ -106,6 +111,7 @@ public class SbarPanel extends JPanel implements Reloadable {
         });
         input.add(del);
         JPanel bottom = new JPanel(new BorderLayout());
+        rowInput = input;
         bottom.add(input, BorderLayout.CENTER);
         bottom.add(rErr, BorderLayout.SOUTH);
         p.add(bottom, BorderLayout.SOUTH);
@@ -128,6 +134,22 @@ public class SbarPanel extends JPanel implements Reloadable {
     /** 새 실습이 시작됐으면 이전 실습의 입력을 비운다. 같은 실습 안에서 화면을 오가면 입력을 유지한다. */
     @Override
     public void reload() {
+        SbarReport reviewed = controller.reviewedSbar();
+        boolean readOnly = reviewed != null;
+        for (JTextArea a : new JTextArea[] {sArea, bArea, aArea}) a.setEditable(!readOnly);
+        rowInput.setVisible(!readOnly);
+        buttonRow.setVisible(!readOnly);
+        if (readOnly) {
+            // 제출한 SBAR를 읽기 전용으로 보인다. 다음 실습에서 칸을 비우도록 실습 표시를 지운다.
+            practiceKey = REVIEW_KEY;
+            clearInputs();
+            sArea.setText(reviewed.situation());
+            bArea.setText(reviewed.background());
+            aArea.setText(reviewed.assessment());
+            reviewed.recommendations().forEach(rowModel::addElement);
+            statusLabel.setText(AppState.REVIEW_BANNER);
+            return;
+        }
         Object key = controller.practiceKey();
         if (key == null || !key.equals(practiceKey)) {
             practiceKey = key;
@@ -135,8 +157,12 @@ public class SbarPanel extends JPanel implements Reloadable {
         }
     }
 
+    /** 읽기 전용으로 채운 뒤임을 나타내는 표시 */
+    private static final Object REVIEW_KEY = new Object();
+
     /** SBAR 입력칸에 쓰다 만 내용이 있는지 (화면을 떠날 때 확인용). */
     public boolean hasDraft() {
+        if (practiceKey == REVIEW_KEY) return false; // 읽기 전용으로 채운 제출 기록은 작성 중인 글이 아니다
         return !sArea.getText().isBlank() || !bArea.getText().isBlank() || !aArea.getText().isBlank()
                 || !rowModel.isEmpty() || !timeField.getText().isBlank() || !interField.getText().isBlank();
     }

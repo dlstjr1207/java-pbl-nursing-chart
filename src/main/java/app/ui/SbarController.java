@@ -188,6 +188,7 @@ public class SbarController {
      * 묶어 둔다. AI 호출과 저장은 complete()가 백그라운드에서 한다.
      */
     public Prepared prepare(String s, String b, String a, List<SbarRecommendation> rows) {
+        if (state.isReviewing()) return Prepared.failed(Map.of(), AppState.REVIEW_LOCKED); // 제출 후 고쳐 점수를 바꿀 수 없다
         Map<String, String> errors = validate(s, b, a, rows);
         if (!errors.isEmpty()) {
             return Prepared.failed(errors, "비어 있는 항목을 확인하세요. 입력한 내용은 유지됩니다.");
@@ -242,6 +243,11 @@ public class SbarController {
 
     /** 지금 실습을 구분하는 값(실습 시작 시각). 실습이 바뀌면 SBAR 입력칸을 비우는 데 쓴다. */
     public Object practiceKey() { return state.practiceStartedAt(); }
+
+    /** 제출한 기록 보기 중이면 그 기록의 SBAR, 아니면 null (SBAR 화면을 읽기 전용으로 채울 때 쓴다). */
+    public SbarReport reviewedSbar() {
+        return state.isReviewing() && state.resultAttempt() != null ? state.resultAttempt().sbar() : null;
+    }
 
     /**
      * 한 번에 제출한다(테스트·동기 실행용). 검증 실패면 저장하지 않고 오류만 돌려주며 입력은 화면에 남는다.

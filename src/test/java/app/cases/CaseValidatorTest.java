@@ -23,18 +23,18 @@ class CaseValidatorTest {
     private static String json(String drug, String dose, String unit, String route, String time, String briefing) {
         return """
             {"id":"G-1","title":"합성","source":"AI_GENERATED",
-             "patient":{"name":"가상환자"},
+             "patient":{"name":"가상환자","admissionDate":"2026-10-11","hospitalDay":10},
              "briefing":"%s",
              "vitals":[{"time":"%s","pulse":80},{"time":"10:00","pulse":82}],
              "observationLog":[{"time":"09:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"},
                                {"time":"10:00","shift":"DAY","tags":["기타"],"narrative":"합성 관찰"}],
              "orders":[{"orderId":"O1","type":"REGULAR","drugName":"%s","dose":"%s","unit":"%s","route":"%s","scheduleTimes":["08:00"]}],
-             "task":"합성 과제",
-             "rawNotes":[{"time":"07:20","text":"인계 받음. 정규약 PO 아침"},{"time":"09:30","text":"데이룸. 서성거림. %s %smg PO 줌"},
-                         {"time":"09:00","text":"데이룸 합성 메모 1"},{"time":"10:00","text":"데이룸 합성 메모 2"},
-                         {"time":"11:00","text":"데이룸. \\"아… 저기, 저기… 괜찮아요\\""},
-                         {"time":"13:00","text":"데이룸 의자. \\"네… 네\\""},{"time":"12:00","text":"점심 배식","irrelevant":true,"cues":["점심"]},
-                         {"time":"14:00","text":"보호자 전화","irrelevant":true,"cues":["보호자"]}],
+             "task":"2026-10-20 Day 근무. 합성 과제",
+             "rawNotes":[{"time":"07:20","kind":"HANDOFF","text":"인계 받음. 정규약 PO 아침"},{"time":"09:30","kind":"PRN","text":"데이룸. 서성거림. %s %smg PO 줌"},
+                         {"time":"09:00","kind":"EVENT","text":"데이룸 합성 메모 1"},{"time":"10:00","kind":"REASSESS","text":"데이룸 합성 메모 2"},
+                         {"time":"09:10","kind":"SPEECH","text":"데이룸. \\"아… 저기, 저기… 괜찮아요\\""},
+                         {"time":"09:20","kind":"INTERVENTION","text":"데이룸 의자. \\"네… 네\\""},{"time":"12:00","kind":"IRRELEVANT","text":"점심 배식","irrelevant":true,"cues":["점심"]},
+                         {"time":"14:00","kind":"IRRELEVANT","text":"보호자 전화","irrelevant":true,"cues":["보호자"]}],
              "answerKey":{"observationElements":["장소=데이룸"],"medicationElements":["약명=%s|TestDrug","용량=%s","경로=PO|경구","시각=09:30"]}}
             """.formatted(briefing, time, drug, dose, unit, route, drug, dose, drug, dose);
     }
