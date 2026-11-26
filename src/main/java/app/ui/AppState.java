@@ -45,6 +45,8 @@ public class AppState {
      * 이 동안에는 기록을 추가·제출할 수 없다. 새 실습을 시작하거나 개인 메인으로 가면 끝난다.
      */
     private boolean reviewing;
+    /** 이번 실습의 정신상태 평가 (D38, 적지 않았으면 null) */
+    private app.domain.MentalStatus mentalStatus;
 
     /** 읽기 전용 화면에서 저장·제출을 막을 때 보이는 문구 */
     public static final String REVIEW_LOCKED = "제출한 기록 보기 중에는 기록을 고치거나 다시 제출할 수 없습니다.";
@@ -91,6 +93,7 @@ public class AppState {
             currentCase = c;
             studentObservations.addAll(attempt.observationEntries());
             studentMedications.addAll(attempt.medicationRecords());
+            mentalStatus = attempt.mentalStatus();
             reviewing = true;
         }
         current = Screen.RESULT;
@@ -101,6 +104,7 @@ public class AppState {
         currentCase = null;
         practiceStartedAt = null;
         reviewing = false;
+        mentalStatus = null;
         studentObservations.clear();
         studentMedications.clear();
     }
@@ -128,6 +132,7 @@ public class AppState {
         this.practiceStartedAt = java.time.LocalDateTime.now();
         this.studentObservations.clear(); // 새 실습은 빈 기록으로 시작
         this.studentMedications.clear();
+        this.mentalStatus = null;
         this.current = Screen.PATIENT;
     }
 
@@ -152,6 +157,18 @@ public class AppState {
         if (reviewing) throw new IllegalStateException(REVIEW_LOCKED);
         studentMedications.add(record);
     }
+
+    /** 이번 실습의 정신상태 평가 (적지 않았으면 null) */
+    public app.domain.MentalStatus mentalStatus() { return mentalStatus; }
+
+    /** 정신상태 평가를 저장한다. 모두 비었으면 지운다. 제출한 기록 보기 중에는 고칠 수 없다. */
+    public void setMentalStatus(app.domain.MentalStatus m) {
+        if (reviewing) throw new IllegalStateException(REVIEW_LOCKED);
+        mentalStatus = app.domain.MentalStatus.blank(m) ? null : m;
+    }
+
+    /** 기록 서명: 로그인한 사용자 이름 (D38, 3교대 기록자 표시) */
+    public String signature() { return userName == null ? "학생" : userName; }
 
     /** 왼쪽 메뉴(로그아웃 포함)를 보일지. 로그인 전에는 숨긴다 (polish C-10). */
     public boolean showSideMenu() { return userName != null; }

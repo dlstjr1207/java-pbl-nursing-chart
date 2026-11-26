@@ -40,6 +40,9 @@ public class SbarPanel extends JPanel implements Reloadable {
     private final JList<SbarRecommendation> rowList = new JList<>(rowModel);
     private final JLabel statusLabel = new JLabel(" ");
     private final JButton submitButton = new JButton("SBAR 제출");
+    /** 실제 인계 기록 형태 (D38, 다시 보기에서만 보인다): S→B→A→R 한 문단과 서명 */
+    private final JTextArea handoffArea = new JTextArea(5, 40);
+    private JPanel handoffCard;
     /** R 행 입력칸 줄과 제출 버튼 줄 (제출한 기록 보기 중에는 숨긴다) */
     private JPanel rowInput;
     private JPanel buttonRow;
@@ -58,6 +61,18 @@ public class SbarPanel extends JPanel implements Reloadable {
         form.add(section("B 배경", bArea, bErr));
         form.add(section("A 평가", aArea, aErr));
         form.add(buildRecommendation());
+        handoffArea.setEditable(false);
+        handoffArea.setLineWrap(true);
+        handoffArea.setWrapStyleWord(true);
+        handoffArea.setName("handoff");
+        handoffCard = new JPanel(new BorderLayout());
+        handoffCard.setBorder(BorderFactory.createTitledBorder("실제 인계 기록 형태"));
+        handoffCard.add(new JScrollPane(handoffArea), BorderLayout.CENTER);
+        JLabel notice = new JLabel(ResultView.HANDOFF_NOTICE);
+        notice.setForeground(Theme.MUTED);
+        handoffCard.add(notice, BorderLayout.SOUTH);
+        handoffCard.setVisible(false);
+        form.add(handoffCard);
 
         add(new JScrollPane(form), BorderLayout.CENTER);
         JPanel south = new JPanel(new BorderLayout());
@@ -139,6 +154,8 @@ public class SbarPanel extends JPanel implements Reloadable {
         for (JTextArea a : new JTextArea[] {sArea, bArea, aArea}) a.setEditable(!readOnly);
         rowInput.setVisible(!readOnly);
         buttonRow.setVisible(!readOnly);
+        handoffCard.setVisible(readOnly);
+        if (!readOnly) handoffArea.setText("");
         if (readOnly) {
             // 제출한 SBAR를 읽기 전용으로 보인다. 다음 실습에서 칸을 비우도록 실습 표시를 지운다.
             practiceKey = REVIEW_KEY;
@@ -147,7 +164,8 @@ public class SbarPanel extends JPanel implements Reloadable {
             bArea.setText(reviewed.background());
             aArea.setText(reviewed.assessment());
             reviewed.recommendations().forEach(rowModel::addElement);
-            statusLabel.setText(AppState.REVIEW_BANNER);
+            handoffArea.setText(ResultView.handoffParagraph(reviewed) + " (서명: " + controller.signature() + ")");
+            statusLabel.setText(AppState.REVIEW_BANNER + " · 서명: " + controller.signature());
             return;
         }
         Object key = controller.practiceKey();

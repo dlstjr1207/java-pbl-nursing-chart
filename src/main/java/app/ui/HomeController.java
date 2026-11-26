@@ -47,8 +47,19 @@ public class HomeController {
      * @throws CaseLoadException 기본 케이스 파일도 읽지 못할 때
      */
     public CaseGenerator.Result generateCase() {
+        return generateCase(n -> { });
+    }
+
+    /** 케이스를 만들며 몇 번째 시도인지 알린다 (화면의 "생성 중 (n/5)"). */
+    public CaseGenerator.Result generateCase(java.util.function.IntConsumer onAttempt) {
         if (generator == null) throw new IllegalStateException(AI_DISABLED_REASON);
-        return generator.generate();
+        return generator.generate(onAttempt);
+    }
+
+    /** 생성 진행 문구: "AI가 새 케이스를 만드는 중입니다 · 생성 중 (2/5)" */
+    public String generatingText(int attempt) {
+        int max = generator == null ? CaseGenerator.DEFAULT_MAX_ATTEMPTS : generator.maxAttempts();
+        return "AI가 새 케이스를 만드는 중입니다 · 생성 중 (" + attempt + "/" + max + ")";
     }
 
     /** 생성 결과로 실습을 시작한다(화면 스레드). 돌려주는 문구는 화면 안내(성공이면 null). */

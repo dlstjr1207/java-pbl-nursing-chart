@@ -51,6 +51,18 @@ public class ObservationPanel extends JPanel implements Reloadable {
     private final Map<Metric, JTextField> vitalFields = new EnumMap<>(Metric.class);
     private final JLabel errorLabel = new JLabel(" ");
 
+    /** 정신상태 평가(MSE, D38): 의식 수준 5단계와 짧은 글칸 5개 */
+    private final JComboBox<String> consciousnessBox = new JComboBox<>();
+    private final JTextField appearanceField = new JTextField(18);
+    private final JTextField moodField = new JTextField(18);
+    private final JTextField thoughtField = new JTextField(18);
+    private final JTextField perceptionField = new JTextField(18);
+    private final JTextField orientationField = new JTextField(18);
+    private final JLabel mseLabel = new JLabel(" ");
+    private JButton mseSave;
+    /** 고르지 않음 */
+    static final String NOT_CHOSEN = "선택 안 함";
+
     /** onNavigate: 다른 화면으로 이동하는 콜백(보통 MainFrame::show). */
     public ObservationPanel(AppState state, Consumer<Screen> onNavigate) {
         super(new BorderLayout(8, 8));
@@ -59,7 +71,10 @@ public class ObservationPanel extends JPanel implements Reloadable {
         setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
         add(buildBriefing(), BorderLayout.NORTH);
         add(buildTop(), BorderLayout.CENTER);
-        add(buildForm(onNavigate), BorderLayout.SOUTH);
+        JPanel south = new JPanel(new BorderLayout(0, 6));
+        south.add(buildMentalStatus(), BorderLayout.NORTH);
+        south.add(buildForm(onNavigate), BorderLayout.CENTER);
+        add(south, BorderLayout.SOUTH);
         metricBox.addActionListener(e -> refreshChart());
         // 차트 항목을 한글 이름으로 보여 준다 (모양만)
         metricBox.setRenderer(new javax.swing.DefaultListCellRenderer() {
@@ -98,11 +113,79 @@ public class ObservationPanel extends JPanel implements Reloadable {
         logPanel.setLayout(new javax.swing.BoxLayout(logPanel, javax.swing.BoxLayout.Y_AXIS));
         logPanel.setOpaque(false);
         JPanel logCard = new JPanel(new BorderLayout());
-        logCard.setBorder(BorderFactory.createTitledBorder("관찰 기록 (시각순)"));
+        logCard.setBorder(BorderFactory.createTitledBorder("관찰 기록 (날짜·시간 | 내용 | 서명)"));
         logCard.add(logPanel, BorderLayout.NORTH);
         top.add(left);
         top.add(logCard);
         return top;
+    }
+
+    /** 정신상태 평가 입력 (D38). 점수에는 넣지 않고, 적지 않으면 결과에 피드백이 나온다. */
+    private JPanel buildMentalStatus() {
+        JPanel p = new JPanel(new GridLayout(0, 1, 2, 2));
+        p.setBorder(BorderFactory.createTitledBorder("정신상태 평가 (MSE · 배점 없음)"));
+        consciousnessBox.addItem(NOT_CHOSEN);
+        app.domain.MentalStatus.CONSCIOUSNESS.forEach(consciousnessBox::addItem);
+        consciousnessBox.setName("mse-consciousness");
+        JPanel r1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        r1.add(new JLabel("의식 수준"));
+        r1.add(consciousnessBox);
+        r1.add(new JLabel("외모·행동"));
+        r1.add(appearanceField);
+        r1.add(new JLabel("기분·정동"));
+        r1.add(moodField);
+        p.add(r1);
+        JPanel r2 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        r2.add(new JLabel("사고 내용"));
+        r2.add(thoughtField);
+        r2.add(new JLabel("지각(환청·환시)"));
+        r2.add(perceptionField);
+        r2.add(new JLabel("지남력"));
+        r2.add(orientationField);
+        mseSave = new JButton("정신상태 평가 저장");
+        mseSave.addActionListener(e -> saveMentalStatus());
+        r2.add(mseSave);
+        r2.add(mseLabel);
+        p.add(r2);
+        return p;
+    }
+
+    private JTextField[] mseFields() {
+        return new JTextField[] {appearanceField, moodField, thoughtField, perceptionField, orientationField};
+    }
+
+    private void saveMentalStatus() {
+        String level = (String) consciousnessBox.getSelectedItem();
+        SaveResult r = controller.saveMentalStatus(NOT_CHOSEN.equals(level) ? null : level, appearanceField.getText(),
+                moodField.getText(), thoughtField.getText(), perceptionField.getText(), orientationField.getText());
+        mseLabel.setForeground(r.saved() ? Theme.GREEN : Theme.RED);
+        mseLabel.setText(r.saved() ? "저장했습니다." : String.join(" ", r.errors().byField().values()));
+    }
+
+    /** 저장된 정신상태 평가로 칸을 채운다. 다시 보기 중에는 고칠 수 없게 한다. */
+    private void showMentalStatus() {
+        app.domain.MentalStatus m = state.mentalStatus();
+        consciousnessBox.setSelectedItem(m == null || m.consciousness() == null ? NOT_CHOSEN : m.consciousness());
+        List<String> v = m == null ? null : m.values();
+        JTextField[] f = mseFields();
+        for (int i = 0; i < f.length; i++) {
+            f[i].setText(v == null || v.get(i + 1) == null ? "" : v.get(i + 1));
+            f[i].setEditable(!state.isReviewing());
+        }
+        consciousnessBox.setEnabled(!state.isReviewing());
+        if (mseSave != null) mseSave.setVisible(!state.isReviewing());
+        mseLabel.setText(state.isReviewing() && app.domain.MentalStatus.blank(m) ? "제출한 정신상태 평가가 없습니다." : " ");
+    }
+
+    /** 화면 테스트용: 정신상태 평가 칸에 입력하고 저장한다 */
+    void fillMentalStatus(String level, String appearance, String mood, String thought, String perception, String orientation) {
+        consciousnessBox.setSelectedItem(level);
+        appearanceField.setText(appearance);
+        moodField.setText(mood);
+        thoughtField.setText(thought);
+        perceptionField.setText(perception);
+        orientationField.setText(orientation);
+        saveMentalStatus();
     }
 
     /** 입력 영역 (제출한 기록 보기 중에는 숨긴다) */
@@ -211,16 +294,19 @@ public class ObservationPanel extends JPanel implements Reloadable {
         if (briefingCard != null) briefingCard.setBorder(Theme.card(RawNotesView.title(c)));
         errorLabel.setText(" ");
         if (formPanel != null) formPanel.setVisible(!state.isReviewing()); // 읽기 전용: 제출한 관찰만 보인다
+        showMentalStatus();
         refreshLists();
     }
 
     private void refreshLists() {
         logPanel.removeAll();
-        for (ObservationController.TimelineRow row : controller.timeline()) {
-            if (logPanel.getComponentCount() > 0) logPanel.add(javax.swing.Box.createVerticalStrut(6));
-            logPanel.add(logRow(row));
+        List<ObservationController.TimelineRow> rows = controller.timeline();
+        if (rows.isEmpty()) logPanel.add(new JLabel("관찰 기록이 없습니다."));
+        else logPanel.add(tableRow(new JLabel("날짜·시간"), new JLabel("내용"), new JLabel("서명"), true));
+        for (ObservationController.TimelineRow row : rows) {
+            logPanel.add(javax.swing.Box.createVerticalStrut(6));
+            logPanel.add(logRow(row, controller.dateTime(row), controller.signature(row)));
         }
-        if (logPanel.getComponentCount() == 0) logPanel.add(new JLabel("관찰 기록이 없습니다."));
         logPanel.revalidate();
         logPanel.repaint();
         refreshChart();
@@ -232,8 +318,32 @@ public class ObservationPanel extends JPanel implements Reloadable {
         chart.setData(m.label(), controller.chartPoints(m), m.axisMin(), m.axisMax(), m.tick());
     }
 
-    /** 관찰 기록 한 줄: 출처 배지(기존 파랑·학생 주황)와 줄바꿈되는 글. */
-    private static JPanel logRow(ObservationController.TimelineRow row) {
+    /** 표 한 줄: 날짜·시간(왼쪽, 고정 폭) | 내용(가운데) | 서명(오른쪽, 고정 폭) */
+    private static JPanel tableRow(java.awt.Component when, java.awt.Component content, java.awt.Component sign, boolean header) {
+        JPanel p = new JPanel(new BorderLayout(8, 0));
+        p.setOpaque(false);
+        for (java.awt.Component c : new java.awt.Component[] {when, sign}) {
+            c.setPreferredSize(new java.awt.Dimension(c == when ? 118 : 84, c.getPreferredSize().height));
+        }
+        if (header) for (java.awt.Component c : new java.awt.Component[] {when, content, sign}) {
+            c.setFont(Theme.font(java.awt.Font.BOLD, 13f));
+            c.setForeground(Theme.MUTED);
+        }
+        JPanel w = new JPanel(new BorderLayout());
+        w.setOpaque(false);
+        w.add(when, BorderLayout.NORTH);
+        JPanel s = new JPanel(new BorderLayout());
+        s.setOpaque(false);
+        s.add(sign, BorderLayout.NORTH);
+        p.add(w, BorderLayout.WEST);
+        p.add(content, BorderLayout.CENTER);
+        p.add(s, BorderLayout.EAST);
+        p.setAlignmentX(LEFT_ALIGNMENT);
+        return p;
+    }
+
+    /** 관찰 기록 한 줄: 날짜·시간 | 출처 배지(기존 파랑·학생 주황)와 줄바꿈되는 글 | 서명 (D38). */
+    private static JPanel logRow(ObservationController.TimelineRow row, String dateTime, String signature) {
         JPanel p = new JPanel(new BorderLayout(8, 0));
         p.setOpaque(false);
         JLabel badge = row.fromCase() ? Theme.badge("기존", Theme.BLUE, Theme.BLUE_BG)
@@ -242,7 +352,7 @@ public class ObservationPanel extends JPanel implements Reloadable {
         badgeWrap.setOpaque(false);
         badgeWrap.add(badge, BorderLayout.NORTH);
         var e = row.entry();
-        JTextArea text = new JTextArea(row.time() + "  " + (e.shift() == null ? "" : e.shift().name()) + "  "
+        JTextArea text = new JTextArea((e.shift() == null ? "" : e.shift().name()) + "  "
                 + String.join(", ", e.tags()) + "\n" + (e.narrative() == null ? "" : e.narrative()));
         text.setEditable(false);
         text.setLineWrap(true);
@@ -251,7 +361,8 @@ public class ObservationPanel extends JPanel implements Reloadable {
         text.setForeground(Theme.TEXT);
         p.add(badgeWrap, BorderLayout.WEST);
         p.add(text, BorderLayout.CENTER);
-        p.setAlignmentX(LEFT_ALIGNMENT);
-        return p;
+        JLabel sign = new JLabel(signature);
+        sign.setName("signature");
+        return tableRow(new JLabel(dateTime), p, sign, false);
     }
 }

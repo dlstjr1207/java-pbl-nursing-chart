@@ -26,7 +26,7 @@ public class CaseGenerator {
     /** 첫 도입 사건 유형 */
     public static final String EVENT_ANXIETY_PRN = "불안 증가 → PRN 투약 → 재평가";
     /** 재생성 기본 한도(첫 요청 포함 총 시도 횟수) */
-    public static final int DEFAULT_MAX_ATTEMPTS = 3;
+    public static final int DEFAULT_MAX_ATTEMPTS = 5;
 
     /**
      * 생성 결과.
@@ -71,6 +71,15 @@ public class CaseGenerator {
     /** 진단 후보 (허용 약물로 치료하는 범위, D29) */
     static final List<String> DIAGNOSES = List.of("조현병", "조현정동장애", "양극성 장애");
     private static final int RECENT_MAX = 3;
+
+    /** 근무 날짜를 고르는 해 (D38: 2026년 안에서 무작위) */
+    static final int SHIFT_YEAR = 2026;
+    /** 입원 일수 범위 (D38: 3~30일 무작위, 입원한 날이 1일째) */
+    static final int MIN_HOSPITAL_DAY = 3;
+    static final int MAX_HOSPITAL_DAY = 30;
+    /** 이번 요청에서 프로그램이 정한 근무 날짜와 입원 일수 (conditions()가 정하고 결과에 덮어쓴다) */
+    private java.time.LocalDate plannedShiftDate;
+    private Integer plannedHospitalDay;
 
     /** 생성 환자 나이 범위 */
     static final int MIN_AGE = 20;
@@ -125,6 +134,18 @@ public class CaseGenerator {
 
     /** 첫 도입 유형으로 케이스를 만든다. 실패하면 기본 케이스를 돌려준다. */
     public Result generate() {
+        return generate(n -> { });
+    }
+
+    /** 총 시도 횟수 (첫 요청 포함) */
+    public int maxAttempts() {
+        return maxAttempts;
+    }
+
+    /**
+     * 케이스를 만든다. 매 시도를 시작할 때 onAttempt에 몇 번째 시도인지(1부터) 알려 화면에 "생성 중 (n/5)"를 보이게 한다.
+     */
+    public Result generate(java.util.function.IntConsumer onAttempt) {
         if (!available()) {
             return fallback(unavailableReason(), List.of());
         }
@@ -132,6 +153,7 @@ public class CaseGenerator {
         String previous = null; // 검사에 걸린 직전 케이스(JSON). 다시 요청할 때 이것을 고치게 한다
         String conditions = conditions();
         for (int i = 1; i <= maxAttempts; i++) {
+            onAttempt.accept(i);
             String content;
             try {
                 content = ai.complete(systemPrompt(), userPrompt(conditions, problems, previous));
@@ -141,7 +163,7 @@ public class CaseGenerator {
             }
             PatientCase c;
             try {
-                c = parse(content);
+                c = withPlannedDates(parse(content));
             } catch (RuntimeException e) {
                 // 원인을 다음 요청에 알려 고치게 한다
                 problems = List.of("JSON 형식 오류: 응답을 케이스로 읽을 수 없음 (" + shortReason(e) + ")");
@@ -173,8 +195,32 @@ public class CaseGenerator {
                 c.sbarReference(), tidyKey(c.answerKey()), tidyModel(c.modelAnswer()), tidyOrder(tidyKinds(tidyCues(c.rawNotes()))), c.task());
     }
 
+    /**
+     * 프로그램이 정한 근무 날짜와 입원 일수를 결과에 덮어쓴다 (D38). task의 첫 날짜를 근무 날짜로 바꾸고(없으면 앞에 붙임),
+     * patient.hospitalDay를 정한 값으로, 입원일 = 근무 날짜 − (입원 일수 − 1)로 맞춘다. 메모의 '입원 N일째'는 검사기가 본다.
+     */
+    PatientCase withPlannedDates(PatientCase c) {
+        if (plannedShiftDate == null || plannedHospitalDay == null || c.patient() == null) return c;
+        String date = plannedShiftDate.toString();
+        String task = c.task() == null ? date : c.task();
+        var m = java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}").matcher(task);
+        task = m.find() ? task.substring(0, m.start()) + date + task.substring(m.end()) : date + " " + task;
+        app.domain.Patient p = c.patient();
+        app.domain.Patient fixed = tidyDates(new app.domain.Patient(p.name(), p.age(), p.sex(), p.patientNo(), p.room(),
+                p.diagnosis(), p.admissionType(), p.admissionDate(), plannedHospitalDay), task);
+        return new PatientCase(c.id(), c.title(), c.difficulty(), c.objectives(), c.reviewStatus(), c.source(), fixed, c.adr(),
+                c.riskTier(), c.orders(), c.regimenHistory(), c.lithiumLevel(), c.vitals(), c.observationLog(), c.safetyRounds(),
+                c.briefing(), c.sbarReference(), c.answerKey(), c.modelAnswer(), c.rawNotes(), task);
+    }
+
+    /** 이번 요청의 근무 날짜 (테스트·확인용) */
+    java.time.LocalDate plannedShiftDate() { return plannedShiftDate; }
+
+    /** 이번 요청의 입원 일수 (테스트·확인용) */
+    Integer plannedHospitalDay() { return plannedHospitalDay; }
+
     /** 과제 안내(task)의 근무 날짜 (첫 yyyy-MM-dd). 없으면 null. */
-    static java.time.LocalDate taskDate(String task) {
+    public static java.time.LocalDate taskDate(String task) {
         if (task == null) return null;
         var m = java.util.regex.Pattern.compile("(\\d{4}-\\d{2}-\\d{2})").matcher(task);
         if (!m.find()) return null;
@@ -545,10 +591,18 @@ public class CaseGenerator {
         remember(recentSurnames, surname);
         // 사건 시각도 매번 다르게 (08:00~19:55, 5분 단위)
         String time = String.format("%02d:%02d", 8 + random.nextInt(12), 5 * random.nextInt(12));
+        // 근무 날짜(2026년 안)와 입원 일수(3~30일)는 프로그램이 정한다 (D38). 결과에도 이 값을 덮어쓴다
+        java.time.LocalDate first = java.time.LocalDate.of(SHIFT_YEAR, 1, 1);
+        plannedShiftDate = first.plusDays(random.nextInt(first.lengthOfYear()));
+        plannedHospitalDay = MIN_HOSPITAL_DAY + random.nextInt(MAX_HOSPITAL_DAY - MIN_HOSPITAL_DAY + 1);
+        java.time.LocalDate admission = plannedShiftDate.minusDays(plannedHospitalDay - 1L);
         StringBuilder sb = new StringBuilder("이번 환자 조건: 성별 ").append(sex).append(", 나이 ").append(age)
                 .append("세, 성씨 ").append(surname).append(", 사건 장소 ").append(place)
                 .append(", 사건 시각 ").append(time).append(" 무렵, 병실 ").append(room).append(", 진단 ").append(diagnosis).append(".\n")
-                .append("이름(위 성씨로 시작)·입원 일수·환자 발언은 매번 새로 정한다(흔한 예시 반복 금지). 병실·진단은 위 조건을 그대로 쓴다. ")
+                .append("근무 날짜 ").append(plannedShiftDate).append("(task 맨 앞에 이 날짜를 쓴다), 입원 일수 ").append(plannedHospitalDay)
+                .append("일(patient.hospitalDay = ").append(plannedHospitalDay).append(", patient.admissionDate = ").append(admission)
+                .append("). 메모에 입원 일수를 쓰면 '입원 ").append(plannedHospitalDay).append("일째'로 쓴다.\n")
+                .append("이름(위 성씨로 시작)·환자 발언은 매번 새로 정한다(흔한 예시 반복 금지). 병실·진단은 위 조건을 그대로 쓴다. ")
                 .append("진단은 허용 약물로 치료하는 범위(조현병, 조현정동장애, 양극성 장애) 안에서 고른다. ")
                 .append("나이는 ").append(MIN_AGE).append("~").append(MAX_AGE).append("세.\n");
         if (!recentNames.isEmpty()) {

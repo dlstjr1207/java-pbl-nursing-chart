@@ -18,6 +18,7 @@ import java.util.List;
  * @param prnDoses     PRN 처방에서 허용하는 1회 용량 목록
  * @param evidenceId   근거표 ID (예: E-20)
  * @param note         비고 (예: 허가 외 사용 설명)
+ * @param tabletStrengths 근거표에서 확인한 허가 제품의 정제 함량 (처방 표기의 정제 개수 1T에 쓴다, D38)
  */
 public record AllowedDrug(
         String name,
@@ -31,11 +32,13 @@ public record AllowedDrug(
         Integer timesPerDay,
         List<Double> prnDoses,
         String evidenceId,
-        String note) {
+        String note,
+        List<Double> tabletStrengths) {
 
     public AllowedDrug {
         aliases = aliases == null ? List.of() : List.copyOf(aliases);
         prnDoses = prnDoses == null ? List.of() : List.copyOf(prnDoses);
+        tabletStrengths = tabletStrengths == null ? List.of() : List.copyOf(tabletStrengths);
     }
 
     /** 처방 약명이 이 약인지 (이름·별칭이 들어 있는지, 대소문자·띄어쓰기 무시). */

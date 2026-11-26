@@ -20,6 +20,7 @@ import java.util.List;
  * @param checks             점검 결과
  * @param score              점수 (미산출이면 null)
  * @param aiFeedback         AI 해설 (없으면 null)
+ * @param mentalStatus       정신상태 평가 (D38. 적지 않았거나 이 기능 전 기록이면 null)
  */
 public record Attempt(
         Long attemptId,
@@ -34,12 +35,22 @@ public record Attempt(
         SbarReport sbar,
         List<CheckResult> checks,
         Double score,
-        AiFeedback aiFeedback) {
+        AiFeedback aiFeedback,
+        MentalStatus mentalStatus) {
 
     public Attempt {
         observationEntries = Lists.copy(observationEntries);
         medicationRecords = Lists.copy(medicationRecords);
         checks = Lists.copy(checks);
+    }
+
+    /** 정신상태 평가가 없는 기록 (D38 전 기록·테스트용) */
+    public Attempt(Long attemptId, long userId, String caseId, CaseSource caseSource, String generatedCaseJson,
+                   LocalDateTime startedAt, LocalDateTime submittedAt, List<ObservationEntry> observationEntries,
+                   List<MedicationRecord> medicationRecords, SbarReport sbar, List<CheckResult> checks, Double score,
+                   AiFeedback aiFeedback) {
+        this(attemptId, userId, caseId, caseSource, generatedCaseJson, startedAt, submittedAt, observationEntries,
+                medicationRecords, sbar, checks, score, aiFeedback, null);
     }
 
     /** 제출되었는지 여부 */

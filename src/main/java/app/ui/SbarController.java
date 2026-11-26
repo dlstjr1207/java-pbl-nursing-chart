@@ -202,14 +202,16 @@ public class SbarController {
         // 제출 당시 규칙 점검(R1·R2·R4·R6~R10)과 점수(D33)를 함께 저장한다.
         app.scoring.Scorer.Result scored = app.scoring.Scorer.evaluate(state.currentCase(),
                 state.studentObservations(), state.studentMedications(), report);
-        List<CheckResult> checks = scored.checks();
+        List<CheckResult> checks = new ArrayList<>(scored.checks());
+        // 정신상태 평가는 점수에 넣지 않고 피드백만 준다 (D38). 점수는 위에서 이미 계산했다
+        checks.addAll(app.scoring.MentalStatusChecker.check(state.mentalStatus()));
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime started = state.practiceStartedAt() == null ? now : state.practiceStartedAt();
         app.domain.PatientCase c = state.currentCase();
         Attempt draft = new Attempt(null, userId.getAsLong(), c.id(), c.source(),
                 c.source() == app.domain.CaseSource.AI_GENERATED ? app.domain.DomainJson.toJson(c) : null,
                 started, now, List.copyOf(state.studentObservations()), List.copyOf(state.studentMedications()),
-                report, checks, scored.score(), null);
+                report, checks, scored.score(), null, state.mentalStatus());
         return new Prepared(Map.of(), null, draft);
     }
 
@@ -227,7 +229,7 @@ public class SbarController {
         }
         Attempt attempt = new Attempt(null, draft.userId(), draft.caseId(), draft.caseSource(), draft.generatedCaseJson(),
                 draft.startedAt(), draft.submittedAt(), draft.observationEntries(), draft.medicationRecords(),
-                draft.sbar(), draft.checks(), draft.score(), feedback);
+                draft.sbar(), draft.checks(), draft.score(), feedback, draft.mentalStatus());
         try {
             return new SubmitResult(true, Map.of(), attempts.save(attempt), "제출했습니다.");
         } catch (RuntimeException e) {
@@ -243,6 +245,11 @@ public class SbarController {
 
     /** 지금 실습을 구분하는 값(실습 시작 시각). 실습이 바뀌면 SBAR 입력칸을 비우는 데 쓴다. */
     public Object practiceKey() { return state.practiceStartedAt(); }
+
+    /** 기록 서명 (로그인한 사용자 이름, D38) */
+    public String signature() {
+        return state.signature();
+    }
 
     /** 제출한 기록 보기 중이면 그 기록의 SBAR, 아니면 null (SBAR 화면을 읽기 전용으로 채울 때 쓴다). */
     public SbarReport reviewedSbar() {

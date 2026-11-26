@@ -164,7 +164,7 @@ public class MySqlAttemptRepository implements AttemptRepository {
 
     /** 하위 표 행을 지운다 (덮어쓰기 전). SBAR의 R 행은 외래키 CASCADE로 함께 지워진다. */
     private void deleteChildren(Connection conn, long attemptId) throws SQLException {
-        for (String table : List.of("observation_records", "medication_records", "sbar_reports", "check_results")) {
+        for (String table : List.of("observation_records", "medication_records", "sbar_reports", "check_results", "attempt_extras")) {
             try (PreparedStatement ps = conn.prepareStatement("DELETE FROM " + table + " WHERE attempt_id = ?")) {
                 ps.setLong(1, attemptId);
                 ps.executeUpdate();
@@ -218,6 +218,8 @@ public class MySqlAttemptRepository implements AttemptRepository {
             insertSbar(conn, id, sbar);
         }
 
+        insertExtras(conn, id, a);
+
         String checkSql = "INSERT INTO check_results (attempt_id, rule_id, target, target_ref, status, message, points) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
@@ -270,6 +272,39 @@ public class MySqlAttemptRepository implements AttemptRepository {
         return s == null ? "" : s;
     }
 
+    /** 정신상태 평가와 투약 5원칙 (D38). 둘 다 없으면 행을 만들지 않는다. */
+    private static final class Extras {
+        app.domain.MentalStatus mentalStatus;
+        List<app.domain.FiveRights> medicationRights;
+    }
+
+    private void insertExtras(Connection conn, long id, Attempt a) throws SQLException {
+        Extras e = new Extras();
+        e.mentalStatus = a.mentalStatus();
+        e.medicationRights = new ArrayList<>();
+        boolean anyRights = false;
+        for (MedicationRecord m : a.medicationRecords()) {
+            e.medicationRights.add(m.rights());
+            anyRights |= m.rights() != null;
+        }
+        if (e.mentalStatus == null && !anyRights) return;
+        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO attempt_extras (attempt_id, extras_json) VALUES (?, ?)")) {
+            ps.setLong(1, id);
+            ps.setString(2, DomainJson.toJson(e));
+            ps.executeUpdate();
+        }
+    }
+
+    /** 없으면 null */
+    private Extras readExtras(Connection conn, long attemptId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT extras_json FROM attempt_extras WHERE attempt_id = ?")) {
+            ps.setLong(1, attemptId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? DomainJson.fromJson(rs.getString(1), Extras.class) : null;
+            }
+        }
+    }
+
     // ---------- 조회 ----------
 
     /** attempts 한 행과 하위 표를 읽어 Attempt로 만든다. */
@@ -287,11 +322,21 @@ public class MySqlAttemptRepository implements AttemptRepository {
             feedback = new AiFeedback(feedbackStatus, null, null, null);
         }
         LocalDateTime submittedAt = submitted == null ? null : submitted.toLocalDateTime();
+        Extras extras = readExtras(conn, id);
+        List<MedicationRecord> meds = readMedications(conn, id);
+        if (extras != null && extras.medicationRights != null) {
+            List<MedicationRecord> withRights = new ArrayList<>();
+            for (int i = 0; i < meds.size(); i++) {
+                app.domain.FiveRights r = i < extras.medicationRights.size() ? extras.medicationRights.get(i) : null;
+                withRights.add(meds.get(i).withRights(r));
+            }
+            meds = withRights;
+        }
         return new Attempt(id, rs.getLong("user_id"), rs.getString("case_id"),
                 CaseSource.valueOf(rs.getString("case_source")), rs.getString("generated_case_json"),
                 rs.getTimestamp("started_at").toLocalDateTime(), submittedAt,
-                readObservations(conn, id), readMedications(conn, id), readSbar(conn, id),
-                readChecks(conn, id), score, feedback);
+                readObservations(conn, id), meds, readSbar(conn, id),
+                readChecks(conn, id), score, feedback, extras == null ? null : extras.mentalStatus);
     }
 
     private List<ObservationEntry> readObservations(Connection conn, long attemptId) throws SQLException {

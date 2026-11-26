@@ -104,8 +104,8 @@ class SbarBackgroundSubmitTest {
         // 학생이 B에 쓰는 환자 정보·알레르기·처방도 사실 자료로 보낸다 (개발용 표기는 빼고)
         assertTrue(prompt.contains("[케이스 환자] 28세, 여성, 진단 조현정동장애(양극형)"), prompt);
         assertTrue(prompt.contains("[케이스 알레르기] Penicillin"), prompt);
-        assertTrue(prompt.contains("[케이스 처방 정규] Lithium carbonate (탄산리튬) 300mg PO 1일 3회"), prompt);
-        assertTrue(prompt.contains("[케이스 처방 PRN] Lorazepam 1mg PO PRN"), prompt);
+        assertTrue(prompt.contains("[케이스 처방 정규] Lithium carbonate 300mg 1T PO TID 08:30·12:30·18:30"), prompt);
+        assertTrue(prompt.contains("[케이스 처방 PRN] Lorazepam 1mg 1T PO PRN"), prompt);
         assertFalse(prompt.contains("[확인필요]") || prompt.contains("[검증필요]") || prompt.contains("E-2"), prompt);
         assertTrue(prompt.contains("R은 인계를 받은 다음 근무자가 앞으로 할 일과 그 예정 시각이다. 학생이 쓴 R의 시각이 인계 시각보다 "
                 + "뒤인 것은 올바르므로 지적하지 말 것"), prompt);

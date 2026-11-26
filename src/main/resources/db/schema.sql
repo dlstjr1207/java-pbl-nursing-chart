@@ -99,6 +99,15 @@ CREATE TABLE IF NOT EXISTS sbar_recommendations (
     CONSTRAINT fk_sbar_rec_sbar FOREIGN KEY (sbar_id) REFERENCES sbar_reports (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 정신상태 평가와 투약 5원칙 확인 (D38). 예전 DB에도 새 표만 만들면 되도록 따로 둔다 (ALTER 없음)
+-- extras_json: mentalStatus(MSE)와 medicationRights(투약 기록 순서대로 5원칙 체크) JSON
+CREATE TABLE IF NOT EXISTS attempt_extras (
+    attempt_id   BIGINT    NOT NULL,
+    extras_json  LONGTEXT  NOT NULL,
+    PRIMARY KEY (attempt_id),
+    CONSTRAINT fk_extras_attempt FOREIGN KEY (attempt_id) REFERENCES attempts (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 -- 규칙 점검 결과 (F-08, F-09). 제출 당시 결과를 그대로 보존한다
 CREATE TABLE IF NOT EXISTS check_results (
     id          BIGINT       NOT NULL AUTO_INCREMENT,

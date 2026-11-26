@@ -103,6 +103,45 @@ class CaseGeneratorTest {
     }
 
     @Test
+    void 근무_날짜와_입원_일수는_프로그램이_정해_결과에_덮어쓴다() {
+        // D38: 근무 날짜는 2026년 안, 입원 일수는 3~30일 무작위. 입원일 = 근무 날짜 − (입원 일수 − 1)
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (int seed = 1; seed <= 3; seed++) {
+            Fake f = new Fake();
+            f.contents.add(caseJson("테스트약A", "3")); // 응답은 2026-10-20, 10일째
+            CaseGenerator g = new CaseGenerator(new AiClient(ON, f), new CaseValidator(ALLOWED),
+                    new CaseLoader(CaseGeneratorTest.class.getClassLoader()), 3, new java.util.Random(seed));
+            CaseGenerator.Result r = g.generate();
+            assertTrue(r.generated(), r.problems().toString());
+            java.time.LocalDate shift = g.plannedShiftDate();
+            int day = g.plannedHospitalDay();
+            assertEquals(2026, shift.getYear());
+            assertTrue(day >= 3 && day <= 30, "입원 일수 " + day);
+            assertEquals(day, r.patientCase().patient().hospitalDay());
+            assertEquals(shift.minusDays(day - 1L).toString(), r.patientCase().patient().admissionDate());
+            assertTrue(r.patientCase().task().startsWith(shift + " Day 근무"), r.patientCase().task());
+            assertTrue(f.prompts.get(0).contains("근무 날짜 " + shift) && f.prompts.get(0).contains("입원 일수 " + day + "일"));
+            seen.add(shift + "/" + day);
+        }
+        assertEquals(3, seen.size()); // 시드가 다르면 날짜도 다르다
+    }
+
+    @Test
+    void 생성_시도마다_몇_번째인지_알린다() {
+        Fake f = new Fake();
+        f.contents.add(caseJson("없는약", "3"));
+        f.contents.add(caseJson("테스트약A", "3"));
+        List<Integer> seen = new ArrayList<>();
+        CaseGenerator.Result r = generator(ON, f, ALLOWED, CaseGenerator.DEFAULT_MAX_ATTEMPTS).generate(seen::add);
+        assertTrue(r.generated());
+        assertEquals(List.of(1, 2), seen);
+        assertEquals(5, CaseGenerator.DEFAULT_MAX_ATTEMPTS);
+        assertEquals("AI가 새 케이스를 만드는 중입니다 · 생성 중 (2/5)",
+                new app.ui.HomeController(new app.ui.AppState(), new CaseLoader(CaseGeneratorTest.class.getClassLoader()),
+                        generator(ON, f, ALLOWED, 5)).generatingText(2));
+    }
+
+    @Test
     void 정상_응답은_AI_생성_케이스로_쓴다() {
         Fake f = new Fake();
         f.contents.add("```json\n" + caseJson("테스트약A", "3") + "\n```");

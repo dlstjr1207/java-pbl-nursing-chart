@@ -21,10 +21,15 @@ public class ResultExporter {
 
     /** 파일에 쓸 내용. 화면의 상세 문장과 같은 형식에 머리글을 붙인다. */
     public static String content(Attempt a) {
+        return content(a, "학생");
+    }
+
+    /** signer: 기록 서명(로그인한 사용자 이름, D38) */
+    public static String content(Attempt a, String signer) {
         return "간호 기록 실습 결과\n"
                 + "교육용 예시 · 임상 검수 전\n"
                 + "============================\n"
-                + ResultView.detailText(a);
+                + ResultView.detailText(a, signer);
     }
 
     /** 저장 파일 이름 제안 (예: practice-DEMO-20261122-0930.txt). */
@@ -39,6 +44,11 @@ public class ResultExporter {
      * 이미 있는 파일은 덮어쓴다(저장 대화상자에서 사용자가 고른 경로).
      */
     public String export(Attempt a, Path target) {
+        return export(a, target, "학생");
+    }
+
+    /** 서명(로그인한 사용자 이름)을 넣어 저장한다. */
+    public String export(Attempt a, Path target, String signer) {
         if (a == null) return "내보낼 실습 기록을 먼저 선택해 주세요.";
         if (target == null) return "저장할 위치를 선택해 주세요.";
         try {
@@ -46,7 +56,7 @@ public class ResultExporter {
             if (parent != null && !Files.isDirectory(parent)) return "저장할 폴더가 없습니다: " + parent;
             // try-with-resources로 파일을 반드시 닫는다. 한글이 깨지지 않도록 UTF-8을 지정한다.
             try (BufferedWriter out = new BufferedWriter(new FileWriter(target.toFile(), StandardCharsets.UTF_8))) {
-                for (String line : content(a).split("\n", -1)) {
+                for (String line : content(a, signer).split("\n", -1)) {
                     out.write(line);
                     out.newLine();
                 }
