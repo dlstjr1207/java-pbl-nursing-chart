@@ -4,7 +4,7 @@
     {
       "name": "Aripiprazole", "aliases": ["아리피프라졸"], "unit": "mg", "route": "PO",
       "minDailyDose": 10, "maxDailyDose": 30,
-      "evidenceId": "E-20", "note": "1일 10~30mg. 효능효과 정신분열병 — 조현정동장애 적응증 [검증필요]"
+      "evidenceId": "E-20", "note": "1일 10~30mg. 허가 효능효과: 조현병, 양극성 장애 급성 조증 등(허가정보 API 2026-11-23 확인). 조현정동장애는 허가 적응증에 명시되지 않음 — 임상에서 흔한 허가 외 사용을 반영한 교육용 예시"
     },
     {
       "name": "Olanzapine", "aliases": ["올란자핀"], "unit": "mg", "route": "PO",
@@ -19,7 +19,7 @@
     {
       "name": "Lorazepam", "aliases": ["로라제팜"], "unit": "mg", "route": "PO",
       "minDailyDose": 1, "maxDailyDose": 4, "prnDoses": [0.5, 1],
-      "evidenceId": "E-29", "note": "1일 1~4mg. PRN 1회 0.5 또는 1mg [검증필요] (효능효과 신경증의 불안·긴장)"
+      "evidenceId": "E-29", "note": "허가 효능효과: 신경증의 불안·긴장 등, 1일 1~4mg. 불안 시 PRN 1회 0.5 또는 1mg은 1일 범위 안. '초조'에 쓰는 것은 허가 외 사용을 반영한 교육용 예시"
     }
   ]
 }
